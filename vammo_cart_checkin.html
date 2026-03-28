@@ -1543,9 +1543,9 @@ function enviarPost(url, rec, statusEl) {
 
     getDriveToken((token, err2) => {
       if (!token) {
-        // Vai redirecionar pro Google — salva o registro pra continuar depois
+        // Vai redirecionar pro Google — salva só o ID (fotos ficam no localStorage)
         if (_driveToken === 'pending') {
-          sessionStorage.setItem('vammo_foto_pendente', JSON.stringify(rec));
+          sessionStorage.setItem('vammo_foto_pendente_id', rec.id);
         } else {
           statusEl.textContent = '✅ Dados enviados. Fotos: login cancelado.';
           statusEl.style.color = 'var(--yw)';
@@ -1855,12 +1855,14 @@ updateNextBtn();
 
 // Verifica se voltou de um redirect OAuth do Google
 if (checkDriveTokenFromHash()) {
-  // Token obtido! Verifica se tem registro pendente de envio de fotos
-  const pendente = JSON.parse(sessionStorage.getItem('vammo_foto_pendente') || 'null');
-  if (pendente) {
-    sessionStorage.removeItem('vammo_foto_pendente');
+  const pendenteId = sessionStorage.getItem('vammo_foto_pendente_id');
+  if (pendenteId) {
+    sessionStorage.removeItem('vammo_foto_pendente_id');
+    // Busca o registro completo com fotos do localStorage
+    const pendente = (JSON.parse(localStorage.getItem('vammo_registros') || '[]'))
+      .find(r => r.id === pendenteId);
     const statusEl = document.getElementById('ok-sync-status');
-    if (statusEl) {
+    if (pendente && statusEl) {
       statusEl.textContent = '⏳ Enviando fotos...';
       statusEl.style.color = 'var(--az)';
       const cfg = getConfig();
@@ -1871,7 +1873,7 @@ if (checkDriveTokenFromHash()) {
         { base64: pendente.fotos?.elv, nome: pendente.id + '_elv.jpg', key: 'elv' }
       ].filter(f => f.base64 && typeof f.base64 === 'string' && f.base64.startsWith('data:'));
       if (!uploads.length) {
-        statusEl.textContent = '✅ Enviado! (fotos não disponíveis após redirect)';
+        statusEl.textContent = '⚠️ Fotos não encontradas no dispositivo.';
         statusEl.style.color = 'var(--yw)';
       } else {
         const links = {};
