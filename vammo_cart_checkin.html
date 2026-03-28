@@ -57,7 +57,6 @@
   <title>VAMMO · Carrinho</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -1413,22 +1412,55 @@ const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 let _driveToken = null;
 
 function getDriveToken(callback) {
-  // Reutiliza token válido
-  if (_driveToken && _driveToken.expires > Date.now()) {
-    callback(_driveToken.access_token);
+  // Verifica token salvo no localStorage
+  try {
+    const saved = JSON.parse(localStorage.getItem('vammo_drive_token') || 'null');
+    if (saved && saved.expires > Date.now()) {
+      _driveToken = saved;
+      callback(saved.access_token);
+      return;
+    }
+  } catch(e) {}
+
+  // Usa implicit flow via redirect — funciona no mobile sem popup
+  const redirectUri = encodeURIComponent(window.location.href.split('?')[0]);
+  const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
+    + '?client_id=' + GDRIVE_CLIENT_ID
+    + '&redirect_uri=' + redirectUri
+    + '&response_type=token'
+    + '&scope=' + encodeURIComponent(GDRIVE_SCOPE)
+    + '&prompt=select_account';
+
+  // Salva o registro pendente pra continuar após o redirect
+  if (_driveToken === 'pending') {
+    callback(null, 'login cancelado');
     return;
   }
-  // Solicita novo token via popup Google
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: GDRIVE_CLIENT_ID,
-    scope: GDRIVE_SCOPE,
-    callback: (resp) => {
-      if (resp.error) { callback(null, resp.error); return; }
-      _driveToken = { access_token: resp.access_token, expires: Date.now() + (resp.expires_in - 60) * 1000 };
-      callback(resp.access_token);
-    }
+  _driveToken = 'pending';
+  window.location.href = authUrl;
+}
+
+// Verifica token no hash da URL após redirect do Google
+function checkDriveTokenFromHash() {
+  const hash = window.location.hash;
+  if (!hash || !hash.includes('access_token')) return false;
+  const params = {};
+  hash.slice(1).split('&').forEach(p => {
+    const [k,v] = p.split('=');
+    params[k] = decodeURIComponent(v);
   });
-  client.requestAccessToken();
+  if (params.access_token) {
+    const token = {
+      access_token: params.access_token,
+      expires: Date.now() + ((parseInt(params.expires_in) || 3600) - 60) * 1000
+    };
+    localStorage.setItem('vammo_drive_token', JSON.stringify(token));
+    _driveToken = token;
+    // Limpa o hash da URL
+    history.replaceState(null, '', window.location.pathname);
+    return true;
+  }
+  return false;
 }
 
 function uploadFotoDrive(token, base64, nome, callback) {
@@ -1511,8 +1543,13 @@ function enviarPost(url, rec, statusEl) {
 
     getDriveToken((token, err2) => {
       if (!token) {
-        statusEl.textContent = '✅ Dados enviados. Fotos: login cancelado.';
-        statusEl.style.color = 'var(--yw)';
+        // Vai redirecionar pro Google — salva o registro pra continuar depois
+        if (_driveToken === 'pending') {
+          sessionStorage.setItem('vammo_foto_pendente', JSON.stringify(rec));
+        } else {
+          statusEl.textContent = '✅ Dados enviados. Fotos: login cancelado.';
+          statusEl.style.color = 'var(--yw)';
+        }
         return;
       }
 
@@ -1815,6 +1852,50 @@ function decodeQRConfigFallback(file, st) {
 updateTurnoCount();
 updateBar();
 updateNextBtn();
+
+// Verifica se voltou de um redirect OAuth do Google
+if (checkDriveTokenFromHash()) {
+  // Token obtido! Verifica se tem registro pendente de envio de fotos
+  const pendente = JSON.parse(sessionStorage.getItem('vammo_foto_pendente') || 'null');
+  if (pendente) {
+    sessionStorage.removeItem('vammo_foto_pendente');
+    const statusEl = document.getElementById('ok-sync-status');
+    if (statusEl) {
+      statusEl.textContent = '⏳ Enviando fotos...';
+      statusEl.style.color = 'var(--az)';
+      const cfg = getConfig();
+      const token = _driveToken.access_token;
+      const uploads = [
+        { base64: pendente.fotos?.sup, nome: pendente.id + '_sup.jpg', key: 'sup' },
+        { base64: pendente.fotos?.inf, nome: pendente.id + '_inf.jpg', key: 'inf' },
+        { base64: pendente.fotos?.elv, nome: pendente.id + '_elv.jpg', key: 'elv' }
+      ].filter(f => f.base64 && typeof f.base64 === 'string' && f.base64.startsWith('data:'));
+      if (!uploads.length) {
+        statusEl.textContent = '✅ Enviado! (fotos não disponíveis após redirect)';
+        statusEl.style.color = 'var(--yw)';
+      } else {
+        const links = {};
+        let done = 0;
+        uploads.forEach(f => {
+          uploadFotoDrive(token, f.base64, f.nome, (link) => {
+            links[f.key] = link;
+            done++;
+            if (done === uploads.length) {
+              const linkParams = 'action=updateFotos'
+                + '&id=' + encodeURIComponent(pendente.id)
+                + '&sup=' + encodeURIComponent(links.sup || '')
+                + '&inf=' + encodeURIComponent(links.inf || '')
+                + '&elv=' + encodeURIComponent(links.elv || '');
+              gasGet(cfg.webhookUrl, linkParams, () => {});
+              statusEl.textContent = '✅ Fotos enviadas pro Drive!';
+              statusEl.style.color = 'var(--gn)';
+            }
+          });
+        });
+      }
+    }
+  }
+}
 </script>
 <!-- iframe oculto para receber o submit do form sem navegar a página -->
 <iframe name="gas-sink" style="display:none;" aria-hidden="true"></iframe>
