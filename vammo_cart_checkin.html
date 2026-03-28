@@ -1026,7 +1026,7 @@ function canAdvance() {
     case 'screen-turno': return !!S.turno;
     case 'screen-mec': return !!S.mecanico;
     case 'screen-checklist': return checklistComplete();
-    case 'screen-fotos': return !!(S.fotos.sup && S.fotos.inf && S.fotos.elv);
+    case 'screen-fotos': return !!(S.fotos.sup && S.fotos.inf && S.fotos.elv && S.fotosNoDrive);
     case 'screen-assin': return sigHasData;
     case 'screen-resumo': return true;
     default: return false;
@@ -1346,11 +1346,12 @@ function uploadFotosParaDrive() {
     let erros = 0;
 
     uploads.forEach(f => {
-      uploadFotoDrive(token, f.base64, f.nome, (link) => {
+      uploadFotoDrive(token, f.base64, f.nome, (link, errMsg) => {
         if (link) {
           S.fotoLinks[f.key] = link;
         } else {
           erros++;
+          console.error('Erro foto', f.key, ':', errMsg);
         }
         done++;
         statusEl.textContent = '⏳ ' + done + '/' + uploads.length + ' foto(s)...';
@@ -1365,7 +1366,8 @@ function uploadFotosParaDrive() {
             statusEl.style.color = 'var(--gn)';
           } else {
             btn.disabled = false;
-            statusEl.textContent = '⚠️ ' + erros + ' foto(s) falharam — tente novamente.';
+            btn.textContent = '📸 Tentar Novamente';
+            statusEl.textContent = '⚠️ Falha — verifique sua conexão e tente novamente.';
             statusEl.style.color = 'var(--rd)';
           }
           updateNextBtn();
@@ -1603,9 +1605,8 @@ function getDriveToken(callback) {
 function checkDriveTokenFromHash() { return false; } // não usado mais
 
 function uploadFotoDrive(token, base64, nome, callback) {
-  if (!base64 || !base64.startsWith('data:')) { callback(null); return; }
+  if (!base64 || !base64.startsWith('data:')) { callback(null, 'base64 inválido'); return; }
 
-  // Converte base64 pra blob
   const [meta, data] = base64.split(',');
   const mime = meta.match(/:(.*?);/)[1];
   const bytes = atob(data);
@@ -1613,12 +1614,10 @@ function uploadFotoDrive(token, base64, nome, callback) {
   for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
   const blob = new Blob([arr], { type: mime });
 
-  // Multipart upload pro Drive
   const boundary = '-------vammo_boundary';
   const meta_json = JSON.stringify({ name: nome, mimeType: mime });
   const body = '--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' + meta_json +
                '\r\n--' + boundary + '\r\nContent-Type: ' + mime + '\r\n\r\n';
-
   const bodyBlob = new Blob([body, blob, '\r\n--' + boundary + '--']);
 
   fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
@@ -1629,18 +1628,21 @@ function uploadFotoDrive(token, base64, nome, callback) {
     },
     body: bodyBlob
   })
-  .then(r => r.json())
+  .then(r => {
+    if (!r.ok) return r.text().then(t => { throw new Error('HTTP ' + r.status + ': ' + t.slice(0,100)); });
+    return r.json();
+  })
   .then(file => {
-    if (!file.id) { callback(null); return; }
-    // Torna público (qualquer um com o link pode ver)
+    if (!file.id) { callback(null, 'sem id na resposta'); return; }
     fetch('https://www.googleapis.com/drive/v3/files/' + file.id + '/permissions', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'reader', type: 'anyone' })
-    }).then(() => callback('https://drive.google.com/uc?id=' + file.id))
-      .catch(() => callback('https://drive.google.com/uc?id=' + file.id));
+    })
+    .then(() => callback('https://drive.google.com/uc?id=' + file.id, null))
+    .catch(() => callback('https://drive.google.com/uc?id=' + file.id, null));
   })
-  .catch(() => callback(null));
+  .catch(err => { callback(null, err.message); });
 }
 
 function enviarPost(url, rec, statusEl) {
