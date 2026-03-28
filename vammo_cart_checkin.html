@@ -895,28 +895,33 @@ function saveRecord(rec) {
 
 // ─── NAVEGAÇÃO ────────────────────────────────────────────────────────────────
 function goTo(idx) {
-  document.querySelector('.screen.active')?.classList.remove('active');
-  document.getElementById(SCREENS[idx]).classList.add('active');
-  curScreen = idx;
-  updateBar();
+  try {
+    document.querySelector('.screen.active')?.classList.remove('active');
+    document.getElementById(SCREENS[idx]).classList.add('active');
+    curScreen = idx;
+    updateBar();
 
-  if (idx === SCREENS.indexOf('screen-scan')) startQR();
-  else stopQR();
+    if (idx === SCREENS.indexOf('screen-scan')) startQR();
+    else stopQR();
 
-  if (idx === SCREENS.indexOf('screen-mec')) renderMecanicos('');
-  if (idx === SCREENS.indexOf('screen-checklist')) renderChecklist();
-  if (idx === SCREENS.indexOf('screen-resumo')) renderResumo();
-  if (idx === SCREENS.indexOf('screen-assin')) initSig();
-  if (idx === SCREENS.indexOf('screen-ok')) { stopQR(); renderOK(); }
+    if (idx === SCREENS.indexOf('screen-mec')) renderMecanicos('');
+    if (idx === SCREENS.indexOf('screen-checklist')) renderChecklist();
+    if (idx === SCREENS.indexOf('screen-resumo')) renderResumo();
+    if (idx === SCREENS.indexOf('screen-assin')) initSig();
+    if (idx === SCREENS.indexOf('screen-ok')) { stopQR(); renderOK(); }
 
-  const isOK = idx === SCREENS.indexOf('screen-ok');
-  const isTipo = idx === SCREENS.indexOf('screen-tipo');
-  document.getElementById('bottom-bar').innerHTML = isOK
-    ? `<button class="btn-novo" onclick="resetApp()">➕ Nova Operação</button>`
-    : `<button class="btn-back" id="btn-back" onclick="goBack()" style="${isTipo?'display:none':''}">←</button>
-       <button class="btn-next" id="btn-next" onclick="goNext()">Avançar →</button>`;
+    const isOK = idx === SCREENS.indexOf('screen-ok');
+    const isTipo = idx === SCREENS.indexOf('screen-tipo');
+    document.getElementById('bottom-bar').innerHTML = isOK
+      ? `<button class="btn-novo" onclick="resetApp()">➕ Nova Operação</button>`
+      : `<button class="btn-back" id="btn-back" onclick="goBack()" style="${isTipo?'display:none':''}">←</button>
+         <button class="btn-next" id="btn-next" onclick="goNext()">Avançar →</button>`;
 
-  updateNextBtn();
+    updateNextBtn();
+  } catch(e) {
+    console.error('goTo erro:', e);
+    alert('Erro ao navegar: ' + e.message);
+  }
 }
 
 function goNext() {
