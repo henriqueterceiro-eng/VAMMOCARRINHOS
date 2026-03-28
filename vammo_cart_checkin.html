@@ -1651,23 +1651,21 @@ function enviarPost(url, rec, statusEl) {
     .map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc'))
     .join('|');
 
-  // Inclui links das fotos do Drive se já foram enviadas
-  const links = S.fotoLinks || {};
+  // Garante valores não-null
+  const turno = rec.turno || (_usuarioLogado?.turno) || 'Sem turno';
+  const mecanico = rec.mecanico || (_usuarioLogado?.nome) || 'Sem nome';
 
   const params = 'action=post'
     + '&id='        + encodeURIComponent(rec.id)
     + '&ts='        + encodeURIComponent(rec.ts)
-    + '&tipo='      + encodeURIComponent(rec.tipo)
-    + '&carrinho='  + encodeURIComponent(rec.carrinho)
-    + '&turno='     + encodeURIComponent(rec.turno)
-    + '&mecanico='  + encodeURIComponent(rec.mecanico)
-    + '&nc_count='  + rec.nc_count
+    + '&tipo='      + encodeURIComponent(rec.tipo || '')
+    + '&carrinho='  + encodeURIComponent(rec.carrinho || '')
+    + '&turno='     + encodeURIComponent(turno)
+    + '&mecanico='  + encodeURIComponent(mecanico)
+    + '&nc_count='  + (rec.nc_count || 0)
     + '&nc_list='   + ncList
-    + '&fotos='     + (rec.fotos?.sup?'1':'0') + (rec.fotos?.inf?'1':'0') + (rec.fotos?.elv?'1':'0')
-    + '&assinatura=' + (rec.assinatura?'1':'0')
-    + '&foto_sup='  + encodeURIComponent(links.sup || '')
-    + '&foto_inf='  + encodeURIComponent(links.inf || '')
-    + '&foto_elv='  + encodeURIComponent(links.elv || '');
+    + '&fotos=000'  // fotos vêm separado via updateFotos
+    + '&assinatura=' + (rec.assinatura ? '1' : '0');
 
   gasGet(url, params, (data, err) => {
     if (!data?.success) {
@@ -1676,8 +1674,29 @@ function enviarPost(url, rec, statusEl) {
       return;
     }
 
-    statusEl.textContent = '✅ Enviado com fotos! Gestor sincronizará em breve.';
-    statusEl.style.color = 'var(--gn)';
+    // Agora envia os links das fotos separado (URL curta)
+    const links = S.fotoLinks || {};
+    const temLinks = links.sup || links.inf || links.elv;
+
+    if (temLinks) {
+      const linkParams = 'action=updateFotos'
+        + '&id='  + encodeURIComponent(rec.id)
+        + '&sup=' + encodeURIComponent(links.sup || '')
+        + '&inf=' + encodeURIComponent(links.inf || '')
+        + '&elv=' + encodeURIComponent(links.elv || '');
+
+      gasGet(url, linkParams, (r) => {
+        if (r?.success) {
+          statusEl.textContent = '✅ Enviado com fotos! Gestor sincronizará em breve.';
+        } else {
+          statusEl.textContent = '✅ Dados enviados. Fotos: erro ao vincular links.';
+        }
+        statusEl.style.color = 'var(--gn)';
+      });
+    } else {
+      statusEl.textContent = '✅ Enviado! Gestor sincronizará em breve.';
+      statusEl.style.color = 'var(--gn)';
+    }
   });
 }
 
