@@ -1421,25 +1421,52 @@ function syncAgora() {
     }
     const records = data.records || [];
     let existentes = getRecords();
-    const ids = new Set(existentes.map(r => r.id));
+    const idxMap = {};
+    existentes.forEach((r, i) => { idxMap[r.id] = i; });
     let adicionados = 0;
+    let atualizados = 0;
+
     records.forEach(rec => {
-      if (rec.id && !ids.has(rec.id)) { existentes.unshift(rec); ids.add(rec.id); adicionados++; }
+      if (!rec.id) return;
+      if (idxMap[rec.id] !== undefined) {
+        // Atualiza fotos se o servidor tiver links reais
+        const local = existentes[idxMap[rec.id]];
+        let mudou = false;
+        ['sup','inf','elv'].forEach(k => {
+          const serverFoto = rec.fotos && rec.fotos[k];
+          const localFoto  = local.fotos && local.fotos[k];
+          // Se servidor tem URL do Drive e local tem só boolean/null, atualiza
+          if (typeof serverFoto === 'string' && serverFoto.startsWith('http') &&
+              (typeof localFoto !== 'string' || !localFoto.startsWith('http'))) {
+            if (!local.fotos) local.fotos = {};
+            local.fotos[k] = serverFoto;
+            mudou = true;
+          }
+        });
+        if (mudou) { existentes[idxMap[rec.id]] = local; atualizados++; }
+      } else {
+        existentes.unshift(rec);
+        idxMap[rec.id] = 0; // aproximado
+        adicionados++;
+      }
     });
+
     existentes.sort((a,b) => new Date(b.ts)-new Date(a.ts));
     localStorage.setItem('vammo_registros', JSON.stringify(existentes));
     const hora = new Date().toLocaleTimeString('pt-BR');
-    log('✅ ' + hora + ' — ' + (adicionados>0?'+'+adicionados+' novo(s)':'sem novidades') + ' · ' + records.length + ' total');
-    if (statusEl) statusEl.textContent = adicionados>0 ? '🟢 +'+adicionados : '🟢';
-    if (adicionados > 0) {
-      // Recarrega o painel ativo sem chamar syncAgora de novo
+    const msg = adicionados > 0 ? '+'+adicionados+' novo(s)' : atualizados > 0 ? atualizados+' foto(s) atualizada(s)' : 'sem novidades';
+    log('✅ ' + hora + ' — ' + msg + ' · ' + records.length + ' total');
+    if (statusEl) statusEl.textContent = (adicionados > 0 || atualizados > 0) ? '🟢 ✓' : '🟢';
+    if (adicionados > 0 || atualizados > 0) {
       const active = document.querySelector('.panel.active')?.id?.replace('panel-', '');
       if (active) showPanel(active);
-      const toast = document.createElement('div');
-      toast.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1.5px solid #22c55e;color:#22c55e;padding:12px 22px;border-radius:12px;font-family:\'Barlow Condensed\',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;z-index:9999;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.7);';
-      toast.textContent = '📥 ' + adicionados + ' novo(s) registro(s)!';
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 4000);
+      if (adicionados > 0) {
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1.5px solid #22c55e;color:#22c55e;padding:12px 22px;border-radius:12px;font-family:\'Barlow Condensed\',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;z-index:9999;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.7);';
+        toast.textContent = '📥 ' + adicionados + ' novo(s) registro(s)!';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+      }
     }
   });
 }
