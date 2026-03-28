@@ -274,6 +274,17 @@
       transition: color .2s; padding: 2px 4px;
     }
     .colab-del:hover { color: var(--rd); }
+    .colab-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--c2); border: 1px solid var(--bd);
+      border-radius: 20px; padding: 5px 10px 5px 12px;
+      font-size: 13px; font-weight: 600; margin: 3px;
+    }
+    .colab-chip button {
+      background: none; border: none; color: var(--gr);
+      cursor: pointer; font-size: 16px; line-height: 1; padding: 0;
+    }
+    .colab-chip button:hover { color: var(--rd); }
     .add-colab-form { display: flex; gap: 8px; }
     .add-colab-form input {
       flex: 1; padding: 10px 14px;
@@ -811,6 +822,184 @@ function closeSidebar() {
   document.getElementById('overlay').classList.remove('show');
 }
 
+// ─── CARRINHOS ────────────────────────────────────────────────────────────────
+function renderCarrinhos() {
+  const carts = getCarts();
+  const recs  = getRecords();
+  const q     = (document.getElementById('cart-search')?.value || '').toLowerCase();
+
+  // Chips de cadastro
+  const chipsEl = document.getElementById('cart-chips');
+  if (chipsEl) {
+    if (!carts.length) {
+      chipsEl.innerHTML = '<span style="color:var(--gr);font-size:13px;">Nenhum carrinho cadastrado.</span>';
+    } else {
+      chipsEl.innerHTML = carts.map(c =>
+        `<span class="cart-chip">${c}<button onclick="removeCart('${c}')" title="Remover">×</button></span>`
+      ).join('');
+    }
+  }
+
+  // Status grid
+  const gridEl = document.getElementById('cart-status-grid');
+  const footEl = document.getElementById('cart-footer');
+  if (!gridEl) return;
+
+  const filtered = carts.filter(c => !q || c.toLowerCase().includes(q));
+  if (!filtered.length) {
+    gridEl.innerHTML = '<div style="color:var(--gr);font-size:13px;padding:8px 0;">Nenhum carrinho.</div>';
+    if (footEl) footEl.textContent = '–';
+    return;
+  }
+
+  // Último registro por carrinho
+  const lastRec = {};
+  recs.forEach(r => { if (!lastRec[r.carrinho]) lastRec[r.carrinho] = r; });
+
+  let emUso = 0, disponivel = 0;
+  gridEl.innerHTML = filtered.map(c => {
+    const last = lastRec[c];
+    const status = !last ? 'sem-reg' : last.tipo === 'checkin' ? 'em-uso' : 'disponivel';
+    if (status === 'em-uso') emUso++;
+    if (status === 'disponivel') disponivel++;
+    const icon  = status === 'em-uso' ? '🔒' : status === 'disponivel' ? '🔓' : '–';
+    const cor   = status === 'em-uso' ? 'var(--yw)' : status === 'disponivel' ? 'var(--gn)' : 'var(--gr)';
+    const label = status === 'em-uso' ? 'Em uso' : status === 'disponivel' ? 'Disponível' : 'Sem registro';
+    const mec   = last ? last.mecanico : '';
+    const hora  = last ? new Date(last.ts).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div class="cart-card" onclick="openDetail('${last?.id||''}')">
+      <div style="font-size:22px">${icon}</div>
+      <div style="font-weight:800;font-size:16px;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;">${c}</div>
+      <div style="font-size:11px;color:${cor};font-weight:700;text-transform:uppercase;">${label}</div>
+      ${mec ? `<div style="font-size:11px;color:var(--gr);margin-top:2px;">${mec}</div>` : ''}
+      ${hora ? `<div style="font-size:10px;color:var(--gr);">${hora}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // Mini stats
+  const miniEl = document.getElementById('cart-stats-mini');
+  if (miniEl) miniEl.innerHTML = `
+    <div class="stat-card"><div class="stat-val" style="color:var(--yw)">${emUso}</div><div class="stat-label">Em uso</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--gn)">${disponivel}</div><div class="stat-label">Disponíveis</div></div>
+    <div class="stat-card"><div class="stat-val">${filtered.length - emUso - disponivel}</div><div class="stat-label">Sem registro</div></div>
+  `;
+
+  if (footEl) footEl.textContent = filtered.length + ' carrinho(s)';
+}
+
+function addCart() {
+  const inp = document.getElementById('inp-cart');
+  const val = (inp?.value || '').trim().toUpperCase();
+  if (!val) return;
+  const carts = getCarts();
+  if (carts.includes(val)) {
+    showAlert('cart-alert-box', 'yw', '⚠️ Carrinho já cadastrado.');
+    return;
+  }
+  carts.push(val);
+  carts.sort();
+  saveCarts(carts);
+  inp.value = '';
+  renderCarrinhos();
+  showAlert('cart-alert-box', 'gn', '✅ Carrinho ' + val + ' cadastrado!');
+}
+
+function addCartBatch() {
+  const raw = prompt('Cole os nomes dos carrinhos separados por vírgula:\nEx: R01, R02, R03');
+  if (!raw) return;
+  const carts = getCarts();
+  const novos = raw.split(',').map(s => s.trim().toUpperCase()).filter(s => s && !carts.includes(s));
+  if (!novos.length) { showAlert('cart-alert-box', 'yw', '⚠️ Nenhum novo carrinho para adicionar.'); return; }
+  novos.forEach(n => carts.push(n));
+  carts.sort();
+  saveCarts(carts);
+  renderCarrinhos();
+  showAlert('cart-alert-box', 'gn', '✅ ' + novos.length + ' carrinho(s) adicionado(s)!');
+}
+
+function removeCart(nome) {
+  if (!confirm('Remover o carrinho ' + nome + '?')) return;
+  const carts = getCarts().filter(c => c !== nome);
+  saveCarts(carts);
+  renderCarrinhos();
+}
+
+// ─── COLABORADORES ────────────────────────────────────────────────────────────
+function renderColab() {
+  const colab = getColab();
+  ['Terror do Backlog', 'Invictus'].forEach(turno => {
+    const key    = turno === 'Terror do Backlog' ? 'terror' : 'invictus';
+    const gridEl = document.getElementById('grid-' + key);
+    const badge  = document.getElementById('badge-' + key);
+    const lista  = colab[turno] || [];
+    if (badge) badge.textContent = lista.length;
+    if (!gridEl) return;
+    if (!lista.length) {
+      gridEl.innerHTML = '<div style="color:var(--gr);font-size:13px;grid-column:1/-1;">Nenhum colaborador.</div>';
+      return;
+    }
+    gridEl.innerHTML = lista.map((nome, i) =>
+      `<div class="colab-chip">
+        <span>${nome}</span>
+        <button onclick="removeColab('${turno}', ${i})" title="Remover">×</button>
+      </div>`
+    ).join('');
+  });
+}
+
+function addColab(turno) {
+  const key = turno === 'Terror do Backlog' ? 'terror' : 'invictus';
+  const inp = document.getElementById('inp-' + key);
+  const val = (inp?.value || '').trim();
+  if (!val) return;
+  const colab = getColab();
+  if (!colab[turno]) colab[turno] = [];
+  if (colab[turno].includes(val)) {
+    showAlert('colab-alert', 'yw', '⚠️ Colaborador já existe neste turno.');
+    return;
+  }
+  colab[turno].push(val);
+  saveColab(colab);
+  inp.value = '';
+  renderColab();
+  showAlert('colab-alert', 'gn', '✅ ' + val + ' adicionado ao ' + turno + '!');
+}
+
+function removeColab(turno, idx) {
+  const colab = getColab();
+  colab[turno].splice(idx, 1);
+  saveColab(colab);
+  renderColab();
+}
+
+function exportColab() {
+  const json = JSON.stringify(getColab(), null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vammo_colaboradores.json';
+  a.click();
+}
+
+function importColabPrompt() {
+  const json = prompt('Cole o JSON de colaboradores:');
+  if (!json) return;
+  try {
+    const data = JSON.parse(json);
+    saveColab(data);
+    renderColab();
+    showAlert('colab-alert', 'gn', '✅ Colaboradores importados!');
+  } catch {
+    showAlert('colab-alert', 'rd', '❌ JSON inválido.');
+  }
+}
+
+function resetColab() {
+  if (!confirm('Resetar lista para os valores padrão?')) return;
+  localStorage.removeItem('vammo_colab');
+  renderColab();
+}
+
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function renderDashboard() {
   const recs = getRecords();
@@ -1016,7 +1205,9 @@ function syncAgora() {
     log('✅ ' + hora + ' — ' + (adicionados>0?'+'+adicionados+' novo(s)':'sem novidades') + ' · ' + records.length + ' total');
     if (statusEl) statusEl.textContent = adicionados>0 ? '🟢 +'+adicionados : '🟢';
     if (adicionados > 0) {
-      refreshAll();
+      // Recarrega o painel ativo sem chamar syncAgora de novo
+      const active = document.querySelector('.panel.active')?.id?.replace('panel-', '');
+      if (active) showPanel(active);
       const toast = document.createElement('div');
       toast.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1.5px solid #22c55e;color:#22c55e;padding:12px 22px;border-radius:12px;font-family:\'Barlow Condensed\',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;z-index:9999;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.7);';
       toast.textContent = '📥 ' + adicionados + ' novo(s) registro(s)!';
@@ -1030,9 +1221,16 @@ function iniciarAutoSync() {
   if (_syncTimer) clearInterval(_syncTimer);
   const cfg = getConfig();
   if (!cfg.webhookUrl) return;
-  // Aguarda 3s antes do primeiro sync para não travar o carregamento
   setTimeout(syncAgora, 3000);
   _syncTimer = setInterval(syncAgora, 30000);
+}
+
+function refreshAll() {
+  // Só recarrega o painel ativo com dados locais — sem disparar sync
+  const active = document.querySelector('.panel.active')?.id?.replace('panel-', '');
+  if (active) showPanel(active);
+  // Dispara sync separado sem risco de loop
+  syncAgora();
 }
 
 
