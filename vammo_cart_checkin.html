@@ -57,6 +57,7 @@
   <title>VAMMO · Carrinho</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async></script>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -605,8 +606,42 @@
 
 <div class="main">
 
+  <!-- SCREEN: LOGIN -->
+  <div class="screen active" id="screen-login">
+    <div style="text-align:center; padding: 20px 0 30px;">
+      <div style="font-size:64px; margin-bottom:16px;">🔑</div>
+      <div class="s-title" style="margin-bottom:8px;">Bem-vindo!</div>
+      <div class="s-sub" style="margin-bottom:32px;">Entre com sua conta Google para continuar</div>
+
+      <div id="login-user-info" style="display:none; background:var(--c1); border:1px solid var(--bd); border-radius:16px; padding:20px; margin-bottom:24px; text-align:left;">
+        <div style="display:flex; align-items:center; gap:14px;">
+          <div style="width:48px; height:48px; border-radius:50%; background:var(--az); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">👤</div>
+          <div>
+            <div id="login-nome" style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; letter-spacing:1px;"></div>
+            <div id="login-email" style="font-size:12px; color:var(--gr); margin-top:2px;"></div>
+            <div id="login-turno" style="font-size:13px; color:var(--az); font-weight:700; margin-top:4px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="login-nao-cadastrado" style="display:none; background:rgba(239,68,68,.1); border:1px solid var(--rd); border-radius:12px; padding:16px; margin-bottom:20px; font-size:13px; color:var(--rd);">
+        ⚠️ Seu email não está cadastrado no sistema.<br>
+        <span style="color:var(--gr);">Fale com o supervisor para liberar acesso.</span>
+      </div>
+
+      <button id="btn-google-login" onclick="fazerLoginGoogle()" style="width:100%; padding:16px 20px; border-radius:14px; border:none; background:#fff; color:#3c4043; font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700; letter-spacing:1px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:12px; box-shadow:0 2px 12px rgba(0,0,0,.3);">
+        <svg width="22" height="22" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+        Entrar com Google
+      </button>
+
+      <button id="btn-comecar" onclick="goTo(SCREENS.indexOf('screen-tipo'))" style="display:none; width:100%; padding:18px; border-radius:14px; border:none; background:var(--az); color:var(--bk); font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; letter-spacing:2px; cursor:pointer; text-transform:uppercase;">
+        Começar →
+      </button>
+    </div>
+  </div>
+
   <!-- SCREEN: TIPO -->
-  <div class="screen active" id="screen-tipo">
+  <div class="screen" id="screen-tipo">
     <div class="s-title">O que<br>vamos fazer?</div>
     <div class="s-sub">Selecione o tipo de operação</div>
 
@@ -734,7 +769,6 @@
     <input type="file" id="file-elv" accept="image/*" capture="environment" onchange="onPhoto('elv',this)">
 
     <div class="photo-grid">
-      <!-- label for="file-sup" → toque no card = toque direto no input, sem JS -->
       <label class="photo-slot" id="slot-sup" for="file-sup">
         <div class="photo-check">✓</div>
         <div class="photo-retake">📷 Tirar nova</div>
@@ -758,6 +792,17 @@
         <div class="pl">5S do Elevador</div>
         <img id="img-elv" src="" alt="">
       </label>
+    </div>
+
+    <!-- Botão de envio de fotos — aparece quando as 3 fotos estiverem tiradas -->
+    <div id="foto-upload-wrap" style="display:none; margin-top:16px;">
+      <button onclick="uploadFotosParaDrive()" id="btn-upload-fotos"
+        style="width:100%;padding:16px;border-radius:14px;border:none;background:var(--az);color:var(--bk);font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:2px;cursor:pointer;text-transform:uppercase;">
+        📸 Enviar Fotos pro Drive
+      </button>
+      <div id="foto-upload-status" style="font-size:12px;color:var(--gr);text-align:center;margin-top:8px;">
+        Obrigatório para avançar
+      </div>
     </div>
   </div>
 
@@ -803,11 +848,18 @@
         <div id="ok-sync-status" style="font-size:14px;font-weight:600;">⏳ Enviando...</div>
       </div>
 
+      <!-- Botão enviar fotos pro Drive (aparece após envio dos dados) -->
+      <div id="ok-foto-btn" style="display:none; margin-bottom:8px;">
+        <button onclick="enviarFotosDrive()" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--az);background:transparent;color:var(--az);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;letter-spacing:2px;cursor:pointer;text-transform:uppercase;">
+          📸 Enviar Fotos pro Drive
+        </button>
+        <div id="ok-foto-status" style="font-size:12px;color:var(--gr);text-align:center;margin-top:6px;">Toque para fazer login e enviar as fotos</div>
+      </div>
+
       <!-- Compartilhar com fotos -->
-      <button onclick="compartilharComFotos()" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--az);background:transparent;color:var(--az);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;letter-spacing:2px;cursor:pointer;text-transform:uppercase;margin-bottom:4px;">
-        📤 Enviar com Fotos ao Gestor
+      <button onclick="compartilharComFotos()" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--bd);background:transparent;color:var(--gr);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;margin-bottom:4px;">
+        📤 Compartilhar JSON com fotos
       </button>
-      <div style="font-size:11px;color:var(--gr);text-align:center;margin-bottom:8px;">Compartilha o JSON completo com fotos via WhatsApp/Drive</div>
     </div>
   </div>
 
@@ -864,11 +916,12 @@ const DEFAULT_COLAB = {
 let S = {
   tipo: null, carrinho: null, turno: null, mecanico: null,
   ferramentas: {}, fotos: { sup: null, inf: null, elv: null },
-  assinatura: null
+  assinatura: null, fotosNoDrive: false,
+  fotoLinks: { sup: null, inf: null, elv: null }
 };
 
-const SCREENS = ['screen-tipo','screen-scan','screen-turno','screen-mec','screen-checklist','screen-fotos','screen-assin','screen-resumo','screen-ok'];
-const STEP_TITLES = ['Operação','Carrinho','Turno','Mecânico','Checklist','Fotos','Assinatura','Confirmar','Concluído'];
+const SCREENS = ['screen-login','screen-tipo','screen-scan','screen-turno','screen-mec','screen-checklist','screen-fotos','screen-assin','screen-resumo','screen-ok'];
+const STEP_TITLES = ['Login','Operação','Carrinho','Turno','Mecânico','Checklist','Fotos','Assinatura','Confirmar','Concluído'];
 let curScreen = 0;
 let pendingNCtool = null;
 let sigDrawing = false;
@@ -928,11 +981,23 @@ function goNext() {
   if (!canAdvance()) return;
   const maxStep = SCREENS.indexOf('screen-resumo');
   if (curScreen === maxStep) { submit(); return; }
-  if (curScreen < SCREENS.length - 1) goTo(curScreen + 1);
+
+  let next = curScreen + 1;
+  // Pula telas de turno e mecanico se ja logado via Google
+  if (_usuarioLogado) {
+    if (SCREENS[next] === 'screen-turno') next++;
+    if (SCREENS[next] === 'screen-mec') next++;
+  }
+  if (next < SCREENS.length) goTo(next);
 }
 
 function goBack() {
-  if (curScreen > 0) goTo(curScreen - 1);
+  let prev = curScreen - 1;
+  if (_usuarioLogado) {
+    if (SCREENS[prev] === 'screen-mec') prev--;
+    if (SCREENS[prev] === 'screen-turno') prev--;
+  }
+  if (prev >= 0) goTo(prev);
 }
 
 function updateBar() {
@@ -955,12 +1020,13 @@ function updateNextBtn() {
 
 function canAdvance() {
   switch (SCREENS[curScreen]) {
+    case 'screen-login': return !!_usuarioLogado;
     case 'screen-tipo': return !!S.tipo;
     case 'screen-scan': return !!S.carrinho;
     case 'screen-turno': return !!S.turno;
     case 'screen-mec': return !!S.mecanico;
     case 'screen-checklist': return checklistComplete();
-    case 'screen-fotos': return S.fotos.sup && S.fotos.inf && S.fotos.elv;
+    case 'screen-fotos': return !!(S.fotos.sup && S.fotos.inf && S.fotos.elv);
     case 'screen-assin': return sigHasData;
     case 'screen-resumo': return true;
     default: return false;
@@ -970,7 +1036,7 @@ function canAdvance() {
 // ─── SCREEN: TIPO ─────────────────────────────────────────────────────────────
 function selectTipo(tipo) {
   S.tipo = tipo;
-  goTo(1);
+  goTo(SCREENS.indexOf('screen-scan'));
 }
 
 // ─── SCREEN: QR ───────────────────────────────────────────────────────────────
@@ -1236,11 +1302,77 @@ function onPhoto(slot, input) {
   const reader = new FileReader();
   reader.onload = e => {
     S.fotos[slot] = e.target.result;
+    S.fotosNoDrive = false; // reset — precisa enviar de novo
     document.getElementById('img-' + slot).src = e.target.result;
     document.getElementById('slot-' + slot).classList.add('done');
+
+    // Mostra botão de upload quando as 3 fotos estiverem tiradas
+    if (S.fotos.sup && S.fotos.inf && S.fotos.elv) {
+      document.getElementById('foto-upload-wrap').style.display = 'block';
+      document.getElementById('foto-upload-status').textContent = 'Toque em "Enviar Fotos" para liberar o avanço';
+      document.getElementById('foto-upload-status').style.color = 'var(--yw)';
+    }
     updateNextBtn();
   };
   reader.readAsDataURL(file);
+}
+
+function uploadFotosParaDrive() {
+  const statusEl = document.getElementById('foto-upload-status');
+  const btn = document.getElementById('btn-upload-fotos');
+
+  statusEl.textContent = '⏳ Conectando ao Google...';
+  statusEl.style.color = 'var(--az)';
+  btn.disabled = true;
+
+  if (!_tokenClient) initTokenClient(() => {});
+
+  getDriveToken((token, err) => {
+    if (!token) {
+      statusEl.textContent = '❌ Login cancelado — tente novamente.';
+      statusEl.style.color = 'var(--rd)';
+      btn.disabled = false;
+      return;
+    }
+
+    statusEl.textContent = '⏳ Enviando fotos...';
+    const uploads = [
+      { base64: S.fotos.sup, nome: 'temp_sup_' + Date.now() + '.jpg', key: 'sup' },
+      { base64: S.fotos.inf, nome: 'temp_inf_' + Date.now() + '.jpg', key: 'inf' },
+      { base64: S.fotos.elv, nome: 'temp_elv_' + Date.now() + '.jpg', key: 'elv' }
+    ].filter(f => f.base64);
+
+    let done = 0;
+    let erros = 0;
+
+    uploads.forEach(f => {
+      uploadFotoDrive(token, f.base64, f.nome, (link) => {
+        if (link) {
+          S.fotoLinks[f.key] = link;
+        } else {
+          erros++;
+        }
+        done++;
+        statusEl.textContent = '⏳ ' + done + '/' + uploads.length + ' foto(s)...';
+
+        if (done === uploads.length) {
+          if (erros === 0) {
+            S.fotosNoDrive = true;
+            btn.textContent = '✅ Fotos Enviadas!';
+            btn.style.background = 'var(--gn)';
+            btn.style.color = '#000';
+            statusEl.textContent = '✅ Pronto! Toque em Avançar →';
+            statusEl.style.color = 'var(--gn)';
+          } else {
+            btn.disabled = false;
+            statusEl.textContent = '⚠️ ' + erros + ' foto(s) falharam — tente novamente.';
+            statusEl.style.color = 'var(--rd)';
+          }
+          updateNextBtn();
+        }
+      });
+    });
+  });
 }
 
 function closeCam() {} // mantido por compatibilidade
@@ -1372,11 +1504,18 @@ function submit() {
   const id = 'VMO-' + Date.now().toString(36).toUpperCase();
   const ncs = Object.entries(S.ferramentas).filter(([,v]) => v.status === 'nao_ok');
 
+  // Usa links do Drive se disponíveis, senão usa base64 local
+  const fotos = {
+    sup: S.fotoLinks?.sup || S.fotos.sup,
+    inf: S.fotoLinks?.inf || S.fotos.inf,
+    elv: S.fotoLinks?.elv || S.fotos.elv
+  };
+
   const rec = {
     id, ts, tipo: S.tipo,
     carrinho: S.carrinho, turno: S.turno, mecanico: S.mecanico,
     ferramentas: S.ferramentas,
-    fotos: S.fotos,
+    fotos: fotos,
     assinatura: S.assinatura,
     nc_count: ncs.length
   };
@@ -1410,58 +1549,58 @@ function submit() {
 const GDRIVE_CLIENT_ID = '662702497307-qom2jv0sboe0n4686jsaisftov6bqrep.apps.googleusercontent.com';
 const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 let _driveToken = null;
+let _tokenClient = null;
+
+function initTokenClient(callback) {
+  if (typeof google === 'undefined') {
+    // GIS não carregou ainda — tenta em 1s
+    setTimeout(() => initTokenClient(callback), 1000);
+    return;
+  }
+  _tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GDRIVE_CLIENT_ID,
+    scope: GDRIVE_SCOPE,
+    callback: (resp) => {
+      if (resp.error || !resp.access_token) {
+        callback(null, resp.error || 'sem token');
+        return;
+      }
+      _driveToken = {
+        access_token: resp.access_token,
+        expires: Date.now() + ((resp.expires_in || 3600) - 60) * 1000
+      };
+      localStorage.setItem('vammo_drive_token', JSON.stringify(_driveToken));
+      callback(_driveToken.access_token);
+    }
+  });
+}
 
 function getDriveToken(callback) {
-  // Verifica token salvo no localStorage
+  // Verifica token salvo
   try {
     const saved = JSON.parse(localStorage.getItem('vammo_drive_token') || 'null');
     if (saved && saved.expires > Date.now()) {
-      _driveToken = saved;
       callback(saved.access_token);
       return;
     }
   } catch(e) {}
 
-  // Usa implicit flow via redirect — funciona no mobile sem popup
-  const redirectUri = encodeURIComponent(window.location.href.split('?')[0]);
-  const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
-    + '?client_id=' + GDRIVE_CLIENT_ID
-    + '&redirect_uri=' + redirectUri
-    + '&response_type=token'
-    + '&scope=' + encodeURIComponent(GDRIVE_SCOPE)
-    + '&prompt=select_account';
-
-  // Salva o registro pendente pra continuar após o redirect
-  if (_driveToken === 'pending') {
-    callback(null, 'login cancelado');
+  // Solicita novo token — DEVE ser chamado por gesto do usuário
+  if (!_tokenClient) {
+    initTokenClient(() => {});
+    setTimeout(() => getDriveToken(callback), 1500);
     return;
   }
-  _driveToken = 'pending';
-  window.location.href = authUrl;
+  _tokenClient.callback = (resp) => {
+    if (resp.error || !resp.access_token) { callback(null, resp.error); return; }
+    _driveToken = { access_token: resp.access_token, expires: Date.now() + ((resp.expires_in||3600)-60)*1000 };
+    localStorage.setItem('vammo_drive_token', JSON.stringify(_driveToken));
+    callback(_driveToken.access_token);
+  };
+  _tokenClient.requestAccessToken({ prompt: '' });
 }
 
-// Verifica token no hash da URL após redirect do Google
-function checkDriveTokenFromHash() {
-  const hash = window.location.hash;
-  if (!hash || !hash.includes('access_token')) return false;
-  const params = {};
-  hash.slice(1).split('&').forEach(p => {
-    const [k,v] = p.split('=');
-    params[k] = decodeURIComponent(v);
-  });
-  if (params.access_token) {
-    const token = {
-      access_token: params.access_token,
-      expires: Date.now() + ((parseInt(params.expires_in) || 3600) - 60) * 1000
-    };
-    localStorage.setItem('vammo_drive_token', JSON.stringify(token));
-    _driveToken = token;
-    // Limpa o hash da URL
-    history.replaceState(null, '', window.location.pathname);
-    return true;
-  }
-  return false;
-}
+function checkDriveTokenFromHash() { return false; } // não usado mais
 
 function uploadFotoDrive(token, base64, nome, callback) {
   if (!base64 || !base64.startsWith('data:')) { callback(null); return; }
@@ -1505,7 +1644,6 @@ function uploadFotoDrive(token, base64, nome, callback) {
 }
 
 function enviarPost(url, rec, statusEl) {
-  // Passo 1: envia metadados via JSONP
   const ncList = Object.entries(rec.ferramentas || {})
     .filter(([,v]) => v.status === 'nao_ok')
     .map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc'))
@@ -1530,65 +1668,78 @@ function enviarPost(url, rec, statusEl) {
       return;
     }
 
-    // Passo 2: envia fotos pro Google Drive
+    statusEl.textContent = '✅ Dados enviados! Gestor sincronizará em breve.';
+    statusEl.style.color = 'var(--gn)';
+
+    // Mostra botão de fotos se tiver fotos
     const temFotos = rec.fotos?.sup || rec.fotos?.inf || rec.fotos?.elv;
-    if (!temFotos) {
-      statusEl.textContent = '✅ Enviado! Gestor receberá no próximo sync.';
-      statusEl.style.color = 'var(--gn)';
+    if (temFotos) {
+      document.getElementById('ok-foto-btn').style.display = 'block';
+    }
+  });
+}
+
+function enviarFotosDrive() {
+  const rec = S._saved;
+  const cfg = getConfig();
+  if (!rec || !cfg.webhookUrl) return;
+
+  const fotoStatus = document.getElementById('ok-foto-status');
+  const fotoBtn = document.getElementById('ok-foto-btn');
+  fotoStatus.textContent = '⏳ Fazendo login no Google...';
+  fotoStatus.style.color = 'var(--az)';
+
+  // Inicializa token client se não existir
+  if (!_tokenClient) initTokenClient(() => {});
+
+  getDriveToken((token, err) => {
+    if (!token) {
+      fotoStatus.textContent = '❌ Login cancelado — tente novamente.';
+      fotoStatus.style.color = 'var(--rd)';
       return;
     }
 
-    statusEl.textContent = '⏳ Fazendo login para enviar fotos...';
-    statusEl.style.color = 'var(--az)';
+    fotoStatus.textContent = '⏳ Enviando fotos pro Drive...';
+    fotoStatus.style.color = 'var(--az)';
 
-    getDriveToken((token, err2) => {
-      if (!token) {
-        // Vai redirecionar pro Google — salva só o ID (fotos ficam no localStorage)
-        if (_driveToken === 'pending') {
-          sessionStorage.setItem('vammo_foto_pendente_id', rec.id);
-        } else {
-          statusEl.textContent = '✅ Dados enviados. Fotos: login cancelado.';
-          statusEl.style.color = 'var(--yw)';
+    const uploads = [
+      { base64: rec.fotos?.sup, nome: rec.id + '_sup.jpg', key: 'sup' },
+      { base64: rec.fotos?.inf, nome: rec.id + '_inf.jpg', key: 'inf' },
+      { base64: rec.fotos?.elv, nome: rec.id + '_elv.jpg', key: 'elv' }
+    ].filter(f => f.base64 && typeof f.base64 === 'string' && f.base64.startsWith('data:'));
+
+    if (!uploads.length) {
+      fotoStatus.textContent = '⚠️ Fotos não encontradas.';
+      fotoStatus.style.color = 'var(--yw)';
+      return;
+    }
+
+    const links = {};
+    let done = 0;
+
+    uploads.forEach(f => {
+      uploadFotoDrive(token, f.base64, f.nome, (link) => {
+        if (link) links[f.key] = link;
+        done++;
+        fotoStatus.textContent = '⏳ ' + done + '/' + uploads.length + ' foto(s)...';
+        if (done === uploads.length) {
+          const linkParams = 'action=updateFotos'
+            + '&id=' + encodeURIComponent(rec.id)
+            + '&sup=' + encodeURIComponent(links.sup || '')
+            + '&inf=' + encodeURIComponent(links.inf || '')
+            + '&elv=' + encodeURIComponent(links.elv || '');
+          gasGet(cfg.webhookUrl, linkParams, (r) => {
+            if (r?.success) {
+              fotoStatus.textContent = '✅ Fotos no Drive! Gestor verá no próximo sync.';
+              fotoStatus.style.color = 'var(--gn)';
+              fotoBtn.querySelector('button').disabled = true;
+              fotoBtn.querySelector('button').style.opacity = '0.5';
+            } else {
+              fotoStatus.textContent = '⚠️ Fotos enviadas mas links não salvos.';
+              fotoStatus.style.color = 'var(--yw)';
+            }
+          });
         }
-        return;
-      }
-
-      statusEl.textContent = '⏳ Enviando fotos para o Drive...';
-      statusEl.style.color = 'var(--az)';
-
-      const id = rec.id;
-      const uploads = [
-        { base64: rec.fotos?.sup, nome: id + '_sup.jpg', key: 'sup' },
-        { base64: rec.fotos?.inf, nome: id + '_inf.jpg', key: 'inf' },
-        { base64: rec.fotos?.elv, nome: id + '_elv.jpg', key: 'elv' }
-      ].filter(f => f.base64);
-
-      const links = {};
-      let done = 0;
-
-      if (!uploads.length) {
-        statusEl.textContent = '✅ Enviado com sucesso!';
-        statusEl.style.color = 'var(--gn)';
-        return;
-      }
-
-      uploads.forEach(f => {
-        uploadFotoDrive(token, f.base64, f.nome, (link) => {
-          links[f.key] = link;
-          done++;
-          if (done === uploads.length) {
-            // Passo 3: envia links das fotos pro GAS atualizar o registro
-            const linkParams = 'action=updateFotos'
-              + '&id=' + encodeURIComponent(id)
-              + '&sup=' + encodeURIComponent(links.sup || '')
-              + '&inf=' + encodeURIComponent(links.inf || '')
-              + '&elv=' + encodeURIComponent(links.elv || '');
-
-            gasGet(url, linkParams, () => {});
-            statusEl.textContent = '✅ Enviado com fotos no Drive!';
-            statusEl.style.color = 'var(--gn)';
-          }
-        });
       });
     });
   });
@@ -1670,7 +1821,7 @@ function baixarJSON(blob, nome) {
 
 // ─── RESET ────────────────────────────────────────────────────────────────────
 function resetApp() {
-  S = { tipo: null, carrinho: null, turno: null, mecanico: null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null };
+  S = { tipo: null, carrinho: null, turno: null, mecanico: null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null, fotosNoDrive: false, fotoLinks: { sup:null, inf:null, elv:null } };
   sigHasData = false;
 
   // Reset tela de scan
@@ -1688,6 +1839,9 @@ function resetApp() {
     document.getElementById('slot-' + s).classList.remove('done');
     try { document.getElementById('file-' + s).value = ''; } catch(_) {}
   });
+  document.getElementById('foto-upload-wrap').style.display = 'none';
+  const uploadBtn = document.getElementById('btn-upload-fotos');
+  if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.textContent = '📸 Enviar Fotos pro Drive'; uploadBtn.style.background = 'var(--az)'; uploadBtn.style.color = 'var(--bk)'; }
 
   // Reset assinatura
   const canvas = document.getElementById('sig-canvas');
@@ -1732,6 +1886,98 @@ function salvarConfigUrl() {
   } else {
     st.innerHTML = `<span style="color:var(--yw)">⚠️ URL removida.</span>`;
   }
+}
+
+// ─── LOGIN GOOGLE ─────────────────────────────────────────────────────────────
+let _usuarioLogado = null;
+
+function getUsuariosGestor() {
+  try { return JSON.parse(localStorage.getItem('vammo_usuarios')) || []; } catch { return []; }
+}
+
+function sincronizarUsuarios() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=usuarios', (data) => {
+    if (data && data.usuarios) {
+      localStorage.setItem('vammo_usuarios', JSON.stringify(data.usuarios));
+    }
+  });
+}
+
+function fazerLoginGoogle() {
+  const btn = document.getElementById('btn-google-login');
+  btn.textContent = '⏳ Conectando...';
+
+  if (!_tokenClient) {
+    initTokenClient(() => fazerLoginGoogle());
+    return;
+  }
+
+  const profileClient = google.accounts.oauth2.initTokenClient({
+    client_id: GDRIVE_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+    callback: (resp) => {
+      if (resp.error || !resp.access_token) {
+        btn.innerHTML = '<span style="font-size:24px;">G</span> Entrar com Google';
+        return;
+      }
+
+      _driveToken = { access_token: resp.access_token, expires: Date.now() + ((resp.expires_in||3600)-60)*1000 };
+      localStorage.setItem('vammo_drive_token', JSON.stringify(_driveToken));
+
+      fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { 'Authorization': 'Bearer ' + resp.access_token }
+      })
+      .then(r => r.json())
+      .then(perfil => {
+        const email = (perfil.email || '').toLowerCase();
+        const nomeGoogle = perfil.name || email;
+
+        document.getElementById('login-email').textContent = email;
+
+        // Sincroniza usuários e depois valida
+        const cfg = getConfig();
+        const verificar = () => {
+          const usuarios = getUsuariosGestor();
+          const usuario = usuarios.find(u => u.email.toLowerCase() === email);
+
+          if (usuario) {
+            _usuarioLogado = { ...usuario, nomeGoogle };
+            S.mecanico = usuario.nome;
+            S.turno = usuario.turno;
+
+            document.getElementById('login-nome').textContent = usuario.nome;
+            document.getElementById('login-email').textContent = email;
+            document.getElementById('login-turno').textContent =
+              (usuario.turno === 'Terror do Backlog' ? '💀 ' : '⚡ ') + usuario.turno;
+            document.getElementById('login-user-info').style.display = 'block';
+            document.getElementById('login-nao-cadastrado').style.display = 'none';
+            document.getElementById('btn-google-login').style.display = 'none';
+            document.getElementById('btn-comecar').style.display = 'block';
+          } else {
+            document.getElementById('login-nao-cadastrado').style.display = 'block';
+            document.getElementById('login-user-info').style.display = 'none';
+            btn.innerHTML = '<span style="font-size:24px;">G</span> Tentar outra conta';
+          }
+        };
+
+        if (cfg.webhookUrl) {
+          // Sincroniza usuários do servidor e verifica
+          gasGet(cfg.webhookUrl, 'action=usuarios', (data) => {
+            if (data && data.usuarios) {
+              localStorage.setItem('vammo_usuarios', JSON.stringify(data.usuarios));
+            }
+            verificar();
+          });
+        } else {
+          verificar();
+        }
+      })
+      .catch(() => { btn.innerHTML = '<span style="font-size:24px;">G</span> Entrar com Google'; });
+    }
+  });
+  profileClient.requestAccessToken({ prompt: '' });
 }
 
 // ─── JSONP — mesma função do gestor, comprovadamente funciona ────────────────
@@ -1852,52 +2098,8 @@ function decodeQRConfigFallback(file, st) {
 updateTurnoCount();
 updateBar();
 updateNextBtn();
-
-// Verifica se voltou de um redirect OAuth do Google
-if (checkDriveTokenFromHash()) {
-  const pendenteId = sessionStorage.getItem('vammo_foto_pendente_id');
-  if (pendenteId) {
-    sessionStorage.removeItem('vammo_foto_pendente_id');
-    // Busca o registro completo com fotos do localStorage
-    const pendente = (JSON.parse(localStorage.getItem('vammo_registros') || '[]'))
-      .find(r => r.id === pendenteId);
-    const statusEl = document.getElementById('ok-sync-status');
-    if (pendente && statusEl) {
-      statusEl.textContent = '⏳ Enviando fotos...';
-      statusEl.style.color = 'var(--az)';
-      const cfg = getConfig();
-      const token = _driveToken.access_token;
-      const uploads = [
-        { base64: pendente.fotos?.sup, nome: pendente.id + '_sup.jpg', key: 'sup' },
-        { base64: pendente.fotos?.inf, nome: pendente.id + '_inf.jpg', key: 'inf' },
-        { base64: pendente.fotos?.elv, nome: pendente.id + '_elv.jpg', key: 'elv' }
-      ].filter(f => f.base64 && typeof f.base64 === 'string' && f.base64.startsWith('data:'));
-      if (!uploads.length) {
-        statusEl.textContent = '⚠️ Fotos não encontradas no dispositivo.';
-        statusEl.style.color = 'var(--yw)';
-      } else {
-        const links = {};
-        let done = 0;
-        uploads.forEach(f => {
-          uploadFotoDrive(token, f.base64, f.nome, (link) => {
-            links[f.key] = link;
-            done++;
-            if (done === uploads.length) {
-              const linkParams = 'action=updateFotos'
-                + '&id=' + encodeURIComponent(pendente.id)
-                + '&sup=' + encodeURIComponent(links.sup || '')
-                + '&inf=' + encodeURIComponent(links.inf || '')
-                + '&elv=' + encodeURIComponent(links.elv || '');
-              gasGet(cfg.webhookUrl, linkParams, () => {});
-              statusEl.textContent = '✅ Fotos enviadas pro Drive!';
-              statusEl.style.color = 'var(--gn)';
-            }
-          });
-        });
-      }
-    }
-  }
-}
+// Inicializa token client do Google em background
+setTimeout(() => { if (typeof google !== 'undefined') initTokenClient(() => {}); }, 2000);
 </script>
 <!-- iframe oculto para receber o submit do form sem navegar a página -->
 <iframe name="gas-sink" style="display:none;" aria-hidden="true"></iframe>

@@ -543,6 +543,9 @@
       <div class="nav-item" data-panel="carrinhos" onclick="showPanel('carrinhos')">
         <span class="nav-icon">🛒</span> Carrinhos
       </div>
+      <div class="nav-item" data-panel="usuarios" onclick="showPanel('usuarios')">
+        <span class="nav-icon">🔑</span> Usuários
+      </div>
       <div class="nav-item" data-panel="colab" onclick="showPanel('colab')">
         <span class="nav-icon">👥</span> Colaboradores
       </div>
@@ -690,6 +693,63 @@
         </div>
       </div>
 
+      <!-- ── USUÁRIOS ── -->
+      <div class="panel" id="panel-usuarios">
+        <div id="user-alert" style="margin-bottom:16px;"></div>
+
+        <!-- Cadastro de usuários -->
+        <div class="table-wrap" style="margin-bottom:20px;">
+          <div class="table-head"><h2>Usuários do App</h2></div>
+          <div style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--gr);margin-bottom:16px;">
+              Cadastre o e-mail Google de cada mecânico. O app identificará automaticamente ao fazer login.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <input type="email" id="inp-user-email" placeholder="email@vammo.com.br"
+                style="padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;">
+              <input type="text" id="inp-user-nome" placeholder="Nome completo"
+                style="padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;">
+              <select id="inp-user-base"
+                style="padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;cursor:pointer;">
+              </select>
+              <select id="inp-user-turno"
+                style="padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;cursor:pointer;">
+              </select>
+            </div>
+            <button class="btn-sm btn-az" onclick="addUsuario()" style="width:100%;padding:12px;">+ Adicionar Usuário</button>
+            <div id="user-list" style="margin-top:16px;"></div>
+          </div>
+        </div>
+
+        <!-- Gerenciar Bases -->
+        <div class="table-wrap" style="margin-bottom:20px;">
+          <div class="table-head"><h2>Bases</h2></div>
+          <div style="padding:16px 20px;">
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <input type="text" id="inp-base-nome" placeholder="Nome da base (ex: Mooca 2)"
+                style="flex:1;padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;"
+                onkeydown="if(event.key==='Enter') addBase()">
+              <button class="btn-sm btn-az" onclick="addBase()">+ Adicionar</button>
+            </div>
+            <div id="base-chips"></div>
+          </div>
+        </div>
+
+        <!-- Gerenciar Turnos -->
+        <div class="table-wrap">
+          <div class="table-head"><h2>Turnos</h2></div>
+          <div style="padding:16px 20px;">
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <input type="text" id="inp-turno-nome" placeholder="Nome do turno (ex: Noturno)"
+                style="flex:1;padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;"
+                onkeydown="if(event.key==='Enter') addTurnoConfig()">
+              <button class="btn-sm btn-az" onclick="addTurnoConfig()">+ Adicionar</button>
+            </div>
+            <div id="turno-chips"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- ── COLABORADORES ── -->
       <div class="panel" id="panel-colab">
         <div id="colab-alert" style="margin-bottom:16px;"></div>
@@ -804,8 +864,6 @@ function getColab() { try { return JSON.parse(localStorage.getItem('vammo_colab'
 function saveColab(c) { localStorage.setItem('vammo_colab', JSON.stringify(c)); }
 function getConfig() { try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } }
 function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c)); }
-function getCarts() { try { return JSON.parse(localStorage.getItem('vammo_carts')) || []; } catch { return []; } }
-function saveCarts(a) { localStorage.setItem('vammo_carts', JSON.stringify(a)); }
 
 // ─── SIDEBAR / PANEL ──────────────────────────────────────────────────────────
 function showPanel(id) {
@@ -821,6 +879,7 @@ function showPanel(id) {
   if (id === 'registros') renderRegistros();
   if (id === 'nc') renderNC();
   if (id === 'carrinhos') renderCarrinhos();
+  if (id === 'usuarios') renderUsuarios();
   if (id === 'colab') renderColab();
   if (id === 'config') renderConfig();
 }
@@ -832,6 +891,173 @@ function openSidebar() {
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('overlay').classList.remove('show');
+}
+
+function getCarts() { try { return JSON.parse(localStorage.getItem('vammo_carts')) || []; } catch { return []; } }
+function saveCarts(a) { localStorage.setItem('vammo_carts', JSON.stringify(a)); }
+function getUsuarios() { try { return JSON.parse(localStorage.getItem('vammo_usuarios')) || []; } catch { return []; } }
+function saveUsuarios(u) { localStorage.setItem('vammo_usuarios', JSON.stringify(u)); }
+function getBases() { try { return JSON.parse(localStorage.getItem('vammo_bases')) || ['Mooca 1','Osasco','SBC']; } catch { return ['Mooca 1','Osasco','SBC']; } }
+function saveBases(b) { localStorage.setItem('vammo_bases', JSON.stringify(b)); }
+function getTurnos() { try { return JSON.parse(localStorage.getItem('vammo_turnos_config')) || ['Terror do Backlog','Invictus']; } catch { return ['Terror do Backlog','Invictus']; } }
+function saveTurnos(t) { localStorage.setItem('vammo_turnos_config', JSON.stringify(t)); }
+
+// ─── BASES ────────────────────────────────────────────────────────────────────
+function renderBases() {
+  const bases = getBases();
+  const el = document.getElementById('base-chips');
+  const sel = document.getElementById('inp-user-base');
+  if (el) el.innerHTML = bases.map((b, i) =>
+    `<span class="cart-chip">${b}<button onclick="removeBase(${i})">×</button></span>`
+  ).join('') || '<span style="color:var(--gr);font-size:13px;">Nenhuma base.</span>';
+  if (sel) {
+    sel.innerHTML = bases.map(b => `<option value="${b}">${b}</option>`).join('');
+  }
+}
+
+function addBase() {
+  const val = (document.getElementById('inp-base-nome')?.value || '').trim();
+  if (!val) return;
+  const bases = getBases();
+  if (bases.includes(val)) { showAlert('user-alert', 'yw', '⚠️ Base já existe.'); return; }
+  bases.push(val);
+  saveBases(bases);
+  document.getElementById('inp-base-nome').value = '';
+  renderBases();
+  showAlert('user-alert', 'gn', '✅ Base "' + val + '" adicionada!');
+}
+
+function removeBase(idx) {
+  const bases = getBases();
+  if (!confirm('Remover base "' + bases[idx] + '"?')) return;
+  bases.splice(idx, 1);
+  saveBases(bases);
+  renderBases();
+}
+
+// ─── TURNOS CONFIG ────────────────────────────────────────────────────────────
+function renderTurnosConfig() {
+  const turnos = getTurnos();
+  const el = document.getElementById('turno-chips');
+  const sel = document.getElementById('inp-user-turno');
+  if (el) el.innerHTML = turnos.map((t, i) =>
+    `<span class="cart-chip">${t}<button onclick="removeTurnoConfig(${i})">×</button></span>`
+  ).join('') || '<span style="color:var(--gr);font-size:13px;">Nenhum turno.</span>';
+  if (sel) {
+    sel.innerHTML = turnos.map(t => `<option value="${t}">${t}</option>`).join('');
+  }
+}
+
+function addTurnoConfig() {
+  const val = (document.getElementById('inp-turno-nome')?.value || '').trim();
+  if (!val) return;
+  const turnos = getTurnos();
+  if (turnos.includes(val)) { showAlert('user-alert', 'yw', '⚠️ Turno já existe.'); return; }
+  turnos.push(val);
+  saveTurnos(turnos);
+  document.getElementById('inp-turno-nome').value = '';
+  renderTurnosConfig();
+  showAlert('user-alert', 'gn', '✅ Turno "' + val + '" adicionado!');
+}
+
+function removeTurnoConfig(idx) {
+  const turnos = getTurnos();
+  if (!confirm('Remover turno "' + turnos[idx] + '"?')) return;
+  turnos.splice(idx, 1);
+  saveTurnos(turnos);
+  renderTurnosConfig();
+}
+
+// ─── USUÁRIOS ─────────────────────────────────────────────────────────────────
+function renderUsuarios() {
+  renderBases();
+  renderTurnosConfig();
+  const users = getUsuarios();
+  const el = document.getElementById('user-list');
+  if (!el) return;
+  if (!users.length) {
+    el.innerHTML = '<div style="color:var(--gr);font-size:13px;padding:8px 0;">Nenhum usuário cadastrado.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="table-scroll">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr>
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);">Email</th>
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);">Nome</th>
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);">Base</th>
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);">Turno</th>
+        <th style="border-bottom:1px solid var(--bd);"></th>
+      </tr></thead>
+      <tbody>
+        ${users.map((u, i) => `
+          <tr style="border-bottom:1px solid rgba(255,255,255,.04);">
+            <td style="padding:10px 12px;font-size:13px;color:var(--az);">${u.email}</td>
+            <td style="padding:10px 12px;font-size:13px;font-weight:600;">${u.nome}</td>
+            <td style="padding:10px 12px;font-size:13px;">${u.base || '–'}</td>
+            <td style="padding:10px 12px;font-size:13px;">
+              <span class="badge ${u.turno === 'Terror do Backlog' ? 'brd' : u.turno === 'Invictus' ? 'baz' : 'byw'}" style="font-size:11px;">${u.turno}</span>
+            </td>
+            <td style="padding:10px 12px;text-align:right;">
+              <button class="btn-sm btn-rd" onclick="removeUsuario(${i})" style="padding:6px 10px;">🗑</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;">
+      <button class="btn-sm btn-outline" onclick="exportUsuarios()">⬇ Exportar JSON</button>
+    </div>
+  `;
+}
+
+function addUsuario() {
+  const email = (document.getElementById('inp-user-email')?.value || '').trim().toLowerCase();
+  const nome  = (document.getElementById('inp-user-nome')?.value || '').trim();
+  const base  = document.getElementById('inp-user-base')?.value || '';
+  const turno = document.getElementById('inp-user-turno')?.value || '';
+
+  if (!email || !nome) { showAlert('user-alert', 'rd', '⚠️ Preencha email e nome.'); return; }
+  if (!email.includes('@')) { showAlert('user-alert', 'rd', '⚠️ Email inválido.'); return; }
+
+  const users = getUsuarios();
+  if (users.find(u => u.email === email)) { showAlert('user-alert', 'yw', '⚠️ Email já cadastrado.'); return; }
+
+  users.push({ email, nome, base, turno });
+  saveUsuarios(users);
+  document.getElementById('inp-user-email').value = '';
+  document.getElementById('inp-user-nome').value = '';
+  renderUsuarios();
+
+  // Salva no GAS
+  const cfg = getConfig();
+  if (cfg.webhookUrl) {
+    const params = 'action=addUsuario'
+      + '&email=' + encodeURIComponent(email)
+      + '&nome='  + encodeURIComponent(nome)
+      + '&base='  + encodeURIComponent(base)
+      + '&turno=' + encodeURIComponent(turno);
+    gasGet(cfg.webhookUrl, params, () => {});
+  }
+  showAlert('user-alert', 'gn', '✅ ' + nome + ' cadastrado!');
+}
+
+function removeUsuario(idx) {
+  const users = getUsuarios();
+  if (!confirm('Remover ' + users[idx].nome + '?')) return;
+  users.splice(idx, 1);
+  saveUsuarios(users);
+  renderUsuarios();
+}
+
+function exportUsuarios() {
+  const json = JSON.stringify(getUsuarios(), null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vammo_usuarios.json';
+  a.click();
 }
 
 // ─── CARRINHOS ────────────────────────────────────────────────────────────────
@@ -1262,6 +1488,47 @@ function doGet(e) {
   var action = p.action || '', callback = p.callback || '';
 
   if (action === 'ping') return out({ ok: true, ts: new Date().toISOString() }, callback);
+
+  if (action === 'usuarios') {
+    try {
+      var shU = getSheet().getSheetByName('Usuarios');
+      if (!shU) return out({ usuarios: [] }, callback);
+      var rows = shU.getDataRange().getValues();
+      var usuarios = [];
+      for (var ui = 1; ui < rows.length; ui++) {
+        if (rows[ui][0]) {
+          // Suporta tabela com 3 colunas (sem base) ou 4 colunas (com base)
+          var hasBase = rows[ui].length >= 4;
+          usuarios.push({
+            email: rows[ui][0],
+            nome:  rows[ui][1],
+            base:  hasBase ? rows[ui][2] : '',
+            turno: hasBase ? rows[ui][3] : rows[ui][2]
+          });
+        }
+      }
+      return out({ usuarios: usuarios }, callback);
+    } catch(err) { return out({ usuarios: [], error: err.toString() }, callback); }
+  }
+
+  if (action === 'addUsuario') {
+    try {
+      var shU2 = aba('Usuarios', ['Email','Nome','Base','Turno']);
+      var emailNovo = decodeURIComponent(p.email || '').toLowerCase();
+      var nomeNovo  = decodeURIComponent(p.nome  || '');
+      var baseNova  = decodeURIComponent(p.base  || '');
+      var turnoNovo = decodeURIComponent(p.turno || '');
+      if (!emailNovo) return out({ success: false, error: 'email ausente' }, callback);
+      var rowsU = shU2.getDataRange().getValues();
+      for (var dup = 1; dup < rowsU.length; dup++) {
+        if (String(rowsU[dup][0]).toLowerCase() === emailNovo) {
+          return out({ success: true, msg: 'ja existe' }, callback);
+        }
+      }
+      shU2.appendRow([emailNovo, nomeNovo, baseNova, turnoNovo]);
+      return out({ success: true }, callback);
+    } catch(err) { return out({ success: false, error: err.toString() }, callback); }
+  }
 
   if (action === 'updateFotos') {
     try {
