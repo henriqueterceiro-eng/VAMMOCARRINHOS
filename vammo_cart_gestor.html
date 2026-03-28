@@ -1802,8 +1802,16 @@ function openDetail(id) {
     function fotoThumb(val, label) {
       if (!val) return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gr);background:var(--c2);">📷<br>${label}<br><span style="color:var(--gr);">sem imagem</span></div>`;
       if (typeof val === 'string' && val.startsWith('data:')) return `<img class="photo-thumb" src="${val}" title="${label}" onclick="window.open(this.src)" style="cursor:pointer;width:100px;height:75px;object-fit:cover;border-radius:8px;">`;
-      if (typeof val === 'string' && val.startsWith('http')) return `<img class="photo-thumb" src="${val}" title="${label}" onclick="window.open('${val}')" style="cursor:pointer;width:100px;height:75px;object-fit:cover;border-radius:8px;" onerror="this.parentElement.innerHTML='<a href=\\'${val}\\' target=\\'_blank\\' style=\\'display:flex;width:100px;height:75px;border-radius:8px;border:1px solid var(--az);align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--az);background:var(--c2);text-decoration:none;\\'>🔗<br>${label}<br>Ver foto</a>'">`;
-      return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--gn);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gn);background:var(--c2);">✅<br>${label}<br><span style="color:var(--gr);">capturada</span></div>`;
+      if (typeof val === 'string' && val.startsWith('http')) {
+        // Extrai o ID do Drive e usa URL de thumbnail que não bloqueia embed
+        const match = val.match(/id=([^&]+)/);
+        const fileId = match ? match[1] : null;
+        const thumbUrl = fileId ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w300` : val;
+        const openUrl = fileId ? `https://drive.google.com/file/d/${fileId}/view` : val;
+        return `<a href="${openUrl}" target="_blank" style="display:block;">
+          <img src="${thumbUrl}" title="${label}" style="width:100px;height:75px;object-fit:cover;border-radius:8px;border:1px solid var(--az);display:block;">
+        </a>`;
+      }      return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--gn);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gn);background:var(--c2);">✅<br>${label}<br><span style="color:var(--gr);">capturada</span></div>`;
     }
     return `<div class="detail-section">
       <h4>Fotos</h4>
