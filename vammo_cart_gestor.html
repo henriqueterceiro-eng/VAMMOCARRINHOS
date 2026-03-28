@@ -27,7 +27,15 @@
 
     /* ─── SIDEBAR ─── */
     .layout { display: flex; min-height: 100vh; }
-
+    .content {
+      margin-left: 220px;
+      flex: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .page-body { padding: 28px; flex: 1; }
     .sidebar {
       width: 220px; flex-shrink: 0;
       background: var(--dk);
@@ -73,11 +81,6 @@
     .sidebar-footer .version { font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px; }
 
     /* ─── CONTENT ─── */
-    .content {
-      margin-left: 220px;
-      flex: 1; min-height: 100vh;
-      display: flex; flex-direction: column;
-    }
 
     .top-bar {
       height: 60px; background: var(--dk);
