@@ -1803,13 +1803,12 @@ function openDetail(id) {
       if (!val) return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gr);background:var(--c2);">📷<br>${label}<br><span style="color:var(--gr);">sem imagem</span></div>`;
       if (typeof val === 'string' && val.startsWith('data:')) return `<img class="photo-thumb" src="${val}" title="${label}" onclick="window.open(this.src)" style="cursor:pointer;width:100px;height:75px;object-fit:cover;border-radius:8px;">`;
       if (typeof val === 'string' && val.startsWith('http')) {
-        // Extrai o ID do Drive e usa URL de thumbnail que não bloqueia embed
         const match = val.match(/id=([^&]+)/);
         const fileId = match ? match[1] : null;
         const thumbUrl = fileId ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w300` : val;
         const openUrl = fileId ? `https://drive.google.com/file/d/${fileId}/view` : val;
-        return `<a href="${openUrl}" target="_blank" style="display:block;">
-          <img src="${thumbUrl}" title="${label}" style="width:100px;height:75px;object-fit:cover;border-radius:8px;border:1px solid var(--az);display:block;">
+        return `<a href="${openUrl}" target="_blank" style="display:inline-block;width:100px;height:75px;flex-shrink:0;">
+          <img src="${thumbUrl}" title="${label}" class="photo-thumb" style="width:100px;height:75px;object-fit:cover;border-radius:8px;border:1px solid var(--az);display:block;">
         </a>`;
       }      return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--gn);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gn);background:var(--c2);">✅<br>${label}<br><span style="color:var(--gr);">capturada</span></div>`;
     }
