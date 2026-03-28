@@ -131,7 +131,12 @@
     /* ─── TABLE ─── */
     .table-wrap {
       background: var(--c1); border-radius: 14px;
-      border: 1px solid var(--bd); overflow: hidden;
+      border: 1px solid var(--bd); overflow: visible;
+      margin-bottom: 16px;
+    }
+    .table-scroll {
+      overflow-x: auto; overflow-y: auto;
+      max-height: 60vh; border-radius: 0 0 14px 14px;
     }
     .table-head {
       padding: 16px 20px;
@@ -602,6 +607,7 @@
             </select>
             <button class="btn-sm btn-rd" onclick="deleteSelectedRegistros()" id="btn-del-sel" style="display:none;">🗑 Excluir seleção</button>
           </div>
+          <div class="table-scroll">
           <table>
             <thead><tr>
               <th style="width:36px;"><input type="checkbox" id="chk-all-reg" onchange="toggleAllReg(this)" style="cursor:pointer;"></th>
@@ -610,6 +616,7 @@
             </tr></thead>
             <tbody id="reg-tbody"></tbody>
           </table>
+          </div>
           <div class="table-footer" id="reg-footer">–</div>
         </div>
       </div>
@@ -627,6 +634,7 @@
               <option value="quebrado">Quebrado</option>
             </select>
           </div>
+          <div class="table-scroll">
           <table>
             <thead><tr>
               <th>Ferramenta</th><th>Problema</th><th>Carrinho</th>
@@ -634,6 +642,7 @@
             </tr></thead>
             <tbody id="nc-tbody"></tbody>
           </table>
+          </div>
           <div class="table-footer" id="nc-footer">–</div>
         </div>
       </div>
