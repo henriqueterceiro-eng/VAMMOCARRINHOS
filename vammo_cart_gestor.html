@@ -1092,7 +1092,168 @@ function renderRegistros() {
     : `<tr class="empty-row"><td colspan="9">Nenhum registro encontrado</td></tr>`;
 
   document.getElementById('reg-footer').textContent = `${filtered.length} registro(s) de ${recs.length} total`;
-    document.getElementById('gas-code').textContent = gasCode;
+}
+
+function renderConfig() {
+  const cfg = getConfig();
+  const urlEl = document.getElementById('cfg-webhook');
+  if (urlEl) urlEl.value = cfg.webhookUrl || '';
+
+  // QR Code da URL para os celulares dos mecânicos
+  const qrDiv = document.getElementById('cfg-qr');
+  if (qrDiv) {
+    if (cfg.webhookUrl) {
+      qrDiv.innerHTML = '';
+      new QRCode(qrDiv, { text: cfg.webhookUrl, width: 180, height: 180, colorDark: '#2EC2FF', colorLight: '#111111' });
+    } else {
+      qrDiv.innerHTML = '<div style="color:var(--gr);font-size:13px;padding:20px 0;">Salve a URL para gerar o QR Code</div>';
+    }
+  }
+
+  const gasCode = `// ================================================
+// VAMMO Cart · Google Apps Script v7
+// ================================================
+// 1. script.google.com → Novo projeto → cole aqui
+// 2. Executar → inicializar (autoriza Drive+Sheets)
+// 3. Implantar → Web App
+//    Executar como: Eu mesmo
+//    Acesso: Qualquer pessoa
+// ================================================
+
+var SHEET_ID_KEY = 'SHEET_ID';
+var FOLDER_ID_KEY = 'FOLDER_ID';
+
+function getSheet() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty(SHEET_ID_KEY);
+  if (id) { try { return SpreadsheetApp.openById(id); } catch(e) {} }
+  var nova = SpreadsheetApp.create('VAMMO Carrinhos');
+  props.setProperty(SHEET_ID_KEY, nova.getId());
+  return nova;
+}
+
+function getFolder() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty(FOLDER_ID_KEY);
+  if (id) { try { return DriveApp.getFolderById(id); } catch(e) {} }
+  var folder = DriveApp.createFolder('VAMMO Fotos');
+  props.setProperty(FOLDER_ID_KEY, folder.getId());
+  return folder;
+}
+
+function inicializar() { getSheet(); getFolder(); Logger.log('OK!'); }
+
+function aba(nome, header) {
+  var s = getSheet(), sh = s.getSheetByName(nome);
+  if (sh) return sh;
+  var n = s.insertSheet(nome);
+  n.appendRow(header);
+  return n;
+}
+
+function salvarFoto(base64, nome) {
+  if (!base64 || typeof base64 !== 'string' || base64.indexOf('data:') !== 0) return null;
+  try {
+    var data = base64.replace(/^data:image\\/\\w+;base64,/, '');
+    var bytes = Utilities.base64Decode(data);
+    var blob = Utilities.newBlob(bytes, 'image/jpeg', nome);
+    var file = getFolder().createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return 'https://drive.google.com/uc?id=' + file.getId();
+  } catch(e) { return null; }
+}
+
+function salvar(data) {
+  var id = data.id;
+  var fotoSup = salvarFoto(data.fotos && data.fotos.sup, id + '_sup.jpg');
+  var fotoInf = salvarFoto(data.fotos && data.fotos.inf, id + '_inf.jpg');
+  var fotoElv = salvarFoto(data.fotos && data.fotos.elv, id + '_elv.jpg');
+
+  var shR = aba('Registros', ['ID','Tipo','Carrinho','Turno','Mecanico','NC_Count','Timestamp','Foto_Sup','Foto_Inf','Foto_Elv']);
+  var flatR = shR.getDataRange().getValues().flat().map(String);
+  if (flatR.indexOf(String(id)) === -1) {
+    shR.appendRow([id, data.tipo||'', data.carrinho||'', data.turno||'', data.mecanico||'', data.nc_count||0, data.ts||'', fotoSup||'', fotoInf||'', fotoElv||'']);
+  }
+
+  var shJ = aba('JSON_Completo', ['ID','JSON']);
+  var flatJ = shJ.getDataRange().getValues().flat().map(String);
+  if (flatJ.indexOf(String(id)) === -1) {
+    var rec = { id:id, ts:data.ts, tipo:data.tipo, carrinho:data.carrinho, turno:data.turno, mecanico:data.mecanico,
+      nc_count:data.nc_count||0, nc_list:data.nc_list||'',
+      fotos:{ sup:fotoSup||(data.fotos&&!!data.fotos.sup), inf:fotoInf||(data.fotos&&!!data.fotos.inf), elv:fotoElv||(data.fotos&&!!data.fotos.elv) },
+      assinatura:!!data.assinatura, ferramentas:data.ferramentas||{} };
+    shJ.appendRow([id, JSON.stringify(rec)]);
+  }
+
+  var ncList = data.nc_list || '';
+  if (!ncList && data.ferramentas) {
+    var ncs = [];
+    for (var k in data.ferramentas) {
+      if (data.ferramentas[k].status === 'nao_ok') ncs.push(k + ':' + (data.ferramentas[k].motivo||'nc'));
+    }
+    ncList = ncs.join('|');
+  }
+  if (ncList) {
+    var shNC = aba('Nao_Conformidades', ['Registro_ID','Ferramenta','Motivo','Carrinho','Mecanico','Turno','Timestamp']);
+    var items = ncList.split('|');
+    for (var n = 0; n < items.length; n++) {
+      var parts = items[n].split(':');
+      var ferr = decodeURIComponent(parts[0]||'');
+      var motivo = parts[1]||'nc';
+      if (ferr) shNC.appendRow([id, ferr, motivo, data.carrinho, data.mecanico, data.turno, data.ts]);
+    }
+  }
+}
+
+function doPost(e) {
+  try {
+    var raw = (e.postData && e.postData.contents) ? e.postData.contents : '';
+    var data = JSON.parse(raw);
+    salvar(data);
+    return out({ success: true, id: data.id });
+  } catch(err) { return out({ success: false, error: err.toString() }); }
+}
+
+function doGet(e) {
+  var p = (e && e.parameter) ? e.parameter : {};
+  var action = p.action || '', callback = p.callback || '';
+
+  if (action === 'ping') return out({ ok: true, ts: new Date().toISOString() }, callback);
+
+  if (action === 'post') {
+    try {
+      var id = p.id || '';
+      if (!id) return out({ success: false, error: 'id ausente' }, callback);
+      var data = { id:id, ts:p.ts, tipo:p.tipo, carrinho:p.carrinho, turno:p.turno, mecanico:p.mecanico,
+        nc_count:parseInt(p.nc_count)||0, nc_list:p.nc_list||'',
+        fotos:{ sup:false, inf:false, elv:false }, assinatura:p.assinatura==='1' };
+      salvar(data);
+      return out({ success: true, id: id }, callback);
+    } catch(err) { return out({ success: false, error: err.toString() }, callback); }
+  }
+
+  if (action === 'sync') {
+    try {
+      var shJ = getSheet().getSheetByName('JSON_Completo');
+      if (!shJ) return out({ records: [] }, callback);
+      var rows = shJ.getDataRange().getValues();
+      var records = [];
+      for (var i = 1; i < rows.length; i++) { try { records.push(JSON.parse(rows[i][1])); } catch(x) {} }
+      return out({ records: records, ts: new Date().toISOString() }, callback);
+    } catch(err) { return out({ records: [], error: err.toString() }, callback); }
+  }
+
+  return out({ ok: true }, callback);
+}
+
+function out(obj, callback) {
+  var body = callback ? callback + '(' + JSON.stringify(obj) + ')' : JSON.stringify(obj);
+  var mime = callback ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON;
+  return ContentService.createTextOutput(body).setMimeType(mime);
+}`;
+
+  const codeEl = document.getElementById('gas-code');
+  if (codeEl) codeEl.textContent = gasCode;
   document._gasCode = gasCode;
 }
 
