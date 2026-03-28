@@ -1557,9 +1557,13 @@ function doGet(e) {
     try {
       var id = p.id || '';
       if (!id) return out({ success: false, error: 'id ausente' }, callback);
+      var fotoSup = p.foto_sup ? decodeURIComponent(p.foto_sup) : false;
+      var fotoInf = p.foto_inf ? decodeURIComponent(p.foto_inf) : false;
+      var fotoElv = p.foto_elv ? decodeURIComponent(p.foto_elv) : false;
       var data = { id:id, ts:p.ts, tipo:p.tipo, carrinho:p.carrinho, turno:p.turno, mecanico:p.mecanico,
         nc_count:parseInt(p.nc_count)||0, nc_list:p.nc_list||'',
-        fotos:{ sup:false, inf:false, elv:false }, assinatura:p.assinatura==='1' };
+        fotos:{ sup: fotoSup || false, inf: fotoInf || false, elv: fotoElv || false },
+        assinatura:p.assinatura==='1' };
       salvar(data);
       return out({ success: true, id: id }, callback);
     } catch(err) { return out({ success: false, error: err.toString() }, callback); }

@@ -1651,6 +1651,9 @@ function enviarPost(url, rec, statusEl) {
     .map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc'))
     .join('|');
 
+  // Inclui links das fotos do Drive se já foram enviadas
+  const links = S.fotoLinks || {};
+
   const params = 'action=post'
     + '&id='        + encodeURIComponent(rec.id)
     + '&ts='        + encodeURIComponent(rec.ts)
@@ -1661,7 +1664,10 @@ function enviarPost(url, rec, statusEl) {
     + '&nc_count='  + rec.nc_count
     + '&nc_list='   + ncList
     + '&fotos='     + (rec.fotos?.sup?'1':'0') + (rec.fotos?.inf?'1':'0') + (rec.fotos?.elv?'1':'0')
-    + '&assinatura=' + (rec.assinatura?'1':'0');
+    + '&assinatura=' + (rec.assinatura?'1':'0')
+    + '&foto_sup='  + encodeURIComponent(links.sup || '')
+    + '&foto_inf='  + encodeURIComponent(links.inf || '')
+    + '&foto_elv='  + encodeURIComponent(links.elv || '');
 
   gasGet(url, params, (data, err) => {
     if (!data?.success) {
@@ -1670,14 +1676,8 @@ function enviarPost(url, rec, statusEl) {
       return;
     }
 
-    statusEl.textContent = '✅ Dados enviados! Gestor sincronizará em breve.';
+    statusEl.textContent = '✅ Enviado com fotos! Gestor sincronizará em breve.';
     statusEl.style.color = 'var(--gn)';
-
-    // Mostra botão de fotos se tiver fotos
-    const temFotos = rec.fotos?.sup || rec.fotos?.inf || rec.fotos?.elv;
-    if (temFotos) {
-      document.getElementById('ok-foto-btn').style.display = 'block';
-    }
   });
 }
 
