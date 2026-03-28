@@ -1503,55 +1503,6 @@ function baixarJSON(blob, nome) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
-  const rec = S._saved;
-  if (!rec) return;
-
-  // Cria um registro sem as fotos em base64 para ficar leve,
-  // mas inclui metadado indicando que tem fotos
-  const recLeve = {
-    ...rec,
-    fotos: {
-      sup: rec.fotos?.sup ? '(foto_capturada)' : null,
-      inf: rec.fotos?.inf ? '(foto_capturada)' : null,
-      elv: rec.fotos?.elv ? '(foto_capturada)' : null,
-    },
-    assinatura: rec.assinatura ? '(assinatura_capturada)' : null,
-    _source: 'vammo_checkin_app',
-    _version: 1
-  };
-
-  // Versão completa com fotos para quem quiser
-  const recCompleto = { ...rec, _source: 'vammo_checkin_app', _version: 1 };
-
-  const json = JSON.stringify([recCompleto]);
-  const blob = new Blob([json], { type: 'application/json' });
-  const ts = new Date().toISOString().slice(0,16).replace('T','-').replace(':','h');
-  const nome = `vammo_reg_${rec.carrinho}_${ts}.json`;
-
-  // Tenta Web Share API (Android/iOS nativo) primeiro
-  if (navigator.share && navigator.canShare) {
-    const file = new File([blob], nome, { type: 'application/json' });
-    if (navigator.canShare({ files: [file] })) {
-      navigator.share({
-        title: `Vammo – Registro ${rec.id}`,
-        text: `Check-in/out do carrinho ${rec.carrinho} por ${rec.mecanico}`,
-        files: [file]
-      }).catch(() => downloadJSON(blob, nome));
-      return;
-    }
-  }
-
-  // Fallback: download direto
-  downloadJSON(blob, nome);
-}
-
-function downloadJSON(blob, nome) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = nome;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
 
 // ─── RESET ────────────────────────────────────────────────────────────────────
 function resetApp() {
