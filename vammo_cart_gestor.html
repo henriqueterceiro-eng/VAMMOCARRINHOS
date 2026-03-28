@@ -1403,9 +1403,19 @@ function salvarFoto(base64, nome) {
 
 function salvar(data) {
   var id = data.id;
-  var fotoSup = salvarFoto(data.fotos && data.fotos.sup, id + '_sup.jpg');
-  var fotoInf = salvarFoto(data.fotos && data.fotos.inf, id + '_inf.jpg');
-  var fotoElv = salvarFoto(data.fotos && data.fotos.elv, id + '_elv.jpg');
+
+  // Se fotos já são URLs do Drive (vindas do app), usa direto
+  // Se são base64, tenta fazer upload pro Drive via salvarFoto
+  var fotoSupRaw = data.fotos && data.fotos.sup;
+  var fotoInfRaw = data.fotos && data.fotos.inf;
+  var fotoElvRaw = data.fotos && data.fotos.elv;
+
+  var fotoSup = (typeof fotoSupRaw === 'string' && fotoSupRaw.indexOf('http') === 0)
+    ? fotoSupRaw : salvarFoto(fotoSupRaw, id + '_sup.jpg');
+  var fotoInf = (typeof fotoInfRaw === 'string' && fotoInfRaw.indexOf('http') === 0)
+    ? fotoInfRaw : salvarFoto(fotoInfRaw, id + '_inf.jpg');
+  var fotoElv = (typeof fotoElvRaw === 'string' && fotoElvRaw.indexOf('http') === 0)
+    ? fotoElvRaw : salvarFoto(fotoElvRaw, id + '_elv.jpg');
 
   var shR = aba('Registros', ['ID','Tipo','Carrinho','Turno','Mecanico','NC_Count','Timestamp','Foto_Sup','Foto_Inf','Foto_Elv']);
   var flatR = shR.getDataRange().getValues().flat().map(String);
@@ -1418,7 +1428,7 @@ function salvar(data) {
   if (flatJ.indexOf(String(id)) === -1) {
     var rec = { id:id, ts:data.ts, tipo:data.tipo, carrinho:data.carrinho, turno:data.turno, mecanico:data.mecanico,
       nc_count:data.nc_count||0, nc_list:data.nc_list||'',
-      fotos:{ sup:fotoSup||(data.fotos&&!!data.fotos.sup), inf:fotoInf||(data.fotos&&!!data.fotos.inf), elv:fotoElv||(data.fotos&&!!data.fotos.elv) },
+      fotos:{ sup: fotoSup || !!fotoSupRaw, inf: fotoInf || !!fotoInfRaw, elv: fotoElv || !!fotoElvRaw },
       assinatura:!!data.assinatura, ferramentas:data.ferramentas||{} };
     shJ.appendRow([id, JSON.stringify(rec)]);
   }
