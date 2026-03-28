@@ -57,6 +57,7 @@
   <title>VAMMO · Carrinho</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -1406,8 +1407,73 @@ function submit() {
   }
 }
 
+// ─── GOOGLE DRIVE UPLOAD ─────────────────────────────────────────────────────
+const GDRIVE_CLIENT_ID = '662702497307-qom2jv0sboe0n4686jsaisftov6bqrep.apps.googleusercontent.com';
+const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+let _driveToken = null;
+
+function getDriveToken(callback) {
+  // Reutiliza token válido
+  if (_driveToken && _driveToken.expires > Date.now()) {
+    callback(_driveToken.access_token);
+    return;
+  }
+  // Solicita novo token via popup Google
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GDRIVE_CLIENT_ID,
+    scope: GDRIVE_SCOPE,
+    callback: (resp) => {
+      if (resp.error) { callback(null, resp.error); return; }
+      _driveToken = { access_token: resp.access_token, expires: Date.now() + (resp.expires_in - 60) * 1000 };
+      callback(resp.access_token);
+    }
+  });
+  client.requestAccessToken();
+}
+
+function uploadFotoDrive(token, base64, nome, callback) {
+  if (!base64 || !base64.startsWith('data:')) { callback(null); return; }
+
+  // Converte base64 pra blob
+  const [meta, data] = base64.split(',');
+  const mime = meta.match(/:(.*?);/)[1];
+  const bytes = atob(data);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  const blob = new Blob([arr], { type: mime });
+
+  // Multipart upload pro Drive
+  const boundary = '-------vammo_boundary';
+  const meta_json = JSON.stringify({ name: nome, mimeType: mime });
+  const body = '--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' + meta_json +
+               '\r\n--' + boundary + '\r\nContent-Type: ' + mime + '\r\n\r\n';
+
+  const bodyBlob = new Blob([body, blob, '\r\n--' + boundary + '--']);
+
+  fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'multipart/related; boundary=' + boundary
+    },
+    body: bodyBlob
+  })
+  .then(r => r.json())
+  .then(file => {
+    if (!file.id) { callback(null); return; }
+    // Torna público (qualquer um com o link pode ver)
+    fetch('https://www.googleapis.com/drive/v3/files/' + file.id + '/permissions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' })
+    }).then(() => callback('https://drive.google.com/uc?id=' + file.id))
+      .catch(() => callback('https://drive.google.com/uc?id=' + file.id));
+  })
+  .catch(() => callback(null));
+}
+
 function enviarPost(url, rec, statusEl) {
-  // Passo 1: envia metadados via JSONP (confirmado funcionando)
+  // Passo 1: envia metadados via JSONP
   const ncList = Object.entries(rec.ferramentas || {})
     .filter(([,v]) => v.status === 'nao_ok')
     .map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc'))
@@ -1432,7 +1498,7 @@ function enviarPost(url, rec, statusEl) {
       return;
     }
 
-    // Passo 2: se tem fotos, envia separado via POST
+    // Passo 2: envia fotos pro Google Drive
     const temFotos = rec.fotos?.sup || rec.fotos?.inf || rec.fotos?.elv;
     if (!temFotos) {
       statusEl.textContent = '✅ Enviado! Gestor receberá no próximo sync.';
@@ -1440,33 +1506,53 @@ function enviarPost(url, rec, statusEl) {
       return;
     }
 
-    statusEl.textContent = '⏳ Enviando fotos...';
+    statusEl.textContent = '⏳ Fazendo login para enviar fotos...';
     statusEl.style.color = 'var(--az)';
 
-    const fotoPayload = JSON.stringify({
-      action: 'photos',
-      id: rec.id,
-      fotos: {
-        sup: rec.fotos?.sup || null,
-        inf: rec.fotos?.inf || null,
-        elv: rec.fotos?.elv || null
+    getDriveToken((token, err2) => {
+      if (!token) {
+        statusEl.textContent = '✅ Dados enviados. Fotos: login cancelado.';
+        statusEl.style.color = 'var(--yw)';
+        return;
       }
-    });
 
-    fetch(url, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: fotoPayload
-    })
-    .then(() => {
-      statusEl.textContent = '✅ Enviado com fotos! Gestor receberá no próximo sync.';
-      statusEl.style.color = 'var(--gn)';
-    })
-    .catch(() => {
-      // Metadados foram — só as fotos falharam
-      statusEl.textContent = '✅ Enviado (sem fotos — verifique conexão).';
-      statusEl.style.color = 'var(--yw)';
+      statusEl.textContent = '⏳ Enviando fotos para o Drive...';
+      statusEl.style.color = 'var(--az)';
+
+      const id = rec.id;
+      const uploads = [
+        { base64: rec.fotos?.sup, nome: id + '_sup.jpg', key: 'sup' },
+        { base64: rec.fotos?.inf, nome: id + '_inf.jpg', key: 'inf' },
+        { base64: rec.fotos?.elv, nome: id + '_elv.jpg', key: 'elv' }
+      ].filter(f => f.base64);
+
+      const links = {};
+      let done = 0;
+
+      if (!uploads.length) {
+        statusEl.textContent = '✅ Enviado com sucesso!';
+        statusEl.style.color = 'var(--gn)';
+        return;
+      }
+
+      uploads.forEach(f => {
+        uploadFotoDrive(token, f.base64, f.nome, (link) => {
+          links[f.key] = link;
+          done++;
+          if (done === uploads.length) {
+            // Passo 3: envia links das fotos pro GAS atualizar o registro
+            const linkParams = 'action=updateFotos'
+              + '&id=' + encodeURIComponent(id)
+              + '&sup=' + encodeURIComponent(links.sup || '')
+              + '&inf=' + encodeURIComponent(links.inf || '')
+              + '&elv=' + encodeURIComponent(links.elv || '');
+
+            gasGet(url, linkParams, () => {});
+            statusEl.textContent = '✅ Enviado com fotos no Drive!';
+            statusEl.style.color = 'var(--gn)';
+          }
+        });
+      });
     });
   });
 }

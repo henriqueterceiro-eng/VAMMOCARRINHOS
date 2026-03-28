@@ -1263,6 +1263,29 @@ function doGet(e) {
 
   if (action === 'ping') return out({ ok: true, ts: new Date().toISOString() }, callback);
 
+  if (action === 'updateFotos') {
+    try {
+      var id = p.id || '';
+      var shJ = getSheet().getSheetByName('JSON_Completo');
+      if (shJ && id) {
+        var rows = shJ.getDataRange().getValues();
+        for (var fi = 1; fi < rows.length; fi++) {
+          if (String(rows[fi][0]) === String(id)) {
+            try {
+              var rec = JSON.parse(rows[fi][1]);
+              if (p.sup) rec.fotos.sup = decodeURIComponent(p.sup);
+              if (p.inf) rec.fotos.inf = decodeURIComponent(p.inf);
+              if (p.elv) rec.fotos.elv = decodeURIComponent(p.elv);
+              shJ.getRange(fi+1, 2).setValue(JSON.stringify(rec));
+            } catch(x) {}
+            break;
+          }
+        }
+      }
+      return out({ success: true }, callback);
+    } catch(err) { return out({ success: false, error: err.toString() }, callback); }
+  }
+
   if (action === 'post') {
     try {
       var id = p.id || '';
