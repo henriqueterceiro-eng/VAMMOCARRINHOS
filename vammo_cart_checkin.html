@@ -1407,8 +1407,7 @@ function submit() {
 }
 
 function enviarPost(url, rec, statusEl) {
-  // GAS faz redirect interno — no-cors não consegue seguir
-  // Usamos JSONP igual ao fallback, que comprovadamente funciona
+  // Passo 1: envia metadados via JSONP (confirmado funcionando)
   const ncList = Object.entries(rec.ferramentas || {})
     .filter(([,v]) => v.status === 'nao_ok')
     .map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc'))
@@ -1427,13 +1426,48 @@ function enviarPost(url, rec, statusEl) {
     + '&assinatura=' + (rec.assinatura?'1':'0');
 
   gasGet(url, params, (data, err) => {
-    if (data?.success) {
+    if (!data?.success) {
+      statusEl.textContent = '⚠️ ' + (err || data?.error || 'Erro ao enviar dados');
+      statusEl.style.color = 'var(--yw)';
+      return;
+    }
+
+    // Passo 2: se tem fotos, envia separado via POST
+    const temFotos = rec.fotos?.sup || rec.fotos?.inf || rec.fotos?.elv;
+    if (!temFotos) {
       statusEl.textContent = '✅ Enviado! Gestor receberá no próximo sync.';
       statusEl.style.color = 'var(--gn)';
-    } else {
-      statusEl.textContent = '⚠️ ' + (err || data?.error || 'Sem resposta do servidor');
-      statusEl.style.color = 'var(--yw)';
+      return;
     }
+
+    statusEl.textContent = '⏳ Enviando fotos...';
+    statusEl.style.color = 'var(--az)';
+
+    const fotoPayload = JSON.stringify({
+      action: 'photos',
+      id: rec.id,
+      fotos: {
+        sup: rec.fotos?.sup || null,
+        inf: rec.fotos?.inf || null,
+        elv: rec.fotos?.elv || null
+      }
+    });
+
+    fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: fotoPayload
+    })
+    .then(() => {
+      statusEl.textContent = '✅ Enviado com fotos! Gestor receberá no próximo sync.';
+      statusEl.style.color = 'var(--gn)';
+    })
+    .catch(() => {
+      // Metadados foram — só as fotos falharam
+      statusEl.textContent = '✅ Enviado (sem fotos — verifique conexão).';
+      statusEl.style.color = 'var(--yw)';
+    });
   });
 }
 

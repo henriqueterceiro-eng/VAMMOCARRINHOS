@@ -1221,6 +1221,37 @@ function doPost(e) {
   try {
     var raw = (e.postData && e.postData.contents) ? e.postData.contents : '';
     var data = JSON.parse(raw);
+
+    // Envio de fotos separado
+    if (data.action === 'photos') {
+      var id = data.id;
+      if (!id) return out({ success: false, error: 'id ausente' });
+
+      var fotoSup = salvarFoto(data.fotos && data.fotos.sup, id + '_sup.jpg');
+      var fotoInf = salvarFoto(data.fotos && data.fotos.inf, id + '_inf.jpg');
+      var fotoElv = salvarFoto(data.fotos && data.fotos.elv, id + '_elv.jpg');
+
+      // Atualiza o registro no JSON_Completo com os links do Drive
+      var shJ = getSheet().getSheetByName('JSON_Completo');
+      if (shJ) {
+        var rows = shJ.getDataRange().getValues();
+        for (var i = 1; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(id)) {
+            try {
+              var rec = JSON.parse(rows[i][1]);
+              if (fotoSup) rec.fotos.sup = fotoSup;
+              if (fotoInf) rec.fotos.inf = fotoInf;
+              if (fotoElv) rec.fotos.elv = fotoElv;
+              shJ.getRange(i+1, 2).setValue(JSON.stringify(rec));
+            } catch(x) {}
+            break;
+          }
+        }
+      }
+      return out({ success: true, id: id, fotos: { sup: !!fotoSup, inf: !!fotoInf, elv: !!fotoElv } });
+    }
+
+    // Envio normal
     salvar(data);
     return out({ success: true, id: data.id });
   } catch(err) { return out({ success: false, error: err.toString() }); }
