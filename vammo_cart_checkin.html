@@ -1407,26 +1407,33 @@ function submit() {
 }
 
 function enviarPost(url, rec, statusEl) {
-  // Payload completo com fotos em base64
-  const payload = {
-    ...rec,
-    _source: 'vammo_checkin_app'
-  };
+  // GAS faz redirect interno — no-cors não consegue seguir
+  // Usamos JSONP igual ao fallback, que comprovadamente funciona
+  const ncList = Object.entries(rec.ferramentas || {})
+    .filter(([,v]) => v.status === 'nao_ok')
+    .map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc'))
+    .join('|');
 
-  fetch(url, {
-    method: 'POST',
-    mode: 'no-cors', // GAS não retorna CORS headers — resposta será opaca mas requisição chega
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(payload)
-  })
-  .then(() => {
-    // no-cors = resposta opaca, não dá pra ler — mas o GAS recebe
-    statusEl.textContent = '✅ Enviado com fotos! Gestor receberá no próximo sync.';
-    statusEl.style.color = 'var(--gn)';
-  })
-  .catch(() => {
-    statusEl.textContent = '⚠️ Erro de rede — salvo local.';
-    statusEl.style.color = 'var(--yw)';
+  const params = 'action=post'
+    + '&id='        + encodeURIComponent(rec.id)
+    + '&ts='        + encodeURIComponent(rec.ts)
+    + '&tipo='      + encodeURIComponent(rec.tipo)
+    + '&carrinho='  + encodeURIComponent(rec.carrinho)
+    + '&turno='     + encodeURIComponent(rec.turno)
+    + '&mecanico='  + encodeURIComponent(rec.mecanico)
+    + '&nc_count='  + rec.nc_count
+    + '&nc_list='   + ncList
+    + '&fotos='     + (rec.fotos?.sup?'1':'0') + (rec.fotos?.inf?'1':'0') + (rec.fotos?.elv?'1':'0')
+    + '&assinatura=' + (rec.assinatura?'1':'0');
+
+  gasGet(url, params, (data, err) => {
+    if (data?.success) {
+      statusEl.textContent = '✅ Enviado! Gestor receberá no próximo sync.';
+      statusEl.style.color = 'var(--gn)';
+    } else {
+      statusEl.textContent = '⚠️ ' + (err || data?.error || 'Sem resposta do servidor');
+      statusEl.style.color = 'var(--yw)';
+    }
   });
 }
 
