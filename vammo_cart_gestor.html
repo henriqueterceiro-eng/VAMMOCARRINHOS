@@ -1643,8 +1643,8 @@ function gasGet(url, params, callback) {
   let done = false;
 
   const timer = setTimeout(function() {
-    if (!done) { done=true; cleanup(); callback(null, 'Timeout 15s — GAS não respondeu'); }
-  }, 15000);
+    if (!done) { done=true; cleanup(); callback(null, 'Timeout 45s — GAS demorou demais. Tente novamente.'); }
+  }, 45000);
 
   window[cbName] = function(data) {
     if (!done) { done=true; cleanup(); callback(data, null); }
