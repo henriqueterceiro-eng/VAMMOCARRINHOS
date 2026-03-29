@@ -34,24 +34,11 @@
     const _blob = new Blob([JSON.stringify(_manifest)], {type:'application/manifest+json'});
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
-    // Service Worker inline via Blob
-    const _swCode = `
-      const CACHE = 'vammo-cart-v1';
-      self.addEventListener('install', e => {
-        e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
-        self.skipWaiting();
-      });
-      self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
-      self.addEventListener('fetch', e => {
-        e.respondWith(
-          caches.match(e.request).then(r => r || fetch(e.request).catch(() => r))
-        );
-      });
-    `;
+    // Remove qualquer service worker antigo que possa estar cacheando versões antigas
     if ('serviceWorker' in navigator) {
-      const _swBlob = new Blob([_swCode], {type:'text/javascript'});
-      navigator.serviceWorker.register(URL.createObjectURL(_swBlob))
-        .catch(() => {});
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(r => r.unregister());
+      });
     }
   </script>
   <title>VAMMO · Carrinho</title>
@@ -292,6 +279,85 @@
     .t-btn.nk-btn.sel { background: var(--rd); border-color: var(--rd); }
     .t-btn:active { transform: scale(.93); }
 
+    /* ─── CHECKLIST CARDS ─── */
+    .cl-instrucao {
+      background: rgba(46,194,255,.08); border: 1px solid rgba(46,194,255,.2);
+      border-radius: 12px; padding: 12px 14px;
+      font-size: 13px; color: var(--az); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .cl-cat-card {
+      background: var(--c1); border-radius: 14px;
+      border: 1.5px solid var(--bd);
+      margin-bottom: 12px; overflow: hidden;
+      transition: border-color .2s;
+    }
+    .cl-cat-card.cl-cat-done { border-color: var(--gn); }
+    .cl-cat-title {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14px; font-weight: 800;
+      letter-spacing: 2px; text-transform: uppercase;
+      border-bottom: 1px solid var(--bd);
+      background: rgba(255,255,255,.02);
+    }
+    .cl-cat-icon { font-size: 18px; }
+    .cl-cat-badge {
+      margin-left: auto;
+      font-size: 12px; font-weight: 700;
+      color: var(--gr); letter-spacing: 1px;
+    }
+    .cl-items-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1px; background: var(--bd);
+    }
+    .cl-card {
+      background: var(--c1);
+      border: none; padding: 16px 10px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+      cursor: pointer; transition: background .15s;
+      text-align: center; min-height: 90px;
+      justify-content: center; position: relative;
+      -webkit-user-select: none; user-select: none;
+    }
+    .cl-card:active { opacity: .7; }
+    .cl-card.ok { background: rgba(34,197,94,.15); }
+    .cl-card.nk { background: rgba(239,68,68,.12); }
+    .cl-card-icon { font-size: 32px; line-height: 1; }
+    .cl-card-name {
+      font-size: 12px; font-weight: 700;
+      color: var(--w2); line-height: 1.3;
+    }
+    .cl-card.ok .cl-card-name { color: var(--gn); }
+    .cl-card.nk .cl-card-name { color: var(--rd); }
+    .cl-card-status {
+      font-size: 20px; position: absolute;
+      top: 6px; right: 8px;
+    }
+    /* Barra de progresso do checklist */
+    .cl-progress-wrap {
+      background: var(--c1); border-radius: 10px;
+      border: 1px solid var(--bd); padding: 12px 14px;
+      margin-bottom: 14px; display: flex; align-items: center; gap: 12px;
+    }
+    .cl-progress-bar {
+      flex: 1; height: 8px; background: var(--c2);
+      border-radius: 4px; overflow: hidden;
+    }
+    .cl-progress-fill {
+      height: 100%; background: var(--gn);
+      border-radius: 4px; transition: width .3s;
+      width: 0%;
+    }
+    .cl-progress-txt {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14px; font-weight: 800;
+      color: var(--gn); white-space: nowrap;
+    }
+
     /* ─── FOTOS ─── */
     .photo-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
     /* label funciona igual ao div mas ativa o input nativo ao toque */
@@ -342,16 +408,16 @@
     /* ─── ASSINATURA ─── */
     .sig-wrap {
       border-radius: 14px; border: 2px solid var(--bd);
-      overflow: hidden; background: #fff; margin-bottom: 12px;
+      overflow: hidden; background: #ffffff; margin-bottom: 12px;
       position: relative;
     }
     .sig-wrap.signed { border-color: var(--gn); }
-    #sig-canvas { display: block; width: 100%; cursor: crosshair; touch-action: none; }
+    #sig-canvas { display: block; width: 100%; cursor: crosshair; touch-action: none; background: #ffffff; }
     .sig-placeholder {
       position: absolute; inset: 0;
       display: flex; align-items: center; justify-content: center;
       font-family: 'Barlow Condensed', sans-serif;
-      font-size: 15px; letter-spacing: 2px; color: #bbb;
+      font-size: 15px; letter-spacing: 2px; color: #aaa;
       text-transform: uppercase; pointer-events: none;
     }
     .sig-wrap.signed .sig-placeholder { display: none; }
@@ -749,10 +815,19 @@
     <div class="s-title">Checklist</div>
     <div class="s-sub">Verifique todas as ferramentas do carrinho</div>
 
-    <div class="cl-stats">
-      <div class="cl-stat"><div class="n tot" id="st-tot">0</div><div class="l">Total</div></div>
-      <div class="cl-stat"><div class="n ok" id="st-ok">0</div><div class="l">OK</div></div>
-      <div class="cl-stat"><div class="n nk" id="st-nk">0</div><div class="l">Problema</div></div>
+    <!-- Instrução simples -->
+    <div class="cl-instrucao">
+      <span style="font-size:22px;">👆</span>
+      <span><strong>Toque 1x</strong> = OK &nbsp;|&nbsp; <strong>Toque 2x</strong> = Problema</span>
+    </div>
+
+    <!-- Barra de progresso -->
+    <div class="cl-progress-wrap">
+      <div class="cl-progress-bar">
+        <div class="cl-progress-fill" id="cl-progress-fill"></div>
+      </div>
+      <div class="cl-progress-txt"><span id="st-ok">0</span> / <span id="st-tot">0</span></div>
+      <span id="st-nk-badge" style="display:none;background:rgba(239,68,68,.15);color:var(--rd);border-radius:8px;padding:3px 8px;font-size:12px;font-weight:700;margin-left:4px;"></span>
     </div>
 
     <div id="checklist-body"></div>
@@ -844,22 +919,24 @@
       </div>
 
       <!-- Status de envio automático -->
-      <div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;">
+      <div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin-bottom:16px;text-align:center;">
         <div id="ok-sync-status" style="font-size:14px;font-weight:600;">⏳ Enviando...</div>
       </div>
 
       <!-- Botão enviar fotos pro Drive (aparece após envio dos dados) -->
-      <div id="ok-foto-btn" style="display:none; margin-bottom:8px;">
+      <div id="ok-foto-btn" style="display:none; margin-bottom:20px;">
         <button onclick="enviarFotosDrive()" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--az);background:transparent;color:var(--az);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;letter-spacing:2px;cursor:pointer;text-transform:uppercase;">
           📸 Enviar Fotos pro Drive
         </button>
         <div id="ok-foto-status" style="font-size:12px;color:var(--gr);text-align:center;margin-top:6px;">Toque para fazer login e enviar as fotos</div>
       </div>
 
-      <!-- Compartilhar com fotos -->
-      <button onclick="compartilharComFotos()" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--bd);background:transparent;color:var(--gr);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;margin-bottom:4px;">
-        📤 Compartilhar JSON com fotos
-      </button>
+      <!-- Mensagem de agradecimento -->
+      <div style="background:linear-gradient(135deg,rgba(46,194,255,.08),rgba(46,194,255,.03));border:1.5px solid rgba(46,194,255,.2);border-radius:16px;padding:20px 16px;text-align:center;margin-bottom:4px;">
+        <div style="font-size:32px;margin-bottom:8px;">🏍️</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;letter-spacing:2px;color:var(--az);text-transform:uppercase;margin-bottom:6px;">Vammo agradece<br>seu trabalho!</div>
+        <div style="font-size:14px;color:var(--gr);line-height:1.5;">Tenha um bom descanso. 💙</div>
+      </div>
     </div>
   </div>
 
@@ -1197,31 +1274,49 @@ function selectMec(name) {
 }
 
 // ─── SCREEN: CHECKLIST ────────────────────────────────────────────────────────
+const TOOL_ICONS = {
+  "ALICATES": "🪚", "ALLEN LONGA": "🔩",
+  'SOQUETES 1/2"': "⚙️", "CHAVE L / BIELA": "🔧",
+  "CHAVE COMBINADA": "🔑", "MARTELOS / MARRETAS": "🔨",
+  "CHAVES DE FENDA": "🪛", 'CATRACA / EXTENSÃO': "⚙️"
+};
+
 function renderChecklist() {
   const body = document.getElementById('checklist-body');
-  body.innerHTML = TOOLS.map(cat => `
-    <div class="cat-header">${cat.cat}</div>
-    ${cat.items.map(item => {
-      const key = item;
-      const rowId = 'tr-' + btoa(encodeURIComponent(key)).replace(/=/g,'');
-      const st = S.ferramentas[key] || {};
-      const okSel = st.status === 'ok' ? 'sel' : '';
-      const nkSel = st.status === 'nao_ok' ? 'sel' : '';
-      const safeKey = encodeURIComponent(key);
-      return `<div class="tool-row" id="${rowId}">
-        <div class="tool-name">${item}</div>
-        <div class="t-btns">
-          <button class="t-btn ok-btn ${okSel}" data-key="${safeKey}" data-status="ok">✅</button>
-          <button class="t-btn nk-btn ${nkSel}" data-key="${safeKey}" data-status="nao_ok">❌</button>
-        </div>
-      </div>`;
-    }).join('')}
-  `).join('');
-  // Delegação de eventos — evita problema com aspas nos nomes de ferramentas
+  body.innerHTML = TOOLS.map((cat, ci) => {
+    const icon = TOOL_ICONS[cat.cat] || '🔧';
+    return `
+    <div class="cl-cat-card" id="cat-${ci}">
+      <div class="cl-cat-title">
+        <span class="cl-cat-icon">${icon}</span>
+        <span>${cat.cat}</span>
+        <span class="cl-cat-badge" id="badge-cat-${ci}">0/${cat.items.length}</span>
+      </div>
+      <div class="cl-items-grid">
+        ${cat.items.map(item => {
+          const st = S.ferramentas[item] || {};
+          const cls = st.status === 'ok' ? 'cl-card ok' : st.status === 'nao_ok' ? 'cl-card nk' : 'cl-card';
+          const statusIcon = st.status === 'ok' ? '✅' : st.status === 'nao_ok' ? '❌' : '';
+          return `<button class="${cls}" data-key="${encodeURIComponent(item)}" data-status="${st.status||''}">
+            <span class="cl-card-status">${statusIcon}</span>
+            <span class="cl-card-icon">${icon}</span>
+            <span class="cl-card-name">${item}</span>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
   body.onclick = (e) => {
     const btn = e.target.closest('[data-key]');
     if (!btn) return;
-    setTool(decodeURIComponent(btn.dataset.key), btn.dataset.status);
+    const key = decodeURIComponent(btn.dataset.key);
+    const cur = btn.dataset.status;
+    if (!cur || cur === 'nao_ok') {
+      setTool(key, 'ok');
+    } else {
+      setTool(key, 'nao_ok');
+    }
   };
   updateStats();
 }
@@ -1255,37 +1350,44 @@ function cancelNC() {
 
 function refreshToolRow(key) {
   const st = S.ferramentas[key] || {};
-  const okSel = st.status === 'ok' ? 'sel' : '';
-  const nkSel = st.status === 'nao_ok' ? 'sel' : '';
-  const rowId = 'tr-' + btoa(encodeURIComponent(key)).replace(/=/g,'');
-  const row = document.getElementById(rowId);
-  if (!row) return;
   const safeKey = encodeURIComponent(key);
-  const btns = row.querySelector('.t-btns');
-  btns.innerHTML = `
-    <button class="t-btn ok-btn ${okSel}" data-key="${safeKey}" data-status="ok">✅</button>
-    <button class="t-btn nk-btn ${nkSel}" data-key="${safeKey}" data-status="nao_ok">❌</button>
-  `;
-  if (st.motivo) {
-    let existing = row.querySelector('.nc-note');
-    if (!existing) {
-      existing = document.createElement('div');
-      existing.className = 'nc-note';
-      existing.style.cssText = 'font-size:11px;color:var(--yw);margin-top:4px;';
-      row.appendChild(existing);
-    }
-    existing.textContent = `⚠ ${st.motivo === 'faltando' ? 'Faltando' : 'Quebrado/Danificado'}`;
-  }
-}
+  const btn = document.querySelector(`[data-key="${safeKey}"]`);
+  if (!btn) return;
+  btn.className = st.status === 'ok' ? 'cl-card ok' : st.status === 'nao_ok' ? 'cl-card nk' : 'cl-card';
+  btn.dataset.status = st.status || '';
+  const statusEl = btn.querySelector('.cl-card-status');
+  if (statusEl) statusEl.textContent = st.status === 'ok' ? '✅' : st.status === 'nao_ok' ? '❌' : '';
 
+  // Atualiza badge da categoria
+  TOOLS.forEach((cat, ci) => {
+    if (cat.items.includes(key)) {
+      const done = cat.items.filter(i => S.ferramentas[i]?.status).length;
+      const badge = document.getElementById('badge-cat-' + ci);
+      if (badge) badge.textContent = done + '/' + cat.items.length;
+      if (done === cat.items.length) {
+        const card = document.getElementById('cat-' + ci);
+        if (card) card.classList.add('cl-cat-done');
+      }
+    }
+  });
+}
 function updateStats() {
   const all = TOOLS.flatMap(c => c.items);
   const tot = all.length;
-  const ok = all.filter(k => S.ferramentas[k]?.status === 'ok').length;
-  const nk = all.filter(k => S.ferramentas[k]?.status === 'nao_ok').length;
-  document.getElementById('st-tot').textContent = tot;
-  document.getElementById('st-ok').textContent = ok;
-  document.getElementById('st-nk').textContent = nk;
+  const ok  = all.filter(k => S.ferramentas[k]?.status === 'ok').length;
+  const nk  = all.filter(k => S.ferramentas[k]?.status === 'nao_ok').length;
+  const done = ok + nk;
+  const totEl   = document.getElementById('st-tot');
+  const okEl    = document.getElementById('st-ok');
+  const fill    = document.getElementById('cl-progress-fill');
+  const nkBadge = document.getElementById('st-nk-badge');
+  if (totEl) totEl.textContent = tot;
+  if (okEl)  okEl.textContent  = done;
+  if (fill)  fill.style.width  = (tot ? Math.round(done/tot*100) : 0) + '%';
+  if (nkBadge) {
+    if (nk > 0) { nkBadge.style.display = 'inline'; nkBadge.textContent = nk + ' ⚠️'; }
+    else nkBadge.style.display = 'none';
+  }
 }
 
 function checklistComplete() {
@@ -1449,7 +1551,8 @@ function initSig() {
 function clearSig() {
   const canvas = document.getElementById('sig-canvas');
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   sigHasData = false;
   S.assinatura = null;
   document.getElementById('sig-wrap').classList.remove('signed');
