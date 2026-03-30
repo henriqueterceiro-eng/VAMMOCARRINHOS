@@ -1673,8 +1673,7 @@ function salvar(data) {
     var items = ncList.split('|');
     for (var n = 0; n < items.length; n++) {
       var parts = items[n].split(':');
-      var ferr = decodeURIComponent(parts[0]||'');
-      var motivo = parts[1]||'nc';
+      var ferr = decodeURIComponent(parts[0]||'');      var motivo = parts[1]||'nc';
       if (ferr) shNC.appendRow([id, ferr, motivo, data.carrinho, data.mecanico, data.turno, data.ts]);
     }
   }
