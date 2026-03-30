@@ -326,17 +326,32 @@
     .cl-card:active { opacity: .7; }
     .cl-card.ok { background: rgba(34,197,94,.15); }
     .cl-card.nk { background: rgba(239,68,68,.12); }
-    .cl-card-icon { font-size: 32px; line-height: 1; }
+    .cl-card-icon { display: none; }
     .cl-card-name {
       font-size: 12px; font-weight: 700;
       color: var(--w2); line-height: 1.3;
+      margin-bottom: 4px;
     }
     .cl-card.ok .cl-card-name { color: var(--gn); }
     .cl-card.nk .cl-card-name { color: var(--rd); }
-    .cl-card-status {
-      font-size: 20px; position: absolute;
-      top: 6px; right: 8px;
+    .cl-card-status { display: none; }
+    .cl-card-btns {
+      display: flex; gap: 6px; margin-top: 4px;
     }
+    .cl-btn-ok {
+      padding: 5px 12px; border-radius: 6px; border: none;
+      background: rgba(34,197,94,.2); color: var(--gn);
+      font-size: 14px; font-weight: 900; cursor: pointer;
+      transition: background .15s;
+    }
+    .cl-btn-ok:active, .cl-card.ok .cl-btn-ok { background: rgba(34,197,94,.45); }
+    .cl-btn-nc {
+      padding: 5px 12px; border-radius: 6px; border: none;
+      background: rgba(239,68,68,.15); color: var(--rd);
+      font-size: 14px; font-weight: 900; cursor: pointer;
+      transition: background .15s;
+    }
+    .cl-btn-nc:active, .cl-card.nk .cl-btn-nc { background: rgba(239,68,68,.4); }
     /* Barra de progresso do checklist */
     .cl-progress-wrap {
       background: var(--c1); border-radius: 10px;
@@ -1300,57 +1315,18 @@ function renderChecklist() {
         ${cat.items.map(item => {
           const st = S.ferramentas[item] || {};
           const cls = st.status === 'ok' ? 'cl-card ok' : st.status === 'nao_ok' ? 'cl-card nk' : 'cl-card';
-          const statusIcon = st.status === 'ok' ? '✅' : st.status === 'nao_ok' ? '❌' : '';
-          return `<button class="${cls}" data-key="${encodeURIComponent(item)}" data-status="${st.status||''}">
-            <span class="cl-card-status">${statusIcon}</span>
-            <span class="cl-card-icon">${icon}</span>
+          return `<div class="${cls}" data-key="${encodeURIComponent(item)}">
+            <span class="cl-card-icon"></span>
             <span class="cl-card-name">${item}</span>
-          </button>`;
+            <div class="cl-card-btns">
+              <button class="cl-btn-ok" onclick="setTool(decodeURIComponent('${encodeURIComponent(item)}'),'ok')">✓ OK</button>
+              <button class="cl-btn-nc" onclick="setTool(decodeURIComponent('${encodeURIComponent(item)}'),'nao_ok')">✗ NC</button>
+            </div>
+          </div>`;
         }).join('')}
       </div>
     </div>`;
   }).join('');
-
-  body.onclick = null;
-  body.onpointerdown = null;
-
-  // Clique simples → OK | Segurar (~500ms) → abre modal NC
-  let _pressTimer = null;
-  let _pressKey   = null;
-
-  body.addEventListener('pointerdown', (e) => {
-    const btn = e.target.closest('[data-key]');
-    if (!btn) return;
-    _pressKey = decodeURIComponent(btn.dataset.key);
-    _pressTimer = setTimeout(() => {
-      _pressTimer = null;
-      pendingNCtool = _pressKey;
-      document.getElementById('modal-tool-name').textContent = _pressKey;
-      document.getElementById('modal-nc').classList.remove('hidden');
-    }, 500);
-  });
-
-  body.addEventListener('pointerup', (e) => {
-    if (_pressTimer) {
-      clearTimeout(_pressTimer);
-      // Foi clique curto → marcar OK
-      const btn = e.target.closest('[data-key]');
-      if (btn && _pressKey) {
-        S.ferramentas[_pressKey] = { status: 'ok', motivo: null };
-        refreshToolRow(_pressKey);
-        updateStats();
-        updateNextBtn();
-      }
-      _pressTimer = null;
-    }
-    _pressKey = null;
-  });
-
-  body.addEventListener('pointercancel', () => {
-    if (_pressTimer) clearTimeout(_pressTimer);
-    _pressTimer = null;
-    _pressKey   = null;
-  });
   updateStats();
 }
 
@@ -1384,12 +1360,9 @@ function cancelNC() {
 function refreshToolRow(key) {
   const st = S.ferramentas[key] || {};
   const safeKey = encodeURIComponent(key);
-  const btn = document.querySelector(`[data-key="${safeKey}"]`);
-  if (!btn) return;
-  btn.className = st.status === 'ok' ? 'cl-card ok' : st.status === 'nao_ok' ? 'cl-card nk' : 'cl-card';
-  btn.dataset.status = st.status || '';
-  const statusEl = btn.querySelector('.cl-card-status');
-  if (statusEl) statusEl.textContent = st.status === 'ok' ? '✅' : st.status === 'nao_ok' ? '❌' : '';
+  const card = document.querySelector(`[data-key="${safeKey}"]`);
+  if (!card) return;
+  card.className = st.status === 'ok' ? 'cl-card ok' : st.status === 'nao_ok' ? 'cl-card nk' : 'cl-card';
 
   // Atualiza badge da categoria
   TOOLS.forEach((cat, ci) => {
@@ -1398,8 +1371,8 @@ function refreshToolRow(key) {
       const badge = document.getElementById('badge-cat-' + ci);
       if (badge) badge.textContent = done + '/' + cat.items.length;
       if (done === cat.items.length) {
-        const card = document.getElementById('cat-' + ci);
-        if (card) card.classList.add('cl-cat-done');
+        const catCard = document.getElementById('cat-' + ci);
+        if (catCard) catCard.classList.add('cl-cat-done');
       }
     }
   });
@@ -1655,7 +1628,8 @@ function submit() {
     ferramentas: S.ferramentas,
     fotos: fotos,
     assinatura: S.assinatura,
-    nc_count: ncs.length
+    nc_count: ncs.length,
+    nc_list: ncs.map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc')).join('|')
   };
 
   saveRecord(rec);
