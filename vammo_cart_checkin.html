@@ -1352,22 +1352,26 @@ function setCat(ci, status) {
     cat.items.forEach(item => {
       S.ferramentas[item] = { status: 'ok', motivo: null };
     });
-    // Re-renderiza só esta categoria
     renderChecklist();
     updateStats();
     updateNextBtn();
   } else {
-    // NC: abre os itens — remove OK dos que ainda não foram marcados
-    // Só re-renderiza para mostrar os itens individuais
+    // NC: reseta itens neutros para forçar escolha individual
     cat.items.forEach(item => {
       if (!S.ferramentas[item] || S.ferramentas[item].status === 'ok') {
-        S.ferramentas[item] = {}; // reseta para neutro para forçar escolha
+        S.ferramentas[item] = {};
       }
     });
     renderChecklist();
     updateStats();
     updateNextBtn();
-    // Scrolla para o card da categoria
+    // Força a classe cl-cat-nk no card para o grid aparecer
+    // (o CSS depende dessa classe para display:grid)
+    const card = document.getElementById('cat-' + ci);
+    if (card) {
+      card.classList.remove('cl-cat-ok');
+      card.classList.add('cl-cat-nk');
+    }
     setTimeout(() => {
       document.getElementById('cat-' + ci)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
