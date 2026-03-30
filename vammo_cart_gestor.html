@@ -546,8 +546,8 @@
       <div class="nav-item" data-panel="usuarios" onclick="showPanel('usuarios')">
         <span class="nav-icon">🔑</span> Usuários
       </div>
-      <div class="nav-item" data-panel="colab" onclick="showPanel('colab')">
-        <span class="nav-icon">👥</span> Colaboradores
+      <div class="nav-item" data-panel="valores" onclick="showPanel('valores')">
+        <span class="nav-icon">💰</span> Valores
       </div>
       <div class="nav-item" data-panel="config" onclick="showPanel('config')">
         <span class="nav-icon">⚙️</span> Configurações
@@ -751,41 +751,24 @@
       </div>
 
       <!-- ── COLABORADORES ── -->
-      <div class="panel" id="panel-colab">
-        <div id="colab-alert" style="margin-bottom:16px;"></div>
-
-        <div class="turno-section" id="ts-terror">
-          <div class="turno-header">
-            <span style="font-size:24px">💀</span>
-            <div class="turno-title" style="color:var(--rd)">Terror do Backlog</div>
-            <span class="badge brd" id="badge-terror">0</span>
+      <div class="panel" id="panel-valores">
+        <div id="valores-alert" style="margin-bottom:16px;"></div>
+        <div class="table-wrap" style="margin-bottom:20px;">
+          <div class="table-head">
+            <h2>Valor das Ferramentas</h2>
           </div>
-          <div class="colab-grid" id="grid-terror"></div>
-          <div class="add-colab-form">
-            <input type="text" id="inp-terror" placeholder="Nome do colaborador..." onkeydown="if(event.key==='Enter') addColab('Terror do Backlog')">
-            <button class="btn-sm btn-az" onclick="addColab('Terror do Backlog')">+ Adicionar</button>
+          <div style="padding:16px 20px;">
+            <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Adicionar / atualizar ferramenta</div>
+            <div class="add-cart-form" style="margin-bottom:16px;">
+              <input type="text" id="inp-valor-nome" placeholder="Nome da ferramenta..." style="flex:2;">
+              <input type="number" id="inp-valor-preco" placeholder="R$ 0,00" min="0" step="0.01" style="flex:1;">
+              <button class="btn-sm btn-az" onclick="addValor()">+ Salvar</button>
+            </div>
+            <div style="margin-bottom:16px;">
+              <button class="btn-sm btn-outline" onclick="seedValores()">📥 Importar ferramentas do app</button>
+            </div>
+            <div id="valores-lista"></div>
           </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="turno-section" id="ts-invictus">
-          <div class="turno-header">
-            <span style="font-size:24px">⚡</span>
-            <div class="turno-title" style="color:var(--az)">Invictus</div>
-            <span class="badge baz" id="badge-invictus">0</span>
-          </div>
-          <div class="colab-grid" id="grid-invictus"></div>
-          <div class="add-colab-form">
-            <input type="text" id="inp-invictus" placeholder="Nome do colaborador..." onkeydown="if(event.key==='Enter') addColab('Invictus')">
-            <button class="btn-sm btn-az" onclick="addColab('Invictus')">+ Adicionar</button>
-          </div>
-        </div>
-
-        <div style="margin-top:20px; display:flex; gap:10px;">
-          <button class="btn-sm btn-outline" onclick="exportColab()">⬇ Exportar JSON</button>
-          <button class="btn-sm btn-outline" onclick="importColabPrompt()">⬆ Importar JSON</button>
-          <button class="btn-sm btn-rd" onclick="resetColab()">🗑 Resetar Lista</button>
         </div>
       </div>
 
@@ -869,9 +852,9 @@ function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c))
 function showPanel(id) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('panel-' + id).classList.add('active');
+  document.getElementById('panel-' + id)?.classList.add('active');
   document.querySelector(`[data-panel="${id}"]`)?.classList.add('active');
-  const titles = { dashboard:'Dashboard', registros:'Registros', nc:'Não Conformidades', carrinhos:'Carrinhos', colab:'Colaboradores', config:'Configurações' };
+  const titles = { dashboard:'Dashboard', registros:'Registros', nc:'Não Conformidades', carrinhos:'Carrinhos', usuarios:'Usuários', valores:'Valores de Ferramentas', config:'Configurações' };
   document.getElementById('top-title').textContent = titles[id] || id;
   closeSidebar();
 
@@ -880,7 +863,7 @@ function showPanel(id) {
   if (id === 'nc') renderNC();
   if (id === 'carrinhos') renderCarrinhos();
   if (id === 'usuarios') renderUsuarios();
-  if (id === 'colab') renderColab();
+  if (id === 'valores') renderValores();
   if (id === 'config') renderConfig();
 }
 
@@ -1238,24 +1221,183 @@ function resetColab() {
   renderColab();
 }
 
+// ─── VALORES FERRAMENTAS ──────────────────────────────────────────────────────
+function getValores() { try { return JSON.parse(localStorage.getItem('vammo_valores')) || {}; } catch { return {}; } }
+function saveValores(v) { localStorage.setItem('vammo_valores', JSON.stringify(v)); }
+
+function renderValores() {
+  const vals = getValores();
+  const el = document.getElementById('valores-lista');
+  if (!el) return;
+  const keys = Object.keys(vals).sort();
+  if (!keys.length) {
+    el.innerHTML = '<div style="color:var(--gr);font-size:13px;padding:8px 0;">Nenhuma ferramenta cadastrada.</div>';
+    return;
+  }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);border-bottom:1px solid var(--bd);">FERRAMENTA</th>
+      <th style="text-align:right;padding:8px 12px;font-size:11px;color:var(--gr);border-bottom:1px solid var(--bd);">VALOR</th>
+      <th style="width:40px;border-bottom:1px solid var(--bd);"></th>
+    </tr></thead>
+    <tbody>
+      ${keys.map(k => `<tr style="border-bottom:1px solid rgba(255,255,255,.04);">
+        <td style="padding:10px 12px;font-size:13px;">${k}</td>
+        <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--gn);font-weight:700;">R$ ${Number(vals[k]).toFixed(2)}</td>
+        <td style="padding:10px 12px;">
+          <button class="btn-sm btn-rd" onclick="removeValor('${k.replace(/'/g,"\\'")}')" style="padding:4px 8px;">×</button>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
+  <div style="margin-top:12px;color:var(--az);font-size:13px;font-weight:700;">
+    Total cadastrado: R$ ${Object.values(vals).reduce((a,b) => a + Number(b), 0).toFixed(2)}
+  </div>`;
+}
+
+function addValor() {
+  const nome  = (document.getElementById('inp-valor-nome')?.value || '').trim();
+  const preco = parseFloat(document.getElementById('inp-valor-preco')?.value || '0');
+  if (!nome) { showAlert('valores-alert', 'rd', '⚠️ Informe o nome da ferramenta.'); return; }
+  if (isNaN(preco) || preco < 0) { showAlert('valores-alert', 'rd', '⚠️ Valor inválido.'); return; }
+  const vals = getValores();
+  vals[nome] = preco;
+  saveValores(vals);
+  document.getElementById('inp-valor-nome').value = '';
+  document.getElementById('inp-valor-preco').value = '';
+  renderValores();
+  showAlert('valores-alert', 'gn', '✅ ' + nome + ' salvo (R$ ' + preco.toFixed(2) + ')');
+}
+
+// Lista de ferramentas espelhada do app do mecânico
+const TOOLS_GESTOR = [
+  "Alicate de bico","Alicate de corte","Alicate universal","Alicate de pressão",
+  "Allen longa 4mm","Allen longa 5mm","Allen longa 6mm",
+  "Soquete 10mm","Soquete 12mm","Soquete 13mm","Soquete 14mm","Soquete 17mm","Soquete 19mm","Soquete 22mm",
+  "Chave L 8mm","Chave L 10mm","Chave L 12mm","Chave L 13mm","Chave L 14mm","Chave L 17mm",
+  "Combinada 8mm","Combinada 10mm","Combinada 12mm","Combinada 13mm","Combinada 14mm","Combinada 17mm","Combinada 19mm","Combinada 32mm",
+  "Marreta de borracha","Marreta 1kg",
+  "Chave Philips","Chave de fenda",
+  'Catraca 1/2" reversível','Extensor longo 1/2"'
+];
+
+function seedValores() {
+  const vals = getValores();
+  let adicionados = 0;
+  TOOLS_GESTOR.forEach(nome => {
+    if (!(nome in vals)) { vals[nome] = 0; adicionados++; }
+  });
+  if (adicionados > 0) {
+    saveValores(vals);
+    renderValores();
+    showAlert('valores-alert', 'gn', '✅ ' + adicionados + ' ferramentas importadas com R$ 0,00. Edite os valores!');
+  } else {
+    showAlert('valores-alert', 'yw', '⚠️ Todas as ferramentas já estão cadastradas.');
+  }
+}
+
+function removeValor(nome) {
+  const vals = getValores();
+  delete vals[nome];
+  saveValores(vals);
+  renderValores();
+}
+
+// Retorna o início da semana (segunda-feira) para uma data
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=dom, 1=seg...
+  const diff = (day === 0 ? -6 : 1 - day); // ajusta para segunda
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isSameWeek(date1, date2) {
+  return getWeekStart(date1).getTime() === getWeekStart(date2).getTime();
+}
+
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function renderDashboard() {
-  const recs = getRecords();
-  const today = new Date().toDateString();
-  const todayRecs = recs.filter(r => new Date(r.ts).toDateString() === today);
-  const checkins = recs.filter(r => r.tipo === 'checkin').length;
-  const checkouts = recs.filter(r => r.tipo === 'checkout').length;
-  const allNCs = recs.flatMap(r => Object.entries(r.ferramentas || {}).filter(([,v]) => v.status === 'nao_ok'));
-  const faltando = allNCs.filter(([,v]) => v.motivo === 'faltando').length;
-  const quebrado = allNCs.filter(([,v]) => v.motivo === 'quebrado').length;
+  const recs  = getRecords();
+  const bases = getBases();
+  const vals  = getValores();
+  const now   = new Date();
+  const today = now.toDateString();
 
+  // Filtra semana atual (seg a dom)
+  const semanaRecs = recs.filter(r => isSameWeek(new Date(r.ts), now));
+  const todayRecs  = recs.filter(r => new Date(r.ts).toDateString() === today);
+
+  // NCs da semana
+  const ncSemana = semanaRecs.flatMap(r => Object.entries(r.ferramentas || {}).filter(([,v]) => v.status === 'nao_ok'));
+  const faltandoSem = ncSemana.filter(([,v]) => v.motivo === 'faltando').length;
+  const quebradoSem = ncSemana.filter(([,v]) => v.motivo === 'quebrado').length;
+
+  // Custo reposição do dia
+  const ncHoje = todayRecs.flatMap(r => Object.entries(r.ferramentas || {}).filter(([,v]) => v.status === 'nao_ok' && v.motivo === 'faltando'));
+  let custoHoje = 0;
+  ncHoje.forEach(([k]) => { if (vals[k]) custoHoje += Number(vals[k]); });
+
+  // Custo reposição da semana
+  const ncFaltSemana = ncSemana.filter(([,v]) => v.motivo === 'faltando');
+  let custoSemana = 0;
+  ncFaltSemana.forEach(([k]) => { if (vals[k]) custoSemana += Number(vals[k]); });
+
+  // Check-ins de hoje por base
+  const ciHoje = todayRecs.filter(r => r.tipo === 'checkin');
+  const ciPorBase = {};
+  bases.forEach(b => { ciPorBase[b] = 0; });
+  ciHoje.forEach(r => {
+    const usuario = getUsuarios().find(u => u.nome === r.mecanico);
+    const base = usuario?.base || 'Sem base';
+    if (!ciPorBase[base]) ciPorBase[base] = 0;
+    ciPorBase[base]++;
+  });
+
+  // Carrinhos disponíveis (último registro = checkout)
+  const carts = getCarts();
+  const lastRec = {};
+  recs.forEach(r => { if (!lastRec[r.carrinho]) lastRec[r.carrinho] = r; });
+  const dispPorBase = {};
+  bases.forEach(b => { dispPorBase[b] = { disp: 0, total: 0 }; });
+  carts.forEach(c => {
+    const usuario = getUsuarios().find(u => u.nome === lastRec[c]?.mecanico);
+    const base = usuario?.base || 'Sem base';
+    if (!dispPorBase[base]) dispPorBase[base] = { disp: 0, total: 0 };
+    dispPorBase[base].total++;
+    const status = !lastRec[c] ? 'disponivel' : lastRec[c].tipo === 'checkout' ? 'disponivel' : 'em-uso';
+    if (status === 'disponivel') dispPorBase[base].disp++;
+  });
+
+  // Stat cards principais
+  const semStr = getWeekStart(now).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'}) + ' – ' + now.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'});
   document.getElementById('stat-grid').innerHTML = `
     <div class="stat-card"><div class="sc-label">Registros Hoje</div><div class="sc-num sc-az">${todayRecs.length}</div><div class="sc-sub">Total: ${recs.length}</div></div>
-    <div class="stat-card"><div class="sc-label">Check-ins</div><div class="sc-num sc-gn">${checkins}</div><div class="sc-sub">Check-outs: ${checkouts}</div></div>
-    <div class="stat-card"><div class="sc-label">Faltando</div><div class="sc-num sc-yw">${faltando}</div><div class="sc-sub">Ocorrências</div></div>
-    <div class="stat-card"><div class="sc-label">Quebrado</div><div class="sc-num sc-rd">${quebrado}</div><div class="sc-sub">Ocorrências</div></div>
+    <div class="stat-card"><div class="sc-label">NCs Semana</div><div class="sc-num sc-rd">${ncSemana.length}</div><div class="sc-sub">${faltandoSem} faltando · ${quebradoSem} quebrado</div></div>
+    <div class="stat-card"><div class="sc-label">Custo Hoje</div><div class="sc-num sc-yw">R$ ${custoHoje.toFixed(2)}</div><div class="sc-sub">Reposição ferramentas</div></div>
+    <div class="stat-card"><div class="sc-label">Custo Semana</div><div class="sc-num sc-rd">R$ ${custoSemana.toFixed(2)}</div><div class="sc-sub">${semStr}</div></div>
   `;
 
+  // Check-ins por base
+  const baseCiHtml = bases.map(b => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+      <span style="font-size:13px;font-weight:600;">${b}</span>
+      <span style="font-size:13px;color:var(--az);font-weight:700;">${ciPorBase[b] || 0} CI hoje</span>
+    </div>`).join('');
+
+  // Disponíveis por base
+  const baseDispHtml = bases.map(b => {
+    const info = dispPorBase[b] || {disp:0, total:0};
+    const pct = info.total ? Math.round(info.disp/info.total*100) : 0;
+    const cor = pct > 60 ? 'var(--gn)' : pct > 30 ? 'var(--yw)' : 'var(--rd)';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+      <span style="font-size:13px;font-weight:600;">${b}</span>
+      <span style="font-size:13px;color:${cor};font-weight:700;">${info.disp}/${info.total} livres</span>
+    </div>`;
+  }).join('');
+
+  // Últimos registros
   const recentHtml = recs.slice(0, 8).map(r => `
     <tr onclick="openDetail('${r.id}')" style="cursor:pointer;">
       <td><strong>${r.carrinho}</strong></td>
@@ -1266,32 +1408,95 @@ function renderDashboard() {
   `).join('') || '<tr class="empty-row"><td colspan="4">Nenhum registro</td></tr>';
   document.getElementById('dash-recent').innerHTML = recentHtml;
 
-  const ncRecs = recs.filter(r => r.nc_count > 0).slice(0, 6);
-  if (!ncRecs.length) {
-    document.getElementById('dash-nc').innerHTML = '<div style="padding:24px;text-align:center;color:var(--gr);font-size:14px;">✅ Sem não conformidades recentes</div>';
+  // NC do dia
+  const ncHojeRecs = todayRecs.filter(r => r.nc_count > 0).slice(0, 4);
+  if (!ncHojeRecs.length) {
+    document.getElementById('dash-nc').innerHTML = '<div style="padding:24px;text-align:center;color:var(--gr);font-size:14px;">✅ Sem NCs hoje</div>';
+  } else {
+    document.getElementById('dash-nc').innerHTML = ncHojeRecs.flatMap(r =>
+      Object.entries(r.ferramentas || {})
+        .filter(([,v]) => v.status === 'nao_ok').slice(0, 2)
+        .map(([k,v]) => `
+          <div class="nc-card">
+            <div class="nc-icon">${v.motivo === 'faltando' ? '❓' : '💔'}</div>
+            <div>
+              <div class="nc-cart">Carrinho ${r.carrinho}</div>
+              <div class="nc-tool">${k}</div>
+              <div class="nc-meta">${r.mecanico} · ${fmtDate(r.ts)}</div>
+            </div>
+            <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}" style="margin-left:auto;flex-shrink:0">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
+          </div>`)
+    ).join('');
+  }
+
+  // Cards de base no dashboard
+  let extraEl = document.getElementById('dash-bases');
+  if (!extraEl) {
+    extraEl = document.createElement('div');
+    extraEl.id = 'dash-bases';
+    extraEl.className = 'two-col';
+    extraEl.style.marginTop = '16px';
+    document.getElementById('panel-dashboard').appendChild(extraEl);
+  }
+  extraEl.innerHTML = `
+    <div class="table-wrap">
+      <div class="table-head"><h2>📍 Check-ins Hoje por Base</h2></div>
+      <div style="padding:0 16px 8px;">${baseCiHtml || '<div style="padding:16px;color:var(--gr);font-size:13px;">Configure as bases em Usuários</div>'}</div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-head"><h2>🛒 Carrinhos Disponíveis por Base</h2></div>
+      <div style="padding:0 16px 8px;">${baseDispHtml || '<div style="padding:16px;color:var(--gr);font-size:13px;">Cadastre carrinhos em Carrinhos</div>'}</div>
+    </div>
+  `;
+
+  const cfg = getConfig();
+  document.getElementById('sync-status').textContent = cfg.webhookUrl ? '🟢' : '🔴';
+  document.getElementById('total-records-footer').textContent = `${recs.length} registro(s)`;
+}
+
+// ─── NÃO CONFORMIDADES (semanal) ──────────────────────────────────────────────
+function renderNC() {
+  const recs = getRecords();
+  const now  = new Date();
+  const motivo = document.getElementById('nc-filt-motivo')?.value || '';
+
+  // Filtra semana atual
+  const semanaRecs = recs.filter(r => isSameWeek(new Date(r.ts), now));
+
+  let ncs = semanaRecs.flatMap(r =>
+    Object.entries(r.ferramentas || {})
+      .filter(([,v]) => v.status === 'nao_ok' && (!motivo || v.motivo === motivo))
+      .map(([k,v]) => ({ ferramenta:k, motivo:v.motivo||'nc', carrinho:r.carrinho, mecanico:r.mecanico, turno:r.turno, ts:r.ts, rid:r.id }))
+  );
+
+  // Stats da semana
+  const faltando = ncs.filter(n => n.motivo === 'faltando').length;
+  const quebrado = ncs.filter(n => n.motivo === 'quebrado').length;
+  const semStr = getWeekStart(now).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' – ' + now.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  const ncStats = document.getElementById('nc-stats');
+  if (ncStats) ncStats.innerHTML = `
+    <div class="stat-card"><div class="sc-label">NCs na Semana</div><div class="sc-num sc-rd">${ncs.length}</div><div class="sc-sub">${semStr}</div></div>
+    <div class="stat-card"><div class="sc-label">Faltando</div><div class="sc-num sc-yw">${faltando}</div><div class="sc-sub">ocorrências</div></div>
+    <div class="stat-card"><div class="sc-label">Quebrado</div><div class="sc-num sc-rd">${quebrado}</div><div class="sc-sub">ocorrências</div></div>
+  `;
+
+  const tbody = document.getElementById('nc-tbody');
+  if (!tbody) return;
+  if (!ncs.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma NC nesta semana</td></tr>';
+    document.getElementById('nc-footer').textContent = '0 ocorrências';
     return;
   }
-  document.getElementById('dash-nc').innerHTML = ncRecs.flatMap(r =>
-    Object.entries(r.ferramentas || {})
-      .filter(([,v]) => v.status === 'nao_ok')
-      .slice(0, 2)
-      .map(([k,v]) => `
-        <div class="nc-card">
-          <div class="nc-icon">${v.motivo === 'faltando' ? '❓' : '💔'}</div>
-          <div>
-            <div class="nc-cart">Carrinho ${r.carrinho}</div>
-            <div class="nc-tool">${k}</div>
-            <div class="nc-meta">${r.mecanico} · ${fmtDate(r.ts)}</div>
-          </div>
-          <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}" style="margin-left:auto;flex-shrink:0">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
-        </div>
-      `)
-  ).join('');
-
-  // footer sync info
-  const cfg = getConfig();
-  document.getElementById('sync-status').textContent = cfg.webhookUrl ? '🟢 Webhook configurado' : '🔴 Sem sync externo';
-  document.getElementById('total-records-footer').textContent = `${recs.length} registro(s)`;
+  tbody.innerHTML = ncs.map(n => `
+    <tr onclick="openDetail('${n.rid}')" style="cursor:pointer;">
+      <td><strong>${n.ferramenta}</strong></td>
+      <td><span class="badge ${n.motivo === 'faltando' ? 'byw' : 'brd'}">${n.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span></td>
+      <td>${n.carrinho}</td>
+      <td>${n.mecanico}</td>
+      <td style="font-size:12px;">${n.turno}</td>
+      <td style="color:var(--gr);white-space:nowrap;">${fmtDate(n.ts)}</td>
+    </tr>`).join('');
+  document.getElementById('nc-footer').textContent = ncs.length + ' ocorrência(s) nesta semana';
 }
 
 // ─── REGISTROS ────────────────────────────────────────────────────────────────

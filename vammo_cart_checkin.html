@@ -1275,10 +1275,14 @@ function selectMec(name) {
 
 // ─── SCREEN: CHECKLIST ────────────────────────────────────────────────────────
 const TOOL_ICONS = {
-  "ALICATES": "🪚", "ALLEN LONGA": "🔩",
-  'SOQUETES 1/2"': "⚙️", "CHAVE L / BIELA": "🔧",
-  "CHAVE COMBINADA": "🔑", "MARTELOS / MARRETAS": "🔨",
-  "CHAVES DE FENDA": "🪛", 'CATRACA / EXTENSÃO': "⚙️"
+  "ALICATES":            "🔧",
+  "ALLEN LONGA":         "🔩",
+  'SOQUETES 1/2"':       "🔩",
+  "CHAVE L / BIELA":     "🔧",
+  "CHAVE COMBINADA":     "🔧",
+  "MARTELOS / MARRETAS": "🔨",
+  "CHAVES DE FENDA":     "🪛",
+  'CATRACA / EXTENSÃO':  "🔧"
 };
 
 function renderChecklist() {
@@ -1307,17 +1311,46 @@ function renderChecklist() {
     </div>`;
   }).join('');
 
-  body.onclick = (e) => {
+  body.onclick = null;
+  body.onpointerdown = null;
+
+  // Clique simples → OK | Segurar (~500ms) → abre modal NC
+  let _pressTimer = null;
+  let _pressKey   = null;
+
+  body.addEventListener('pointerdown', (e) => {
     const btn = e.target.closest('[data-key]');
     if (!btn) return;
-    const key = decodeURIComponent(btn.dataset.key);
-    const cur = btn.dataset.status;
-    if (!cur || cur === 'nao_ok') {
-      setTool(key, 'ok');
-    } else {
-      setTool(key, 'nao_ok');
+    _pressKey = decodeURIComponent(btn.dataset.key);
+    _pressTimer = setTimeout(() => {
+      _pressTimer = null;
+      pendingNCtool = _pressKey;
+      document.getElementById('modal-tool-name').textContent = _pressKey;
+      document.getElementById('modal-nc').classList.remove('hidden');
+    }, 500);
+  });
+
+  body.addEventListener('pointerup', (e) => {
+    if (_pressTimer) {
+      clearTimeout(_pressTimer);
+      // Foi clique curto → marcar OK
+      const btn = e.target.closest('[data-key]');
+      if (btn && _pressKey) {
+        S.ferramentas[_pressKey] = { status: 'ok', motivo: null };
+        refreshToolRow(_pressKey);
+        updateStats();
+        updateNextBtn();
+      }
+      _pressTimer = null;
     }
-  };
+    _pressKey = null;
+  });
+
+  body.addEventListener('pointercancel', () => {
+    if (_pressTimer) clearTimeout(_pressTimer);
+    _pressTimer = null;
+    _pressKey   = null;
+  });
   updateStats();
 }
 
