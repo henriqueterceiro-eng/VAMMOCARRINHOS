@@ -611,6 +611,16 @@
     }
     .cart-card-v3.has-nc .ccv-flag { animation: pulseNC 1.1s ease-in-out infinite; }
     .cart-card-v3.has-nc .ccv-id   { color: var(--rd) !important; }
+    .cart-force-btn {
+      margin-top: 8px; width: 100%;
+      padding: 6px 8px; border-radius: 6px;
+      background: rgba(245,158,11,.15); color: var(--yw);
+      border: 1px solid var(--yw); cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px; font-weight: 800; letter-spacing: 1px;
+      text-transform: uppercase; transition: all .15s;
+    }
+    .cart-force-btn:hover { background: var(--yw); color: var(--bk); }
 
     /* ─── ESTOQUE (lista compacta) ─── */
     .est-cat-block { margin-bottom: 14px; }
@@ -1395,6 +1405,9 @@ function renderCarrinhos() {
       const hora = st.last ? new Date(st.last.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
       const data = st.last ? new Date(st.last.ts).toLocaleDateString('pt-BR') : '';
       const recIdAttr = st.last ? st.last.id : '';
+      const forceBtn = st.status === 'logado'
+        ? `<button class="cart-force-btn" onclick="event.stopPropagation(); forcarCheckout('${c.nome}', '${mec.replace(/'/g,'')}')" title="Forçar checkout">🔓 Forçar checkout</button>`
+        : '';
       return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
         <div>
@@ -1404,6 +1417,7 @@ function renderCarrinhos() {
         <div>
           ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
           ${hora ? `<div class="ccv-time">${data} · ${hora}</div>` : ''}
+          ${forceBtn}
         </div>
       </div>`;
     }).join('');
@@ -1435,6 +1449,58 @@ function openCartDetail(nome, recId) {
     body.innerHTML = html;
     document.getElementById('modal-detail').classList.remove('hidden');
   }
+}
+
+// Gestor força checkout de um carrinho que o mecânico esqueceu de fechar.
+// Cria um registro de checkout no servidor (GAS) attribuído ao mecânico original,
+// com observação "Forçado pelo gestor". Libera o carrinho.
+function forcarCheckout(cartName, mecanicoOriginal) {
+  const motivo = prompt(
+    `🔓 Forçar checkout do carrinho ${cartName}?\n\n` +
+    `Mecânico atual: ${mecanicoOriginal || '(desconhecido)'}\n\n` +
+    `Motivo (vai ficar registrado):`,
+    'Mecânico esqueceu de fazer checkout'
+  );
+  if (motivo === null) return;
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) {
+    showAlert('cart-alert-box', 'rd', '❌ URL do servidor não configurada.');
+    return;
+  }
+  const id = 'VMO-FORCE-' + Date.now().toString(36).toUpperCase();
+  const ts = new Date().toISOString();
+  const rec = {
+    id, ts, tipo: 'checkout',
+    carrinho: cartName, turno: '',
+    mecanico: mecanicoOriginal || 'gestor',
+    ferramentas: {},
+    fotos: {}, assinatura: false,
+    nc_count: 0,
+    forced: true,
+    forcedBy: 'gestor',
+    obs: motivo || 'Forçado pelo gestor'
+  };
+  // Salva local também (pra aparecer imediatamente)
+  try {
+    const arr = JSON.parse(localStorage.getItem('vammo_registros')) || [];
+    arr.unshift(rec);
+    localStorage.setItem('vammo_registros', JSON.stringify(arr));
+  } catch {}
+
+  // Envia ao GAS via POST no-cors
+  showAlert('cart-alert-box', 'az', '⏳ Forçando checkout no servidor...');
+  fetch(cfg.webhookUrl, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(rec)
+  }).then(() => {
+    showAlert('cart-alert-box', 'gn', `✅ Carrinho ${cartName} liberado. Checkout forçado registrado.`);
+    renderCarrinhos();
+  }).catch(err => {
+    console.error('Falha no force checkout:', err);
+    showAlert('cart-alert-box', 'yw', '⚠️ Salvo localmente, mas servidor não confirmou. Tente sincronizar.');
+    renderCarrinhos();
+  });
 }
 
 function addCart() {

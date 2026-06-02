@@ -292,6 +292,80 @@
     .t-btn.nk-btn.sel { background: var(--rd); border-color: var(--rd); }
     .t-btn:active { transform: scale(.93); }
 
+    /* ─── CHECKLIST WIZARD ─── */
+    .cl-progress-wrap { margin-bottom: 14px; }
+    .cl-progress-bar {
+      width: 100%; height: 6px;
+      background: var(--c1); border-radius: 3px;
+      overflow: hidden; border: 1px solid var(--bd);
+    }
+    .cl-progress-fill {
+      height: 100%; background: var(--az);
+      width: 0%; transition: width .25s;
+    }
+    .cl-progress-label {
+      text-align: center; font-size: 11px; color: var(--gr);
+      margin-top: 6px; letter-spacing: 2px; text-transform: uppercase;
+      font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    }
+    .cl-card-wizard {
+      background: var(--c1); border-radius: 16px;
+      border: 2px solid var(--bd); padding: 22px 18px;
+      margin-bottom: 14px;
+      display: flex; flex-direction: column; align-items: center; gap: 18px;
+      min-height: 260px;
+    }
+    .cl-card-wizard.done { border-color: var(--gn); }
+    .cl-card-wizard .cw-cat {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px; font-weight: 800;
+      color: var(--az); letter-spacing: 2.5px;
+      text-transform: uppercase;
+    }
+    .cl-card-wizard .cw-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 28px; font-weight: 900;
+      text-align: center; letter-spacing: 1px;
+      line-height: 1.15; color: var(--wh);
+    }
+    .cl-card-wizard .cw-current-status {
+      font-size: 12px; color: var(--gr); text-transform: uppercase; letter-spacing: 1.5px;
+      font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    }
+    .cl-card-wizard .cw-current-status.is-ok  { color: var(--gn); }
+    .cl-card-wizard .cw-current-status.is-nk  { color: var(--rd); }
+    .cl-card-wizard .cw-actions {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px; width: 100%;
+    }
+    .cl-btn-big {
+      padding: 18px 12px; border-radius: 14px;
+      border: 2px solid var(--bd); background: var(--c2);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 18px; font-weight: 900; letter-spacing: 2px;
+      text-transform: uppercase; cursor: pointer;
+      color: var(--wh); transition: all .15s;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+    }
+    .cl-btn-big .cwb-icon { font-size: 26px; }
+    .cl-btn-big.cl-ok:hover, .cl-btn-big.cl-ok.sel { background: var(--gn); border-color: var(--gn); color: var(--bk); }
+    .cl-btn-big.cl-nk:hover, .cl-btn-big.cl-nk.sel { background: var(--rd); border-color: var(--rd); color: var(--wh); }
+    .cl-btn-big:active { transform: scale(.97); }
+    .cl-nav {
+      display: flex; gap: 10px; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .cl-nav-btn {
+      flex: 1; padding: 10px;
+      background: transparent; border: 1px solid var(--bd);
+      color: var(--w2); border-radius: 10px; cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .cl-nav-btn:hover { background: var(--c2); border-color: var(--az); color: var(--az); }
+    .cl-nav-btn:disabled { opacity: .4; cursor: not-allowed; }
+
     /* ─── FOTOS ─── */
     .photo-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
     /* label funciona igual ao div mas ativa o input nativo ao toque */
@@ -695,18 +769,31 @@
     </div>
   </div>
 
-  <!-- SCREEN: CHECKLIST -->
+  <!-- SCREEN: CHECKLIST (wizard — uma ferramenta por vez) -->
   <div class="screen" id="screen-checklist">
     <div class="s-title">Checklist</div>
-    <div class="s-sub">Verifique todas as ferramentas do carrinho</div>
 
+    <!-- Progresso -->
+    <div class="cl-progress-wrap">
+      <div class="cl-progress-bar"><div class="cl-progress-fill" id="cl-progress-fill"></div></div>
+      <div class="cl-progress-label" id="cl-progress-label">– de –</div>
+    </div>
+
+    <!-- Stats mini -->
     <div class="cl-stats">
       <div class="cl-stat"><div class="n tot" id="st-tot">0</div><div class="l">Total</div></div>
       <div class="cl-stat"><div class="n ok" id="st-ok">0</div><div class="l">OK</div></div>
       <div class="cl-stat"><div class="n nk" id="st-nk">0</div><div class="l">Problema</div></div>
     </div>
 
-    <div id="checklist-body"></div>
+    <!-- Card grande da ferramenta atual -->
+    <div id="cl-current" class="cl-card-wizard"></div>
+
+    <!-- Navegação interna -->
+    <div class="cl-nav">
+      <button class="cl-nav-btn" onclick="prevTool()">← Anterior</button>
+      <button class="cl-nav-btn" onclick="nextTool()">Pular →</button>
+    </div>
   </div>
 
   <!-- SCREEN: FOTOS -->
@@ -788,12 +875,6 @@
       <div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;">
         <div id="ok-sync-status" style="font-size:14px;font-weight:600;">⏳ Enviando...</div>
       </div>
-
-      <!-- Compartilhar com fotos -->
-      <button onclick="compartilharComFotos()" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--az);background:transparent;color:var(--az);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;letter-spacing:2px;cursor:pointer;text-transform:uppercase;margin-bottom:4px;">
-        📤 Enviar com Fotos ao Gestor
-      </button>
-      <div style="font-size:11px;color:var(--gr);text-align:center;margin-bottom:8px;">Compartilha o JSON completo com fotos via WhatsApp/Drive</div>
     </div>
   </div>
 
@@ -973,10 +1054,11 @@ function goTo(idx) {
     const bb = document.getElementById('bottom-bar');
     if (isLogin) {
       bb.innerHTML = ''; // login: sem barra de navegação
+    } else if (isOK) {
+      // Botão desabilitado até o envio completar (ou 8s de fallback)
+      bb.innerHTML = `<button class="btn-novo" id="btn-novo" onclick="resetApp()" disabled style="opacity:.4;cursor:wait;">⏳ Aguarde envio...</button>`;
     } else {
-      bb.innerHTML = isOK
-        ? `<button class="btn-novo" onclick="resetApp()">➕ Nova Operação</button>`
-        : `<button class="btn-back" id="btn-back" onclick="goBack()" style="${isTipo?'display:none':''}">←</button>
+      bb.innerHTML = `<button class="btn-back" id="btn-back" onclick="goBack()" style="${isTipo?'display:none':''}">←</button>
            <button class="btn-next" id="btn-next" onclick="goNext()">Avançar →</button>`;
     }
 
@@ -1020,7 +1102,7 @@ function canAdvance() {
   switch (SCREENS[curScreen]) {
     case 'screen-login': return !!S.mecanico;
     case 'screen-tipo': return !!S.tipo;
-    case 'screen-scan': return !!S.carrinho;
+    case 'screen-scan': return !!S.carrinho && !S.cartLocked;
     case 'screen-checklist': return checklistComplete();
     case 'screen-fotos': return S.fotos.sup && S.fotos.inf && S.fotos.elv;
     case 'screen-assin': return sigHasData;
@@ -1137,6 +1219,9 @@ function confirmManualCart() {
 
 function resetScan() {
   S.carrinho = null;
+  S.cartLocked = false;
+  const box = document.getElementById('cart-lock-box');
+  if (box) box.remove();
   document.getElementById('cart-found-box').style.display = 'none';
   document.getElementById('qr-scan-area').style.display = 'block';
   const st = document.getElementById('qr-status');
@@ -1148,9 +1233,63 @@ function resetScan() {
 
 function setCart(num) {
   S.carrinho = normalizeCartName(num); // garante formato canônico
+  S.cartLocked = false; // reseta status
   document.getElementById('cart-num-display').textContent = S.carrinho;
   document.getElementById('cart-found-box').style.display = 'block';
+  // limpa box de status antigo
+  const box = document.getElementById('cart-lock-box');
+  if (box) box.remove();
   updateNextBtn();
+  // Para check-in: valida se o carrinho não está ocupado por outro
+  if (S.tipo === 'checkin') checkCartLock(S.carrinho);
+}
+
+// Consulta GAS: o carrinho tem checkin sem checkout? Se sim e for outro usuário, bloqueia.
+function checkCartLock(cartName) {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return; // sem servidor, não tem como verificar
+  const foundBox = document.getElementById('cart-found-box');
+  if (!foundBox) return;
+  // injeta box de status temporário
+  let statusBox = document.createElement('div');
+  statusBox.id = 'cart-lock-box';
+  statusBox.style.cssText = 'margin-top:10px;padding:12px 14px;border-radius:10px;border:1px solid var(--bd);background:var(--c2);font-size:13px;color:var(--gr);text-align:center;';
+  statusBox.textContent = '🔍 Verificando se o carrinho está livre...';
+  foundBox.appendChild(statusBox);
+
+  gasGet(cfg.webhookUrl, 'action=cartstatus&cart=' + encodeURIComponent(cartName), (data, err) => {
+    if (err || !data) {
+      statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.1);font-size:12px;color:var(--yw);text-align:center;';
+      statusBox.textContent = '⚠️ Não consegui verificar status do carrinho (offline?) — siga com cuidado';
+      return;
+    }
+    if (data.status === 'free') {
+      statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--gn);background:rgba(34,197,94,.1);font-size:13px;color:var(--gn);text-align:center;font-weight:700;';
+      statusBox.textContent = '✅ Carrinho livre para check-in';
+      return;
+    }
+    if (data.status === 'occupied') {
+      const mec = String(data.mecanico || '').toLowerCase();
+      const u = getStoredUser();
+      const me = u ? u.email.toLowerCase() : '';
+      if (mec && mec === me) {
+        // Mesmo mecânico tentando logar de novo (caso raro)
+        statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.1);font-size:13px;color:var(--yw);text-align:center;font-weight:700;';
+        statusBox.textContent = '⚠️ Você já está logado neste carrinho. Faça checkout antes de novo check-in.';
+        S.cartLocked = true;
+        updateNextBtn();
+        return;
+      }
+      // Bloqueia: ocupado por outro
+      const quando = data.ts ? new Date(data.ts).toLocaleString('pt-BR', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' }) : '';
+      statusBox.style.cssText = 'margin-top:10px;padding:12px 14px;border-radius:10px;border:2px solid var(--rd);background:rgba(239,68,68,.12);font-size:13px;color:var(--rd);text-align:left;line-height:1.4;';
+      statusBox.innerHTML = `🔒 <strong>Carrinho ocupado</strong><br>
+        <strong>${mec}</strong> está logado neste carrinho${quando ? ` desde <strong>${quando}</strong>` : ''}.<br>
+        <span style="font-size:12px;opacity:.85;">Peça pra esse mecânico fazer checkout, ou avise o gestor.</span>`;
+      S.cartLocked = true;
+      updateNextBtn();
+    }
+  });
 }
 
 // ─── AUTH (Google Sign-In + fallback picker) ──────────────────────────────────
@@ -1270,36 +1409,73 @@ function doLogout() {
 }
 
 // ─── SCREEN: CHECKLIST ────────────────────────────────────────────────────────
+// ─── CHECKLIST WIZARD (uma ferramenta por vez) ────────────────────────────────
+// Flat list de {cat, item} para indexar facilmente
+function flatChecklist() {
+  const out = [];
+  TOOLS.forEach(c => c.items.forEach(item => out.push({ cat: c.cat, item })));
+  return out;
+}
+let _clIdx = 0;
+
 function renderChecklist() {
-  const body = document.getElementById('checklist-body');
-  body.innerHTML = TOOLS.map(cat => `
-    <div class="cat-header">${cat.cat}</div>
-    ${cat.items.map(item => {
-      const key = item;
-      const rowId = 'tr-' + btoa(encodeURIComponent(key)).replace(/=/g,'');
-      const st = S.ferramentas[key] || {};
-      const okSel = st.status === 'ok' ? 'sel' : '';
-      const nkSel = st.status === 'nao_ok' ? 'sel' : '';
-      const safeKey = encodeURIComponent(key);
-      return `<div class="tool-row" id="${rowId}">
-        <div class="tool-name">${item}</div>
-        <div class="t-btns">
-          <button class="t-btn ok-btn ${okSel}" data-key="${safeKey}" data-status="ok">✅</button>
-          <button class="t-btn nk-btn ${nkSel}" data-key="${safeKey}" data-status="nao_ok">❌</button>
-        </div>
-      </div>`;
-    }).join('')}
-  `).join('');
-  // Delegação de eventos — evita problema com aspas nos nomes de ferramentas
-  body.onclick = (e) => {
-    const btn = e.target.closest('[data-key]');
-    if (!btn) return;
-    setTool(decodeURIComponent(btn.dataset.key), btn.dataset.status);
-  };
+  const flat = flatChecklist();
+  // Na primeira vez (ou se a operação foi resetada), pula pra primeira não-marcada
+  if (S.ferramentas[flat[_clIdx]?.item]?.status) {
+    const next = flat.findIndex(f => !S.ferramentas[f.item]?.status);
+    if (next >= 0) _clIdx = next;
+  }
+  if (_clIdx < 0 || _clIdx >= flat.length) _clIdx = 0;
+  renderCurrentTool();
   updateStats();
+  updateClProgress();
 }
 
-function setTool(key, status) {
+function renderCurrentTool() {
+  const flat = flatChecklist();
+  const it = flat[_clIdx];
+  if (!it) return;
+  const st = S.ferramentas[it.item] || {};
+  const isOk = st.status === 'ok';
+  const isNk = st.status === 'nao_ok';
+  const statusLine = isOk
+    ? '<span class="cw-current-status is-ok">✅ OK</span>'
+    : isNk
+      ? `<span class="cw-current-status is-nk">❌ ${st.motivo === 'faltando' ? 'Faltando' : 'Quebrado/Danificado'}</span>`
+      : '<span class="cw-current-status">Aguardando resposta</span>';
+  const card = document.getElementById('cl-current');
+  if (!card) return;
+  card.className = 'cl-card-wizard' + (st.status ? ' done' : '');
+  card.innerHTML = `
+    <div class="cw-cat">${it.cat}</div>
+    <div class="cw-name">${it.item}</div>
+    ${statusLine}
+    <div class="cw-actions">
+      <button class="cl-btn-big cl-ok ${isOk?'sel':''}" onclick="setTool('${encodeURIComponent(it.item)}','ok')">
+        <span class="cwb-icon">✅</span><span>OK</span>
+      </button>
+      <button class="cl-btn-big cl-nk ${isNk?'sel':''}" onclick="setTool('${encodeURIComponent(it.item)}','nao_ok')">
+        <span class="cwb-icon">❌</span><span>Problema</span>
+      </button>
+    </div>
+  `;
+  // Habilita/desabilita anterior/pular
+  const navBtns = document.querySelectorAll('.cl-nav .cl-nav-btn');
+  if (navBtns[0]) navBtns[0].disabled = _clIdx === 0;
+  if (navBtns[1]) navBtns[1].disabled = _clIdx === flat.length - 1;
+}
+
+function updateClProgress() {
+  const flat = flatChecklist();
+  const done = flat.filter(f => S.ferramentas[f.item]?.status).length;
+  const fill = document.getElementById('cl-progress-fill');
+  const lbl  = document.getElementById('cl-progress-label');
+  if (fill) fill.style.width = Math.round((done / flat.length) * 100) + '%';
+  if (lbl)  lbl.textContent = `${done} de ${flat.length} verificadas · atual ${_clIdx + 1}/${flat.length}`;
+}
+
+function setTool(encKey, status) {
+  const key = decodeURIComponent(encKey);
   if (status === 'nao_ok') {
     pendingNCtool = key;
     document.getElementById('modal-tool-name').textContent = key;
@@ -1307,18 +1483,24 @@ function setTool(key, status) {
     return;
   }
   S.ferramentas[key] = { status, motivo: null };
-  refreshToolRow(key);
   updateStats();
+  updateClProgress();
+  renderCurrentTool();
   updateNextBtn();
+  // avança automaticamente
+  setTimeout(() => nextTool(), 250);
 }
 
 function setMotivo(motivo) {
   S.ferramentas[pendingNCtool] = { status: 'nao_ok', motivo };
-  refreshToolRow(pendingNCtool);
   updateStats();
+  updateClProgress();
+  renderCurrentTool();
   updateNextBtn();
   document.getElementById('modal-nc').classList.add('hidden');
   pendingNCtool = null;
+  // avança automaticamente após escolher motivo
+  setTimeout(() => nextTool(), 250);
 }
 
 function cancelNC() {
@@ -1326,29 +1508,16 @@ function cancelNC() {
   pendingNCtool = null;
 }
 
-function refreshToolRow(key) {
-  const st = S.ferramentas[key] || {};
-  const okSel = st.status === 'ok' ? 'sel' : '';
-  const nkSel = st.status === 'nao_ok' ? 'sel' : '';
-  const rowId = 'tr-' + btoa(encodeURIComponent(key)).replace(/=/g,'');
-  const row = document.getElementById(rowId);
-  if (!row) return;
-  const safeKey = encodeURIComponent(key);
-  const btns = row.querySelector('.t-btns');
-  btns.innerHTML = `
-    <button class="t-btn ok-btn ${okSel}" data-key="${safeKey}" data-status="ok">✅</button>
-    <button class="t-btn nk-btn ${nkSel}" data-key="${safeKey}" data-status="nao_ok">❌</button>
-  `;
-  if (st.motivo) {
-    let existing = row.querySelector('.nc-note');
-    if (!existing) {
-      existing = document.createElement('div');
-      existing.className = 'nc-note';
-      existing.style.cssText = 'font-size:11px;color:var(--yw);margin-top:4px;';
-      row.appendChild(existing);
-    }
-    existing.textContent = `⚠ ${st.motivo === 'faltando' ? 'Faltando' : 'Quebrado/Danificado'}`;
-  }
+function nextTool() {
+  const flat = flatChecklist();
+  if (_clIdx < flat.length - 1) _clIdx++;
+  renderCurrentTool();
+  updateClProgress();
+}
+function prevTool() {
+  if (_clIdx > 0) _clIdx--;
+  renderCurrentTool();
+  updateClProgress();
 }
 
 function updateStats() {
@@ -1356,9 +1525,9 @@ function updateStats() {
   const tot = all.length;
   const ok = all.filter(k => S.ferramentas[k]?.status === 'ok').length;
   const nk = all.filter(k => S.ferramentas[k]?.status === 'nao_ok').length;
-  document.getElementById('st-tot').textContent = tot;
-  document.getElementById('st-ok').textContent = ok;
-  document.getElementById('st-nk').textContent = nk;
+  const totEl = document.getElementById('st-tot'); if (totEl) totEl.textContent = tot;
+  const okEl  = document.getElementById('st-ok');  if (okEl)  okEl.textContent  = ok;
+  const nkEl  = document.getElementById('st-nk');  if (nkEl)  nkEl.textContent  = nk;
 }
 
 function checklistComplete() {
@@ -1417,10 +1586,13 @@ function initSig() {
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr || 600;
+  canvas.width = (rect.width || 600) * dpr;
   canvas.height = 200 * dpr;
   canvas.style.height = '200px';
   ctx.scale(dpr, dpr);
+  // Fundo branco (alguns navegadores/iOS pintam canvas preto por padrão)
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
   ctx.strokeStyle = '#1a1a1a';
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
@@ -1481,7 +1653,9 @@ function initSig() {
 function clearSig() {
   const canvas = document.getElementById('sig-canvas');
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const dpr = window.devicePixelRatio || 1;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
   sigHasData = false;
   S.assinatura = null;
   document.getElementById('sig-wrap').classList.remove('signed');
@@ -1574,11 +1748,15 @@ function submit() {
   if (!cfg.webhookUrl) {
     statusEl.textContent = '⚙️ Servidor não configurado — use o ⚙️ no topo.';
     statusEl.style.color = 'var(--gr)';
+    enableNovaOperacao();
     return;
   }
 
   statusEl.textContent = '⏳ Enviando fotos e dados...';
   statusEl.style.color = 'var(--az)';
+
+  // Fallback de segurança: libera Nova Operação em no máximo 12s
+  setTimeout(enableNovaOperacao, 12000);
 
   // Com HTTPS (GitHub Pages) usa fetch POST — envia fotos completas
   // Com file:// usa JSONP sem fotos (fallback)
@@ -1609,10 +1787,20 @@ function enviarPost(url, rec, statusEl) {
   }).then(() => {
     statusEl.textContent = '✅ Enviado! Gestor receberá no próximo sync.';
     statusEl.style.color = 'var(--gn)';
+    enableNovaOperacao();
   }).catch((err) => {
     console.error('POST falhou, tentando fallback JSONP:', err);
     enviarJSONPSemFotos(url, rec, statusEl);
   });
+}
+
+function enableNovaOperacao() {
+  const btn = document.getElementById('btn-novo');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.style.opacity = '1';
+  btn.style.cursor = 'pointer';
+  btn.textContent = '➕ Nova Operação';
 }
 
 function enviarJSONPSemFotos(url, rec, statusEl) {
@@ -1642,6 +1830,7 @@ function enviarJSONPSemFotos(url, rec, statusEl) {
       statusEl.textContent = '⚠️ ' + (err || data?.error || 'Sem resposta');
       statusEl.style.color = 'var(--yw)';
     }
+    enableNovaOperacao();
   });
 }
 
@@ -1693,7 +1882,8 @@ function baixarJSON(blob, nome) {
 function resetApp() {
   // mantém mecânico logado (login é persistente; trocar usuário é via doLogout)
   const u = getStoredUser();
-  S = { tipo: null, carrinho: null, turno: '', mecanico: u ? u.email : null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null };
+  S = { tipo: null, carrinho: null, turno: '', mecanico: u ? u.email : null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null, cartLocked: false };
+  _clIdx = 0;
   sigHasData = false;
 
   // Reset tela de scan
