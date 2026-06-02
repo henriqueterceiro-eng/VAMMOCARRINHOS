@@ -555,46 +555,65 @@
     .cart-card-v3.has-nc .ccv-flag { animation: pulseNC 1.1s ease-in-out infinite; }
     .cart-card-v3.has-nc .ccv-id   { color: var(--rd) !important; }
 
-    /* ─── ESTOQUE ─── */
-    .estoque-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 10px;
-    }
-    .est-card {
-      background: var(--c1); border: 1px solid var(--bd);
-      border-radius: 12px; padding: 12px 14px;
-      display: flex; align-items: center; gap: 12px;
-    }
-    .est-card .et-info { flex: 1; min-width: 0; }
-    .est-card .et-name {
-      font-family: 'Barlow', sans-serif;
-      font-size: 13px; font-weight: 700; color: var(--wh);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .est-card .et-cat { font-size: 10px; color: var(--gr); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
-    .est-card .et-qtd {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-size: 28px; font-weight: 900;
-      min-width: 44px; text-align: center;
-    }
-    .est-card.qtd-zero  .et-qtd { color: var(--rd); }
-    .est-card.qtd-baixo .et-qtd { color: var(--yw); }
-    .est-card.qtd-ok    .et-qtd { color: var(--gn); }
-    .est-card .et-btns { display: flex; flex-direction: column; gap: 4px; }
-    .est-card .et-btns button {
-      width: 28px; height: 24px; border-radius: 6px;
-      background: var(--c2); border: 1px solid var(--bd);
-      color: var(--w2); cursor: pointer; font-size: 14px; line-height: 1;
-      padding: 0; transition: all .15s;
-    }
-    .est-card .et-btns button:hover { background: var(--c1); color: var(--az); border-color: var(--az); }
+    /* ─── ESTOQUE (lista compacta) ─── */
+    .est-cat-block { margin-bottom: 14px; }
     .est-cat-title {
       font-family: 'Barlow Condensed', sans-serif;
-      font-size: 13px; font-weight: 800; color: var(--gr);
+      font-size: 12px; font-weight: 800; color: var(--w2);
       letter-spacing: 2px; text-transform: uppercase;
-      margin: 18px 0 8px;
+      padding: 8px 12px; background: var(--c2);
+      border-radius: 6px 6px 0 0; border: 1px solid var(--bd);
+      border-bottom: none;
+      display: flex; align-items: center; gap: 8px;
     }
-    .est-cat-title:first-child { margin-top: 0; }
+    .est-cat-title .est-cat-count {
+      margin-left: auto; font-size: 10px;
+      color: var(--gr); background: var(--c1);
+      padding: 2px 8px; border-radius: 10px;
+      letter-spacing: 1px;
+    }
+    .est-list {
+      border: 1px solid var(--bd);
+      border-radius: 0 0 6px 6px;
+      overflow: hidden;
+    }
+    .est-row {
+      display: grid;
+      grid-template-columns: 1fr 56px 30px 30px 30px;
+      align-items: center; gap: 8px;
+      padding: 6px 12px;
+      border-top: 1px solid rgba(255,255,255,.04);
+      background: var(--c1);
+      transition: background .12s;
+    }
+    .est-row:first-child { border-top: none; }
+    .est-row:hover { background: var(--c2); }
+    .est-row .er-name {
+      font-family: 'Barlow', sans-serif;
+      font-size: 13px; font-weight: 600; color: var(--wh);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .est-row .er-qtd {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 20px; font-weight: 900;
+      text-align: center; line-height: 1;
+    }
+    .est-row.qtd-zero  .er-qtd { color: var(--rd); }
+    .est-row.qtd-baixo .er-qtd { color: var(--yw); }
+    .est-row.qtd-ok    .er-qtd { color: var(--gn); }
+    .est-row button {
+      width: 26px; height: 24px; border-radius: 5px;
+      background: var(--c2); border: 1px solid var(--bd);
+      color: var(--w2); cursor: pointer; font-size: 12px; line-height: 1;
+      padding: 0; transition: all .12s;
+    }
+    .est-row:hover button { background: var(--c1); }
+    .est-row button:hover { color: var(--az); border-color: var(--az); }
+    @media (max-width: 600px) {
+      .est-row { grid-template-columns: 1fr 44px 26px 26px 26px; gap: 6px; padding: 5px 8px; }
+      .est-row .er-name { font-size: 12px; }
+      .est-row .er-qtd  { font-size: 18px; }
+    }
 
     /* ─── REPOSIÇÃO (botão na lista de NC) ─── */
     .btn-repor {
@@ -1651,24 +1670,22 @@ function renderEstoque() {
     const catsHtml = TOOLS_CATALOG.map(cat => {
       const items = cat.items.filter(t => !q || t.toLowerCase().includes(q));
       if (!items.length) return '';
-      return `<div class="est-cat-title">${cat.cat}</div>
-        <div class="estoque-grid">${items.map(t => {
-          const qtd = typeof baseEst[t] === 'number' ? baseEst[t] : 0;
-          const cls = qtd === 0 ? 'qtd-zero' : qtd < 3 ? 'qtd-baixo' : 'qtd-ok';
-          const tEsc = JSON.stringify(t).replace(/"/g,'&quot;');
-          return `<div class="est-card ${cls}">
-            <div class="et-info">
-              <div class="et-name" title="${t}">${t}</div>
-              <div class="et-cat">${cat.cat}</div>
-            </div>
-            <div class="et-qtd">${qtd}</div>
-            <div class="et-btns">
-              <button onclick="ajustarEstoque('${b}', ${tEsc}, +1)" title="+1">▲</button>
-              <button onclick="ajustarEstoque('${b}', ${tEsc}, -1)" title="-1">▼</button>
-            </div>
-            <button class="btn-sm btn-outline" style="font-size:11px;padding:6px 8px;" onclick="ajustarEstoquePrompt('${b}', ${tEsc})" title="Editar quantidade">✎</button>
-          </div>`;
-        }).join('')}</div>`;
+      const rowsHtml = items.map(t => {
+        const qtd = typeof baseEst[t] === 'number' ? baseEst[t] : 0;
+        const cls = qtd === 0 ? 'qtd-zero' : qtd < 3 ? 'qtd-baixo' : 'qtd-ok';
+        const tEsc = JSON.stringify(t).replace(/"/g,'&quot;');
+        return `<div class="est-row ${cls}">
+          <div class="er-name" title="${t}">${t}</div>
+          <div class="er-qtd">${qtd}</div>
+          <button onclick="ajustarEstoque('${b}', ${tEsc}, -1)" title="-1">−</button>
+          <button onclick="ajustarEstoque('${b}', ${tEsc}, +1)" title="+1">+</button>
+          <button onclick="ajustarEstoquePrompt('${b}', ${tEsc})" title="Editar quantidade">✎</button>
+        </div>`;
+      }).join('');
+      return `<div class="est-cat-block">
+        <div class="est-cat-title">${cat.cat}<span class="est-cat-count">${items.length}</span></div>
+        <div class="est-list">${rowsHtml}</div>
+      </div>`;
     }).join('');
     return `<div class="base-section ${b===_currentEstBaseTab?'active':''}" data-base="${b}">${catsHtml || '<div style="color:var(--gr);font-size:13px;padding:8px 0;">Nenhuma ferramenta corresponde ao filtro.</div>'}</div>`;
   }).join('');
