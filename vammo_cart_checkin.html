@@ -613,18 +613,15 @@
   <!-- SCREEN: LOGIN -->
   <div class="screen active" id="screen-login">
     <div class="s-title">Login<br>Vammo</div>
-    <div class="s-sub">Entre com sua conta @vammo.com</div>
+    <div class="s-sub">Entre com sua conta <b>@vammo.com</b></div>
 
-    <div id="gsi-button-wrap" style="display:flex;justify-content:center;padding:20px 0;min-height:60px;"></div>
+    <div id="gsi-button-wrap" style="display:flex;justify-content:center;padding:24px 0;min-height:60px;"></div>
 
-    <div id="login-status" style="text-align:center;font-size:13px;color:var(--gr);min-height:18px;margin-bottom:12px;"></div>
+    <div id="login-status" style="text-align:center;font-size:13px;color:var(--gr);min-height:18px;margin:8px 0 16px;"></div>
 
-    <div id="login-fallback" style="display:none;">
-      <div style="text-align:center;color:var(--gr);font-size:12px;margin:8px 0 12px;letter-spacing:1px;text-transform:uppercase;">— ou selecione na lista —</div>
-      <div class="mec-search">
-        <input type="text" id="login-search-inp" placeholder="Buscar seu e-mail..." oninput="renderLoginPicker(this.value)">
-      </div>
-      <div id="login-list" style="max-height:50vh;overflow-y:auto;"></div>
+    <div style="text-align:center;font-size:11px;color:var(--gr);margin-top:24px;line-height:1.6;">
+      🔒 Acesso restrito a colaboradores autorizados.<br>
+      Se seu e-mail não funcionar, peça ao gestor para cadastrá-lo.
     </div>
   </div>
 
@@ -892,6 +889,13 @@ let S = {
 // OAuth Client ID Web (autorizado em https://henriqueterceiro-eng.github.io)
 const GOOGLE_CLIENT_ID = '662702497307-qom2jv0sboe0n4686jsaisftov6bqrep.apps.googleusercontent.com';
 
+// Gestores: sempre autorizados (não precisam estar na lista de mecânicos)
+const GESTORES_EMAILS = [
+  'henrique.terceiro@vammo.com',
+  'marcelo@vammo.com',
+  'billy@vammo.com'
+];
+
 const SCREENS = ['screen-login','screen-tipo','screen-scan','screen-checklist','screen-fotos','screen-assin','screen-resumo','screen-ok'];
 const STEP_TITLES = ['Login','Operação','Carrinho','Checklist','Fotos','Assinatura','Confirmar','Concluído'];
 let curScreen = 0;
@@ -1140,14 +1144,23 @@ function decodeJwtPayload(token) {
   } catch { return null; }
 }
 
+function isEmailAllowed(email) {
+  const e = String(email||'').toLowerCase();
+  if (!e) return false;
+  const allow = new Set([
+    ...GESTORES_EMAILS.map(x => x.toLowerCase()),
+    ...getColab().map(x => x.toLowerCase())
+  ]);
+  return allow.has(e);
+}
+
 function authedAs(email, name) {
   const e = String(email||'').toLowerCase();
   if (!e) return false;
-  const allow = new Set(getColab().map(x => x.toLowerCase()));
-  if (!allow.has(e)) {
+  if (!isEmailAllowed(e)) {
     const st = document.getElementById('login-status');
     if (st) {
-      st.innerHTML = `❌ <b>${e}</b><br>não está na lista de colaboradores autorizados.<br>Peça ao gestor para cadastrar.`;
+      st.innerHTML = `❌ <b>${e}</b><br>não está na lista de colaboradores autorizados.<br>Peça ao gestor para cadastrar seu e-mail.`;
       st.style.color = 'var(--rd)';
     }
     return false;
@@ -1167,14 +1180,19 @@ function handleCredentialResponse(resp) {
   authedAs(p.email, p.name);
 }
 
-function initGoogleAuth() {
+function initGoogleAuth(retryCount) {
+  retryCount = retryCount || 0;
   if (!window.google || !google.accounts || !google.accounts.id) {
-    // GSI ainda não carregou — tenta de novo em 200ms
-    return setTimeout(initGoogleAuth, 200);
+    if (retryCount > 25) { // ~5s
+      document.getElementById('login-status').innerHTML = '⚠️ Falha ao carregar o Google Sign-In.<br>Verifique sua conexão e recarregue a página.';
+      document.getElementById('login-status').style.color = 'var(--rd)';
+      return;
+    }
+    return setTimeout(() => initGoogleAuth(retryCount + 1), 200);
   }
   if (!GOOGLE_CLIENT_ID) {
-    document.getElementById('login-fallback').style.display = 'block';
-    document.getElementById('login-status').textContent = 'Sem Client ID configurado — selecione na lista abaixo.';
+    document.getElementById('login-status').innerHTML = '⚠️ Client ID não configurado.<br>Avise o gestor.';
+    document.getElementById('login-status').style.color = 'var(--rd)';
     return;
   }
   try {
@@ -1182,51 +1200,18 @@ function initGoogleAuth() {
       client_id: GOOGLE_CLIENT_ID,
       callback: handleCredentialResponse,
       ux_mode: 'popup',
-      auto_select: false
+      auto_select: false,
+      hd: 'vammo.com' // restringe ao domínio vammo.com no Google
     });
     google.accounts.id.renderButton(
       document.getElementById('gsi-button-wrap'),
       { theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 280 }
     );
-    // mostra fallback como opção alternativa
-    document.getElementById('login-fallback').style.display = 'block';
   } catch (e) {
     console.error('GSI init falhou:', e);
-    document.getElementById('login-status').textContent = '⚠️ Google login indisponível — use a lista abaixo.';
-    document.getElementById('login-fallback').style.display = 'block';
+    document.getElementById('login-status').innerHTML = '⚠️ Google login indisponível.<br>Recarregue ou avise o gestor.';
+    document.getElementById('login-status').style.color = 'var(--rd)';
   }
-}
-
-function renderLoginPicker(filter) {
-  const emails = getColab();
-  const q = (filter || '').toLowerCase().trim();
-  const list = emails.filter(e => !q || e.toLowerCase().includes(q));
-  const el = document.getElementById('login-list');
-  if (!el) return;
-  if (!emails.length) {
-    el.innerHTML = '<div class="empty-state">Nenhum colaborador cadastrado.</div>';
-    return;
-  }
-  if (!list.length) {
-    el.innerHTML = `<div class="empty-state">Nenhum e-mail com "${q}".</div>`;
-    return;
-  }
-  el.innerHTML = list.slice(0, 50).map(email => {
-    const display = emailDisplayName(email);
-    const parts = email.split('@')[0].split('.');
-    const initials = parts.slice(0,2).map(p => p[0]).join('').toUpperCase() || '??';
-    return `<div class="mec-item" onclick="loginPicker('${email}')">
-      <div class="mec-avatar">${initials}</div>
-      <div style="min-width:0;flex:1;">
-        <div class="mec-name">${display}</div>
-        <div class="mec-role" style="font-size:11px;opacity:.7;">${email}</div>
-      </div>
-    </div>`;
-  }).join('') + (list.length > 50 ? `<div style="text-align:center;padding:8px;font-size:11px;color:var(--gr);">+ ${list.length-50} resultados — refine a busca</div>` : '');
-}
-
-function loginPicker(email) {
-  authedAs(email, emailDisplayName(email));
 }
 
 function updateUserChip() {
@@ -1819,23 +1804,14 @@ function decodeQRConfigFallback(file, st) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 (function bootstrap() {
   const u = getStoredUser();
-  if (u && u.email) {
-    // valida que ainda está na lista autorizada
-    const allow = new Set(getColab().map(x => x.toLowerCase()));
-    if (allow.has(u.email.toLowerCase())) {
-      S.mecanico = u.email;
-      updateUserChip();
-      goTo(SCREENS.indexOf('screen-tipo'));
-    } else {
-      setStoredUser(null);
-      goTo(SCREENS.indexOf('screen-login'));
-      initGoogleAuth();
-      renderLoginPicker('');
-    }
+  if (u && u.email && isEmailAllowed(u.email)) {
+    S.mecanico = u.email;
+    updateUserChip();
+    goTo(SCREENS.indexOf('screen-tipo'));
   } else {
+    setStoredUser(null);
     goTo(SCREENS.indexOf('screen-login'));
     initGoogleAuth();
-    renderLoginPicker('');
   }
   updateBar();
   updateNextBtn();
