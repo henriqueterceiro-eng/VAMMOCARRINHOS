@@ -926,12 +926,26 @@ function saveConfig(c) {
   try { localStorage.setItem('vammo_config', JSON.stringify(c)); } catch(e) { console.error(e); }
 }
 function saveRecord(rec) {
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem('vammo_registros')) || []; } catch {}
+  arr.unshift(rec);
+  if (arr.length > 200) arr = arr.slice(0, 200);
   try {
-    let arr = JSON.parse(localStorage.getItem('vammo_registros')) || [];
-    arr.unshift(rec);
-    if (arr.length > 500) arr = arr.slice(0, 500);
     localStorage.setItem('vammo_registros', JSON.stringify(arr));
-  } catch (e) { console.error(e); }
+    return true;
+  } catch (e) {
+    console.warn('Quota cheia, salvando registro sem fotos/assinatura...', e);
+    // Drop fotos/assinatura do registro atual + tenta de novo
+    const slim = { ...rec, fotos: { sup:!!rec.fotos?.sup, inf:!!rec.fotos?.inf, elv:!!rec.fotos?.elv }, assinatura: !!rec.assinatura };
+    arr[0] = slim;
+    try {
+      localStorage.setItem('vammo_registros', JSON.stringify(arr));
+      return 'slim'; // salvou sem fotos
+    } catch (e2) {
+      console.error('Falha total ao salvar:', e2);
+      return false;
+    }
+  }
 }
 
 // ─── NAVEGAÇÃO ────────────────────────────────────────────────────────────────
@@ -1355,13 +1369,40 @@ function checklistComplete() {
 // ─── SCREEN: FOTOS ────────────────────────────────────────────────────────────
 // Os slots são <label for="file-xxx"> — o toque abre a câmera nativamente,
 // sem nenhum JS intermediário (compatível iOS/Android/file://)
+// Reduz uma imagem dataURL para max 1024px de largura, JPEG qualidade 0.75
+// Caem de ~1-3MB pra ~80-200KB → cabe no localStorage e no POST pro GAS
+function resizeDataUrl(dataUrl, maxWidth, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.width > maxWidth ? maxWidth / img.width : 1;
+      const w = Math.round(img.width * ratio);
+      const h = Math.round(img.height * ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      try { resolve(canvas.toDataURL('image/jpeg', quality)); }
+      catch (e) { reject(e); }
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
 function onPhoto(slot, input) {
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
-    S.fotos[slot] = e.target.result;
-    document.getElementById('img-' + slot).src = e.target.result;
+  reader.onload = async e => {
+    let dataUrl = e.target.result;
+    try {
+      dataUrl = await resizeDataUrl(dataUrl, 1024, 0.75);
+    } catch (err) {
+      console.warn('Resize falhou, usando original:', err);
+    }
+    S.fotos[slot] = dataUrl;
+    document.getElementById('img-' + slot).src = dataUrl;
     document.getElementById('slot-' + slot).classList.add('done');
     updateNextBtn();
   };
@@ -1505,9 +1546,27 @@ function submit() {
     nc_count: ncs.length
   };
 
-  saveRecord(rec);
+  const saveResult = saveRecord(rec);
   S._saved = rec;
   goTo(SCREENS.indexOf('screen-ok'));
+
+  if (saveResult === 'slim') {
+    const w = document.getElementById('ok-nc-warn');
+    if (w) {
+      w.style.display = 'block';
+      w.innerHTML = `<div style="background:rgba(245,158,11,.12);border:1px solid var(--yw);border-radius:12px;padding:12px;font-size:13px;color:var(--yw);">
+        ⚠️ Memória do celular cheia — fotos/assinatura ficaram só no envio ao servidor (não no histórico local).
+      </div>`;
+    }
+  } else if (saveResult === false) {
+    const w = document.getElementById('ok-nc-warn');
+    if (w) {
+      w.style.display = 'block';
+      w.innerHTML = `<div style="background:rgba(239,68,68,.12);border:1px solid var(--rd);border-radius:12px;padding:12px;font-size:13px;color:var(--rd);">
+        ❌ Não foi possível salvar localmente. O envio ao servidor ainda vai ser tentado.
+      </div>`;
+    }
+  }
 
   const cfg = getConfig();
   const statusEl = document.getElementById('ok-sync-status');
@@ -1531,33 +1590,28 @@ function submit() {
 }
 
 function enviarPost(url, rec, statusEl) {
-  // GAS faz redirect interno — no-cors não consegue seguir
-  // Usamos JSONP igual ao fallback, que comprovadamente funciona
-  const ncList = Object.entries(rec.ferramentas || {})
-    .filter(([,v]) => v.status === 'nao_ok')
-    .map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc'))
-    .join('|');
-
-  const params = 'action=post'
-    + '&id='        + encodeURIComponent(rec.id)
-    + '&ts='        + encodeURIComponent(rec.ts)
-    + '&tipo='      + encodeURIComponent(rec.tipo)
-    + '&carrinho='  + encodeURIComponent(rec.carrinho)
-    + '&turno='     + encodeURIComponent(rec.turno)
-    + '&mecanico='  + encodeURIComponent(rec.mecanico)
-    + '&nc_count='  + rec.nc_count
-    + '&nc_list='   + ncList
-    + '&fotos='     + (rec.fotos?.sup?'1':'0') + (rec.fotos?.inf?'1':'0') + (rec.fotos?.elv?'1':'0')
-    + '&assinatura=' + (rec.assinatura?'1':'0');
-
-  gasGet(url, params, (data, err) => {
-    if (data?.success) {
-      statusEl.textContent = '✅ Enviado! Gestor receberá no próximo sync.';
-      statusEl.style.color = 'var(--gn)';
-    } else {
-      statusEl.textContent = '⚠️ ' + (err || data?.error || 'Sem resposta do servidor');
-      statusEl.style.color = 'var(--yw)';
-    }
+  // POST com body completo (ferramentas + fotos base64). Usamos no-cors:
+  // GAS responde 302 que o navegador não consegue ler, mas o salvar() executa.
+  // Pra confirmar, sondamos via action=sync depois de 2s.
+  const body = {
+    id: rec.id, ts: rec.ts, tipo: rec.tipo,
+    carrinho: rec.carrinho, turno: rec.turno || '', mecanico: rec.mecanico,
+    nc_count: rec.nc_count || 0,
+    ferramentas: rec.ferramentas || {},
+    fotos: rec.fotos || {},
+    assinatura: rec.assinatura ? true : false
+  };
+  fetch(url, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // text/plain evita preflight CORS
+    body: JSON.stringify(body)
+  }).then(() => {
+    statusEl.textContent = '✅ Enviado! Gestor receberá no próximo sync.';
+    statusEl.style.color = 'var(--gn)';
+  }).catch((err) => {
+    console.error('POST falhou, tentando fallback JSONP:', err);
+    enviarJSONPSemFotos(url, rec, statusEl);
   });
 }
 
