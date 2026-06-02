@@ -1141,7 +1141,8 @@ function getCarts() {
 function saveCarts(a) { localStorage.setItem('vammo_carts', JSON.stringify(a)); }
 function getCartsByBase(base) { return getCarts().filter(c => c.base === base); }
 function getCartBase(nome) {
-  const c = getCarts().find(x => x.nome === nome);
+  const norm = normalizeCartName(nome);
+  const c = getCarts().find(x => normalizeCartName(x.nome) === norm);
   return c ? c.base : inferBaseFromName(nome);
 }
 
@@ -1235,8 +1236,9 @@ function ncListFromRec(rec) {
 
 // Calcula estado atual de cada carrinho (logado/deslogado/sem-reg) + NCs abertas
 function computeCartState(nome, recs) {
-  // último registro
-  const last = recs.find(r => r.carrinho === nome);
+  const nameN = normalizeCartName(nome);
+  // último registro (compara normalizado pra casar "MC01" com "MC 01")
+  const last = recs.find(r => normalizeCartName(r.carrinho) === nameN);
   let status = 'sem-reg';
   if (last) status = last.tipo === 'checkin' ? 'logado' : 'deslogado';
 
@@ -1245,7 +1247,7 @@ function computeCartState(nome, recs) {
   const seen = new Set();
   const abertas = [];
   for (const r of recs) {
-    if (r.carrinho !== nome) continue;
+    if (normalizeCartName(r.carrinho) !== nameN) continue;
     ncListFromRec(r).forEach(nc => {
       // chave por ferramenta — só conta NC mais recente por ferramenta, e ignora se já reposta
       if (seen.has(nc.ferramenta)) return;
@@ -1540,7 +1542,7 @@ function renderDashboard() {
 
   const recentHtml = recs.slice(0, 8).map(r => `
     <tr onclick="openDetail('${r.id}')" style="cursor:pointer;">
-      <td><strong>${r.carrinho}</strong></td>
+      <td><strong>${normalizeCartName(r.carrinho)}</strong></td>
       <td>${r.mecanico}</td>
       <td>${r.tipo === 'checkin' ? '<span class="badge bgn">CI</span>' : '<span class="badge byw">CO</span>'}</td>
       <td style="color:var(--gr)">${fmtDate(r.ts)}</td>
@@ -1561,7 +1563,7 @@ function renderDashboard() {
         <div class="nc-card">
           <div class="nc-icon">${v.motivo === 'faltando' ? '❓' : '💔'}</div>
           <div>
-            <div class="nc-cart">Carrinho ${r.carrinho}</div>
+            <div class="nc-cart">Carrinho ${normalizeCartName(r.carrinho)}</div>
             <div class="nc-tool">${k}</div>
             <div class="nc-meta">${r.mecanico} · ${fmtDate(r.ts)}</div>
           </div>
@@ -1598,7 +1600,7 @@ function renderRegistros() {
           </td>
           <td><span class="monospace">${r.id}</span></td>
           <td>${r.tipo === 'checkin' ? '<span class="badge bgn">CHECK-IN</span>' : '<span class="badge byw">CHECK-OUT</span>'}</td>
-          <td><strong>${r.carrinho}</strong></td>
+          <td><strong>${normalizeCartName(r.carrinho)}</strong></td>
           <td>${r.mecanico}</td>
           <td style="font-size:12px;">${r.turno}</td>
           <td>${r.nc_count > 0 ? `<span class="badge brd">${r.nc_count} NC</span>` : '<span style="color:var(--gn)">✓</span>'}</td>
@@ -1663,7 +1665,7 @@ function renderNC() {
         return `<tr>
           <td>${nc.ferramenta}</td>
           <td>${motivoBadge}</td>
-          <td><strong>${nc.carrinho}</strong> <span style="color:var(--gr);font-size:11px;">· ${base}</span></td>
+          <td><strong>${normalizeCartName(nc.carrinho)}</strong> <span style="color:var(--gr);font-size:11px;">· ${base}</span></td>
           <td>${nc.mecanico||'-'}</td>
           <td style="font-size:12px;">${nc.turno||'-'}</td>
           <td style="color:var(--gr);white-space:nowrap;">${fmtDateFull(nc.ts)}</td>
