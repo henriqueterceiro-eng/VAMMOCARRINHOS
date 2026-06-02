@@ -914,8 +914,14 @@ function getColab() {
   try { localStorage.setItem('vammo_colab_emails', JSON.stringify(DEFAULT_EMAILS)); } catch {}
   return DEFAULT_EMAILS.slice();
 }
+// URL padrão do Apps Script — todo celular já abre configurado, sem precisar
+// escanear QR. Pode ser sobrescrita via ⚙️ > "URL do servidor".
+const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
 function getConfig() {
-  try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; }
+  let cfg = {};
+  try { cfg = JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch {}
+  if (!cfg.webhookUrl) cfg.webhookUrl = DEFAULT_WEBHOOK_URL;
+  return cfg;
 }
 function saveConfig(c) {
   try { localStorage.setItem('vammo_config', JSON.stringify(c)); } catch(e) { console.error(e); }

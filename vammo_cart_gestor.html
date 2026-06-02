@@ -1047,7 +1047,14 @@ function getColab() {
   return raw;
 }
 function saveColab(arr) { localStorage.setItem('vammo_colab_emails', JSON.stringify(arr)); }
-function getConfig() { try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } }
+// URL padrão do Apps Script — gestor e checkin já abrem configurados.
+const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
+function getConfig() {
+  let cfg = {};
+  try { cfg = JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch {}
+  if (!cfg.webhookUrl) cfg.webhookUrl = DEFAULT_WEBHOOK_URL;
+  return cfg;
+}
 function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c)); }
 
 // ─── BASES ────────────────────────────────────────────────────────────────────
