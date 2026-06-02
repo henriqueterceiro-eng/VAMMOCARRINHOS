@@ -1011,11 +1011,11 @@
 <div class="lock-popup-ov hidden" id="lock-popup" onclick="if(event.target===this) closeLockPopup()">
   <div class="lock-popup-box">
     <div class="lp-icon">🔒</div>
-    <div class="lp-title">Carrinho Ocupado</div>
-    <div class="lp-line">Logado por:</div>
+    <div class="lp-title" id="lock-popup-title">Carrinho Ocupado</div>
+    <div class="lp-line" id="lock-popup-line">Logado por:</div>
     <div class="lp-mec" id="lock-popup-mec">–</div>
     <div class="lp-when" id="lock-popup-when"></div>
-    <div class="lp-action">
+    <div class="lp-action" id="lock-popup-action">
       ⚠️ <strong>Chame o supervisor</strong> para liberar este carrinho via <em>"Forçar Checkout"</em> no app do gestor.
     </div>
     <div class="lp-supervisor">
@@ -1400,32 +1400,39 @@ function checkCartLock(cartName) {
       const mec = String(data.mecanico || '').toLowerCase();
       const u = getStoredUser();
       const me = u ? u.email.toLowerCase() : '';
-      if (mec && mec === me) {
-        // Mesmo mecânico tentando logar de novo (caso raro)
-        statusBox.style.cssText = 'margin-top:10px;padding:14px 16px;border-radius:12px;border:2px solid var(--yw);background:rgba(245,158,11,.18);font-size:14px;color:var(--yw);text-align:center;font-weight:700;line-height:1.4;';
-        statusBox.innerHTML = '⚠️ <strong>Você já está logado neste carrinho.</strong><br><span style="font-size:12px;font-weight:400;opacity:.9;">Faça checkout antes de fazer um novo check-in.</span>';
-        S.cartLocked = true;
-        updateNextBtn();
-        return;
-      }
-      // Bloqueia: ocupado por outro — POPUP modal chamativo
       const quando = data.ts ? new Date(data.ts).toLocaleString('pt-BR', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' }) : '';
-      // box inline curto (resumo) + popup grande
+      const isSelf = mec && mec === me;
+      // Bloqueia em qualquer caso (mesmo se for o próprio mecânico — ele precisa fazer checkout primeiro)
       statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--rd);background:rgba(239,68,68,.12);font-size:12px;color:var(--rd);text-align:center;font-weight:700;';
-      statusBox.innerHTML = `🔒 Ocupado por ${mec}`;
+      statusBox.innerHTML = `🔒 ${isSelf ? 'Você já está logado neste carrinho' : 'Ocupado por ' + mec}`;
       S.cartLocked = true;
       updateNextBtn();
-      openLockPopup(mec, quando);
+      openLockPopup(mec, quando, isSelf);
       if (navigator.vibrate) try { navigator.vibrate([200, 100, 200]); } catch(_) {}
     }
   });
 }
 
-function openLockPopup(mec, quando) {
+function openLockPopup(mec, quando, isSelf) {
   const pop = document.getElementById('lock-popup');
   if (!pop) return;
-  document.getElementById('lock-popup-mec').textContent = mec;
-  document.getElementById('lock-popup-when').textContent = quando ? 'desde ' + quando : '';
+  const titleEl = document.getElementById('lock-popup-title');
+  const lineEl  = document.getElementById('lock-popup-line');
+  const mecEl   = document.getElementById('lock-popup-mec');
+  const whenEl  = document.getElementById('lock-popup-when');
+  const actEl   = document.getElementById('lock-popup-action');
+  if (titleEl) titleEl.textContent = isSelf ? 'Você já está logado' : 'Carrinho Ocupado';
+  if (lineEl)  lineEl.textContent  = isSelf ? 'Você tem este carrinho aberto desde:' : 'Logado por:';
+  if (mecEl) {
+    mecEl.textContent = isSelf ? '' : mec;
+    mecEl.style.display = isSelf ? 'none' : 'block';
+  }
+  if (whenEl) whenEl.textContent = quando ? 'desde ' + quando : '';
+  if (actEl) {
+    actEl.innerHTML = isSelf
+      ? '⚠️ Faça <strong>checkout</strong> deste carrinho primeiro, depois pode fazer novo check-in.'
+      : '⚠️ <strong>Chame o supervisor</strong> para liberar este carrinho via <em>"Forçar Checkout"</em> no app do gestor.';
+  }
   pop.classList.remove('hidden');
 }
 function closeLockPopup() {
