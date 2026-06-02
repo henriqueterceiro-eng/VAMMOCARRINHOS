@@ -469,6 +469,148 @@
       line-height: 1; transition: color .2s;
     }
     .cart-chip button:hover { color: var(--rd); }
+
+    /* ─── BASE TABS ─── */
+    .base-tabs {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      margin-bottom: 16px; border-bottom: 1px solid var(--bd);
+      padding-bottom: 0;
+    }
+    .base-tab {
+      padding: 10px 18px;
+      background: transparent; border: none;
+      border-bottom: 3px solid transparent;
+      color: var(--gr); cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 15px; font-weight: 800;
+      letter-spacing: 2px; text-transform: uppercase;
+      transition: all .2s;
+    }
+    .base-tab:hover { color: var(--w2); }
+    .base-tab.active { color: var(--az); border-bottom-color: var(--az); }
+    .base-tab .count {
+      display: inline-block; margin-left: 8px;
+      background: var(--c2); color: var(--w2);
+      font-size: 11px; padding: 2px 7px;
+      border-radius: 10px; vertical-align: middle;
+    }
+    .base-tab.active .count { background: var(--az); color: var(--bk); }
+    .base-section { display: none; }
+    .base-section.active { display: block; }
+
+    /* ─── CART STATUS v3 (verde=logado, vermelho=deslogado, piscando=NC) ─── */
+    .cart-card-v3 {
+      position: relative; cursor: pointer;
+      background: var(--c1); border-radius: 12px;
+      border: 2px solid var(--bd); padding: 14px 16px;
+      transition: transform .15s, border-color .2s, box-shadow .2s;
+      min-height: 110px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .cart-card-v3:hover { transform: translateY(-2px); }
+    .cart-card-v3.st-logado     { border-color: var(--gn); background: linear-gradient(180deg, rgba(34,197,94,.10), var(--c1)); }
+    .cart-card-v3.st-deslogado  { border-color: var(--rd); background: linear-gradient(180deg, rgba(239,68,68,.10), var(--c1)); }
+    .cart-card-v3.st-sem-reg    { border-color: var(--bd); opacity: .7; }
+    .cart-card-v3 .ccv-id {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 26px; font-weight: 900;
+      letter-spacing: 2px; line-height: 1; margin-bottom: 4px;
+    }
+    .cart-card-v3.st-logado    .ccv-id { color: var(--gn); }
+    .cart-card-v3.st-deslogado .ccv-id { color: var(--rd); }
+    .cart-card-v3.st-sem-reg   .ccv-id { color: var(--gr); }
+    .cart-card-v3 .ccv-status {
+      font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .cart-card-v3.st-logado    .ccv-status { color: var(--gn); }
+    .cart-card-v3.st-deslogado .ccv-status { color: var(--rd); }
+    .cart-card-v3.st-sem-reg   .ccv-status { color: var(--gr); }
+    .cart-card-v3 .ccv-mec { font-size: 12px; color: var(--w2); margin-top: 4px; line-height: 1.3; }
+    .cart-card-v3 .ccv-time { font-size: 10px; color: var(--gr); margin-top: 2px; }
+
+    /* Bandeira/flag de NC */
+    .cart-card-v3 .ccv-flag {
+      position: absolute; top: -8px; right: -8px;
+      background: var(--rd); color: var(--wh);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px; font-weight: 900; letter-spacing: 1px;
+      padding: 4px 9px; border-radius: 999px;
+      box-shadow: 0 0 0 2px var(--bk);
+      display: flex; align-items: center; gap: 4px;
+      z-index: 2;
+    }
+    @keyframes pulseNC {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.85), 0 0 0 2px var(--bk); }
+      50%      { box-shadow: 0 0 0 12px rgba(239,68,68,0),   0 0 0 2px var(--bk); }
+    }
+    @keyframes blinkBorderNC {
+      0%, 100% { border-color: var(--rd); box-shadow: 0 0 16px rgba(239,68,68,.55); }
+      50%      { border-color: var(--yw); box-shadow: 0 0 4px  rgba(239,68,68,.15); }
+    }
+    .cart-card-v3.has-nc {
+      animation: blinkBorderNC 1.1s ease-in-out infinite;
+      background: linear-gradient(180deg, rgba(239,68,68,.18), var(--c1)) !important;
+    }
+    .cart-card-v3.has-nc .ccv-flag { animation: pulseNC 1.1s ease-in-out infinite; }
+    .cart-card-v3.has-nc .ccv-id   { color: var(--rd) !important; }
+
+    /* ─── ESTOQUE ─── */
+    .estoque-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+    }
+    .est-card {
+      background: var(--c1); border: 1px solid var(--bd);
+      border-radius: 12px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .est-card .et-info { flex: 1; min-width: 0; }
+    .est-card .et-name {
+      font-family: 'Barlow', sans-serif;
+      font-size: 13px; font-weight: 700; color: var(--wh);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .est-card .et-cat { font-size: 10px; color: var(--gr); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+    .est-card .et-qtd {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 28px; font-weight: 900;
+      min-width: 44px; text-align: center;
+    }
+    .est-card.qtd-zero  .et-qtd { color: var(--rd); }
+    .est-card.qtd-baixo .et-qtd { color: var(--yw); }
+    .est-card.qtd-ok    .et-qtd { color: var(--gn); }
+    .est-card .et-btns { display: flex; flex-direction: column; gap: 4px; }
+    .est-card .et-btns button {
+      width: 28px; height: 24px; border-radius: 6px;
+      background: var(--c2); border: 1px solid var(--bd);
+      color: var(--w2); cursor: pointer; font-size: 14px; line-height: 1;
+      padding: 0; transition: all .15s;
+    }
+    .est-card .et-btns button:hover { background: var(--c1); color: var(--az); border-color: var(--az); }
+    .est-cat-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px; font-weight: 800; color: var(--gr);
+      letter-spacing: 2px; text-transform: uppercase;
+      margin: 18px 0 8px;
+    }
+    .est-cat-title:first-child { margin-top: 0; }
+
+    /* ─── REPOSIÇÃO (botão na lista de NC) ─── */
+    .btn-repor {
+      padding: 6px 12px; border-radius: 6px;
+      background: rgba(34,197,94,.15); color: var(--gn);
+      border: 1px solid var(--gn); cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 12px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; transition: all .15s;
+    }
+    .btn-repor:hover { background: var(--gn); color: var(--bk); }
+    .btn-repor[disabled] {
+      background: var(--c2); color: var(--gr);
+      border-color: var(--bd); cursor: default;
+    }
+    .btn-repor[disabled]:hover { background: var(--c2); color: var(--gr); }
   </style>
   <!-- ═══ PWA GESTOR ═══ -->
   <meta name="theme-color" content="#0a0a0a">
@@ -543,11 +685,11 @@
       <div class="nav-item" data-panel="carrinhos" onclick="showPanel('carrinhos')">
         <span class="nav-icon">🛒</span> Carrinhos
       </div>
-      <div class="nav-item" data-panel="usuarios" onclick="showPanel('usuarios')">
-        <span class="nav-icon">🔑</span> Usuários
+      <div class="nav-item" data-panel="estoque" onclick="showPanel('estoque')">
+        <span class="nav-icon">📦</span> Estoque
       </div>
-      <div class="nav-item" data-panel="valores" onclick="showPanel('valores')">
-        <span class="nav-icon">💰</span> Valores
+      <div class="nav-item" data-panel="colab" onclick="showPanel('colab')">
+        <span class="nav-icon">👥</span> Colaboradores
       </div>
       <div class="nav-item" data-panel="config" onclick="showPanel('config')">
         <span class="nav-icon">⚙️</span> Configurações
@@ -644,7 +786,7 @@
           <table>
             <thead><tr>
               <th>Ferramenta</th><th>Problema</th><th>Carrinho</th>
-              <th>Mecânico</th><th>Turno</th><th>Data</th>
+              <th>Mecânico</th><th>Turno</th><th>Data</th><th style="text-align:right;">Ação</th>
             </tr></thead>
             <tbody id="nc-tbody"></tbody>
           </table>
@@ -657,118 +799,126 @@
       <div class="panel" id="panel-carrinhos">
         <div id="cart-alert-box" style="margin-bottom:12px;"></div>
 
-        <!-- Cadastro -->
-        <div class="table-wrap" style="margin-bottom:20px;">
-          <div class="table-head">
-            <h2>Cadastro de Carrinhos</h2>
-          </div>
-          <div style="padding:16px 20px;">
-            <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Adicionar carrinho</div>
-            <div class="add-cart-form">
-              <input type="text" id="inp-cart" placeholder="Ex: R01, R02..." maxlength="10"
-                onkeydown="if(event.key==='Enter') addCart()"
-                style="text-transform:uppercase;">
-              <button class="btn-sm btn-az" onclick="addCart()">+ Adicionar</button>
-              <button class="btn-sm btn-outline" onclick="addCartBatch()" title="Adicionar vários de uma vez">+ Lote</button>
-            </div>
-            <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Carrinhos cadastrados</div>
-            <div class="cart-list-chips" id="cart-chips">
-              <span style="color:var(--gr);font-size:13px;">Nenhum carrinho cadastrado.</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Status grid -->
+        <!-- Status grid: tabs por base -->
         <div class="table-wrap">
           <div class="table-head">
             <h2>Status em Tempo Real</h2>
             <div class="spacer"></div>
-            <input type="text" class="search-inp" id="cart-search" placeholder="Filtrar..." oninput="renderCarrinhos()">
+            <input type="text" class="search-inp" id="cart-search" placeholder="Filtrar carrinho..." oninput="renderCarrinhos()">
           </div>
           <div style="padding:16px;">
             <div class="stat-grid" id="cart-stats-mini" style="margin-bottom:16px;"></div>
-            <div class="cart-grid" id="cart-status-grid"></div>
+            <div class="base-tabs" id="cart-base-tabs"></div>
+            <div id="cart-base-sections"></div>
             <div class="table-footer" id="cart-footer" style="border-top:1px solid var(--bd); margin-top:4px; padding-top:12px;">–</div>
+          </div>
+        </div>
+
+        <!-- Cadastro/Admin -->
+        <div class="table-wrap" style="margin-top:20px;">
+          <div class="table-head">
+            <h2>Cadastro de Carrinhos</h2>
+            <div class="spacer"></div>
+            <button class="btn-sm btn-outline" onclick="resetCartsDefault()" title="Restaurar lista padrão das 3 bases">↺ Restaurar padrão</button>
+          </div>
+          <div style="padding:16px 20px;">
+            <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Adicionar carrinho</div>
+            <div class="add-cart-form">
+              <input type="text" id="inp-cart" placeholder="Ex: MC36, OC51, SC07..." maxlength="10"
+                onkeydown="if(event.key==='Enter') addCart()"
+                style="text-transform:uppercase;">
+              <select class="select-filt" id="inp-cart-base">
+                <option value="Mooca">Mooca</option>
+                <option value="Osasco">Osasco</option>
+                <option value="SBC">SBC</option>
+              </select>
+              <button class="btn-sm btn-az" onclick="addCart()">+ Adicionar</button>
+            </div>
+            <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Carrinhos cadastrados por base</div>
+            <div id="cart-chips-by-base"></div>
           </div>
         </div>
       </div>
 
-      <!-- ── USUÁRIOS ── -->
-      <div class="panel" id="panel-usuarios">
-        <div id="user-alert" style="margin-bottom:16px;"></div>
+      <!-- ── ESTOQUE ── -->
+      <div class="panel" id="panel-estoque">
+        <div id="est-alert-box" style="margin-bottom:12px;"></div>
 
-        <!-- Cadastro de usuários -->
+        <div class="stat-grid" id="est-stats" style="margin-bottom:20px;"></div>
+
         <div class="table-wrap" style="margin-bottom:20px;">
-          <div class="table-head"><h2>Usuários do App</h2></div>
-          <div style="padding:16px 20px;">
-            <p style="font-size:13px;color:var(--gr);margin-bottom:16px;">
-              Cadastre o e-mail Google de cada mecânico. O app identificará automaticamente ao fazer login.
-            </p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <input type="email" id="inp-user-email" placeholder="email@vammo.com.br"
-                style="padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;">
-              <input type="text" id="inp-user-nome" placeholder="Nome completo"
-                style="padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;">
-              <select id="inp-user-base"
-                style="padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;cursor:pointer;">
-              </select>
-              <select id="inp-user-turno"
-                style="padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;cursor:pointer;">
-              </select>
-            </div>
-            <button class="btn-sm btn-az" onclick="addUsuario()" style="width:100%;padding:12px;">+ Adicionar Usuário</button>
-            <div id="user-list" style="margin-top:16px;"></div>
+          <div class="table-head">
+            <h2>Estoque de Reposição</h2>
+            <div class="spacer"></div>
+            <input type="text" class="search-inp" id="est-search" placeholder="Filtrar ferramenta..." oninput="renderEstoque()">
+            <button class="btn-sm btn-outline" onclick="exportEstoqueCSV()" title="Exportar estoque em CSV">⬇ CSV</button>
+          </div>
+          <div style="padding:16px;">
+            <div class="base-tabs" id="est-base-tabs"></div>
+            <div id="est-base-sections"></div>
           </div>
         </div>
 
-        <!-- Gerenciar Bases -->
-        <div class="table-wrap" style="margin-bottom:20px;">
-          <div class="table-head"><h2>Bases</h2></div>
-          <div style="padding:16px 20px;">
-            <div style="display:flex;gap:8px;margin-bottom:12px;">
-              <input type="text" id="inp-base-nome" placeholder="Nome da base (ex: Mooca 2)"
-                style="flex:1;padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;"
-                onkeydown="if(event.key==='Enter') addBase()">
-              <button class="btn-sm btn-az" onclick="addBase()">+ Adicionar</button>
-            </div>
-            <div id="base-chips"></div>
-          </div>
-        </div>
-
-        <!-- Gerenciar Turnos -->
         <div class="table-wrap">
-          <div class="table-head"><h2>Turnos</h2></div>
-          <div style="padding:16px 20px;">
-            <div style="display:flex;gap:8px;margin-bottom:12px;">
-              <input type="text" id="inp-turno-nome" placeholder="Nome do turno (ex: Noturno)"
-                style="flex:1;padding:10px 14px;background:var(--c2);border:1.5px solid var(--bd);border-radius:10px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:14px;outline:none;"
-                onkeydown="if(event.key==='Enter') addTurnoConfig()">
-              <button class="btn-sm btn-az" onclick="addTurnoConfig()">+ Adicionar</button>
-            </div>
-            <div id="turno-chips"></div>
+          <div class="table-head">
+            <h2>Histórico de Baixas (Reposições)</h2>
+            <div class="spacer"></div>
+            <select class="select-filt" id="baixa-filt-base" onchange="renderBaixas()">
+              <option value="">Todas as bases</option>
+              <option value="Mooca">Mooca</option>
+              <option value="Osasco">Osasco</option>
+              <option value="SBC">SBC</option>
+            </select>
           </div>
+          <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>Data/Hora</th><th>Base</th><th>Carrinho</th>
+              <th>Ferramenta</th><th>Motivo</th><th>Qtd</th><th>Obs</th>
+            </tr></thead>
+            <tbody id="baixas-tbody"></tbody>
+          </table>
+          </div>
+          <div class="table-footer" id="baixas-footer">–</div>
         </div>
       </div>
 
       <!-- ── COLABORADORES ── -->
-      <div class="panel" id="panel-valores">
-        <div id="valores-alert" style="margin-bottom:16px;"></div>
-        <div class="table-wrap" style="margin-bottom:20px;">
-          <div class="table-head">
-            <h2>Valor das Ferramentas</h2>
+      <div class="panel" id="panel-colab">
+        <div id="colab-alert" style="margin-bottom:16px;"></div>
+
+        <div class="turno-section" id="ts-terror">
+          <div class="turno-header">
+            <span style="font-size:24px">💀</span>
+            <div class="turno-title" style="color:var(--rd)">Terror do Backlog</div>
+            <span class="badge brd" id="badge-terror">0</span>
           </div>
-          <div style="padding:16px 20px;">
-            <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Adicionar / atualizar ferramenta</div>
-            <div class="add-cart-form" style="margin-bottom:16px;">
-              <input type="text" id="inp-valor-nome" placeholder="Nome da ferramenta..." style="flex:2;">
-              <input type="number" id="inp-valor-preco" placeholder="R$ 0,00" min="0" step="0.01" style="flex:1;">
-              <button class="btn-sm btn-az" onclick="addValor()">+ Salvar</button>
-            </div>
-            <div style="margin-bottom:16px;">
-              <button class="btn-sm btn-outline" onclick="seedValores()">📥 Importar ferramentas do app</button>
-            </div>
-            <div id="valores-lista"></div>
+          <div class="colab-grid" id="grid-terror"></div>
+          <div class="add-colab-form">
+            <input type="text" id="inp-terror" placeholder="Nome do colaborador..." onkeydown="if(event.key==='Enter') addColab('Terror do Backlog')">
+            <button class="btn-sm btn-az" onclick="addColab('Terror do Backlog')">+ Adicionar</button>
           </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="turno-section" id="ts-invictus">
+          <div class="turno-header">
+            <span style="font-size:24px">⚡</span>
+            <div class="turno-title" style="color:var(--az)">Invictus</div>
+            <span class="badge baz" id="badge-invictus">0</span>
+          </div>
+          <div class="colab-grid" id="grid-invictus"></div>
+          <div class="add-colab-form">
+            <input type="text" id="inp-invictus" placeholder="Nome do colaborador..." onkeydown="if(event.key==='Enter') addColab('Invictus')">
+            <button class="btn-sm btn-az" onclick="addColab('Invictus')">+ Adicionar</button>
+          </div>
+        </div>
+
+        <div style="margin-top:20px; display:flex; gap:10px;">
+          <button class="btn-sm btn-outline" onclick="exportColab()">⬇ Exportar JSON</button>
+          <button class="btn-sm btn-outline" onclick="importColabPrompt()">⬆ Importar JSON</button>
+          <button class="btn-sm btn-rd" onclick="resetColab()">🗑 Resetar Lista</button>
         </div>
       </div>
 
@@ -848,13 +998,117 @@ function saveColab(c) { localStorage.setItem('vammo_colab', JSON.stringify(c)); 
 function getConfig() { try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } }
 function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c)); }
 
+// ─── BASES ────────────────────────────────────────────────────────────────────
+const BASES = ['Mooca', 'Osasco', 'SBC'];
+const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC' };
+const BASE_COUNT  = { Mooca: 35,   Osasco: 50,   SBC: 6   };
+
+function defaultCarts() {
+  const arr = [];
+  BASES.forEach(b => {
+    const pre = BASE_PREFIX[b];
+    for (let i = 1; i <= BASE_COUNT[b]; i++) {
+      arr.push({ nome: pre + String(i).padStart(2,'0'), base: b });
+    }
+  });
+  return arr;
+}
+function inferBaseFromName(nome) {
+  const up = String(nome || '').toUpperCase();
+  for (const b of BASES) {
+    if (up.startsWith(BASE_PREFIX[b])) return b;
+  }
+  return 'Mooca';
+}
+function getCarts() {
+  let raw;
+  try { raw = JSON.parse(localStorage.getItem('vammo_carts')); } catch { raw = null; }
+  if (!raw || !Array.isArray(raw) || raw.length === 0) {
+    const def = defaultCarts();
+    localStorage.setItem('vammo_carts', JSON.stringify(def));
+    return def;
+  }
+  // migra formato antigo (array de strings) → array de objetos + injeta defaults novos
+  if (typeof raw[0] === 'string') {
+    const migrados = raw.map(n => ({ nome: n, base: inferBaseFromName(n) }));
+    const nomes = new Set(migrados.map(c => c.nome));
+    defaultCarts().forEach(d => { if (!nomes.has(d.nome)) migrados.push(d); });
+    migrados.sort((a,b) => a.nome.localeCompare(b.nome));
+    localStorage.setItem('vammo_carts', JSON.stringify(migrados));
+    return migrados;
+  }
+  // garante que defaults estão presentes (idempotente, executa 1× via flag)
+  if (!localStorage.getItem('vammo_carts_seeded_v3')) {
+    const nomes = new Set(raw.map(c => c.nome));
+    let mudou = false;
+    defaultCarts().forEach(d => { if (!nomes.has(d.nome)) { raw.push(d); mudou = true; } });
+    if (mudou) {
+      raw.sort((a,b) => a.nome.localeCompare(b.nome));
+      localStorage.setItem('vammo_carts', JSON.stringify(raw));
+    }
+    localStorage.setItem('vammo_carts_seeded_v3', '1');
+  }
+  return raw;
+}
+function saveCarts(a) { localStorage.setItem('vammo_carts', JSON.stringify(a)); }
+function getCartsByBase(base) { return getCarts().filter(c => c.base === base); }
+function getCartBase(nome) {
+  const c = getCarts().find(x => x.nome === nome);
+  return c ? c.base : inferBaseFromName(nome);
+}
+
+// Catálogo de ferramentas (espelhado do checkin)
+const TOOLS_CATALOG = [
+  { cat: "ALICATES", items: ["Alicate de bico","Alicate de corte","Alicate universal","Alicate de pressão"] },
+  { cat: "ALLEN LONGA", items: ["Allen longa 4mm","Allen longa 5mm","Allen longa 6mm"] },
+  { cat: 'SOQUETES 1/2"', items: ["Soquete 10mm","Soquete 12mm","Soquete 13mm","Soquete 14mm","Soquete 17mm","Soquete 19mm","Soquete 22mm"] },
+  { cat: "CHAVE L / BIELA", items: ["Chave L 8mm","Chave L 10mm","Chave L 12mm","Chave L 13mm","Chave L 14mm","Chave L 17mm"] },
+  { cat: "CHAVE COMBINADA", items: ["Combinada 8mm","Combinada 10mm","Combinada 12mm","Combinada 13mm","Combinada 14mm","Combinada 17mm","Combinada 19mm","Combinada 32mm"] },
+  { cat: "MARTELOS / MARRETAS", items: ["Marreta de borracha","Marreta 1kg"] },
+  { cat: "CHAVES DE FENDA", items: ["Chave Philips","Chave de fenda"] },
+  { cat: 'CATRACA / EXTENSÃO', items: ['Catraca 1/2" reversível','Extensor longo 1/2"'] }
+];
+function flatTools() { return TOOLS_CATALOG.flatMap(c => c.items); }
+
+function defaultEstoque() {
+  const e = {};
+  BASES.forEach(b => {
+    e[b] = {};
+    flatTools().forEach(t => { e[b][t] = 0; });
+  });
+  return e;
+}
+function getEstoque() {
+  let raw;
+  try { raw = JSON.parse(localStorage.getItem('vammo_estoque')); } catch { raw = null; }
+  if (!raw || typeof raw !== 'object') {
+    const def = defaultEstoque();
+    localStorage.setItem('vammo_estoque', JSON.stringify(def));
+    return def;
+  }
+  BASES.forEach(b => {
+    if (!raw[b]) raw[b] = {};
+    flatTools().forEach(t => { if (typeof raw[b][t] !== 'number') raw[b][t] = 0; });
+  });
+  return raw;
+}
+function saveEstoque(e) { localStorage.setItem('vammo_estoque', JSON.stringify(e)); }
+
+function getBaixas() { try { return JSON.parse(localStorage.getItem('vammo_baixas')) || []; } catch { return []; } }
+function saveBaixas(a) { localStorage.setItem('vammo_baixas', JSON.stringify(a)); }
+
+function getNCRepostas() { try { return JSON.parse(localStorage.getItem('vammo_nc_repostas')) || {}; } catch { return {}; } }
+function saveNCRepostas(o) { localStorage.setItem('vammo_nc_repostas', JSON.stringify(o)); }
+function ncKey(recId, ferramenta) { return recId + '|' + ferramenta; }
+function isNCReposta(recId, ferramenta) { return !!getNCRepostas()[ncKey(recId, ferramenta)]; }
+
 // ─── SIDEBAR / PANEL ──────────────────────────────────────────────────────────
 function showPanel(id) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('panel-' + id)?.classList.add('active');
+  document.getElementById('panel-' + id).classList.add('active');
   document.querySelector(`[data-panel="${id}"]`)?.classList.add('active');
-  const titles = { dashboard:'Dashboard', registros:'Registros', nc:'Não Conformidades', carrinhos:'Carrinhos', usuarios:'Usuários', valores:'Valores de Ferramentas', config:'Configurações' };
+  const titles = { dashboard:'Dashboard', registros:'Registros', nc:'Não Conformidades', carrinhos:'Carrinhos', estoque:'Estoque por Base', colab:'Colaboradores', config:'Configurações' };
   document.getElementById('top-title').textContent = titles[id] || id;
   closeSidebar();
 
@@ -862,8 +1116,8 @@ function showPanel(id) {
   if (id === 'registros') renderRegistros();
   if (id === 'nc') renderNC();
   if (id === 'carrinhos') renderCarrinhos();
-  if (id === 'usuarios') renderUsuarios();
-  if (id === 'valores') renderValores();
+  if (id === 'estoque') renderEstoque();
+  if (id === 'colab') renderColab();
   if (id === 'config') renderConfig();
 }
 
@@ -876,273 +1130,196 @@ function closeSidebar() {
   document.getElementById('overlay').classList.remove('show');
 }
 
-function getCarts() { try { return JSON.parse(localStorage.getItem('vammo_carts')) || []; } catch { return []; } }
-function saveCarts(a) { localStorage.setItem('vammo_carts', JSON.stringify(a)); }
-function getUsuarios() { try { return JSON.parse(localStorage.getItem('vammo_usuarios')) || []; } catch { return []; } }
-function saveUsuarios(u) { localStorage.setItem('vammo_usuarios', JSON.stringify(u)); }
-function getBases() { try { return JSON.parse(localStorage.getItem('vammo_bases')) || ['Mooca 1','Osasco','SBC']; } catch { return ['Mooca 1','Osasco','SBC']; } }
-function saveBases(b) { localStorage.setItem('vammo_bases', JSON.stringify(b)); }
-function getTurnos() { try { return JSON.parse(localStorage.getItem('vammo_turnos_config')) || ['Terror do Backlog','Invictus']; } catch { return ['Terror do Backlog','Invictus']; } }
-function saveTurnos(t) { localStorage.setItem('vammo_turnos_config', JSON.stringify(t)); }
-
-// ─── BASES ────────────────────────────────────────────────────────────────────
-function renderBases() {
-  const bases = getBases();
-  const el = document.getElementById('base-chips');
-  const sel = document.getElementById('inp-user-base');
-  if (el) el.innerHTML = bases.map((b, i) =>
-    `<span class="cart-chip">${b}<button onclick="removeBase(${i})">×</button></span>`
-  ).join('') || '<span style="color:var(--gr);font-size:13px;">Nenhuma base.</span>';
-  if (sel) {
-    sel.innerHTML = bases.map(b => `<option value="${b}">${b}</option>`).join('');
-  }
-}
-
-function addBase() {
-  const val = (document.getElementById('inp-base-nome')?.value || '').trim();
-  if (!val) return;
-  const bases = getBases();
-  if (bases.includes(val)) { showAlert('user-alert', 'yw', '⚠️ Base já existe.'); return; }
-  bases.push(val);
-  saveBases(bases);
-  document.getElementById('inp-base-nome').value = '';
-  renderBases();
-  showAlert('user-alert', 'gn', '✅ Base "' + val + '" adicionada!');
-}
-
-function removeBase(idx) {
-  const bases = getBases();
-  if (!confirm('Remover base "' + bases[idx] + '"?')) return;
-  bases.splice(idx, 1);
-  saveBases(bases);
-  renderBases();
-}
-
-// ─── TURNOS CONFIG ────────────────────────────────────────────────────────────
-function renderTurnosConfig() {
-  const turnos = getTurnos();
-  const el = document.getElementById('turno-chips');
-  const sel = document.getElementById('inp-user-turno');
-  if (el) el.innerHTML = turnos.map((t, i) =>
-    `<span class="cart-chip">${t}<button onclick="removeTurnoConfig(${i})">×</button></span>`
-  ).join('') || '<span style="color:var(--gr);font-size:13px;">Nenhum turno.</span>';
-  if (sel) {
-    sel.innerHTML = turnos.map(t => `<option value="${t}">${t}</option>`).join('');
-  }
-}
-
-function addTurnoConfig() {
-  const val = (document.getElementById('inp-turno-nome')?.value || '').trim();
-  if (!val) return;
-  const turnos = getTurnos();
-  if (turnos.includes(val)) { showAlert('user-alert', 'yw', '⚠️ Turno já existe.'); return; }
-  turnos.push(val);
-  saveTurnos(turnos);
-  document.getElementById('inp-turno-nome').value = '';
-  renderTurnosConfig();
-  showAlert('user-alert', 'gn', '✅ Turno "' + val + '" adicionado!');
-}
-
-function removeTurnoConfig(idx) {
-  const turnos = getTurnos();
-  if (!confirm('Remover turno "' + turnos[idx] + '"?')) return;
-  turnos.splice(idx, 1);
-  saveTurnos(turnos);
-  renderTurnosConfig();
-}
-
-// ─── USUÁRIOS ─────────────────────────────────────────────────────────────────
-function renderUsuarios() {
-  renderBases();
-  renderTurnosConfig();
-  const users = getUsuarios();
-  const el = document.getElementById('user-list');
-  if (!el) return;
-  if (!users.length) {
-    el.innerHTML = '<div style="color:var(--gr);font-size:13px;padding:8px 0;">Nenhum usuário cadastrado.</div>';
-    return;
-  }
-  el.innerHTML = `
-    <div class="table-scroll">
-    <table style="width:100%;border-collapse:collapse;">
-      <thead><tr>
-        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);">Email</th>
-        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);">Nome</th>
-        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);">Base</th>
-        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);">Turno</th>
-        <th style="border-bottom:1px solid var(--bd);"></th>
-      </tr></thead>
-      <tbody>
-        ${users.map((u, i) => `
-          <tr style="border-bottom:1px solid rgba(255,255,255,.04);">
-            <td style="padding:10px 12px;font-size:13px;color:var(--az);">${u.email}</td>
-            <td style="padding:10px 12px;font-size:13px;font-weight:600;">${u.nome}</td>
-            <td style="padding:10px 12px;font-size:13px;">${u.base || '–'}</td>
-            <td style="padding:10px 12px;font-size:13px;">
-              <span class="badge ${u.turno === 'Terror do Backlog' ? 'brd' : u.turno === 'Invictus' ? 'baz' : 'byw'}" style="font-size:11px;">${u.turno}</span>
-            </td>
-            <td style="padding:10px 12px;text-align:right;">
-              <button class="btn-sm btn-rd" onclick="removeUsuario(${i})" style="padding:6px 10px;">🗑</button>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:8px;">
-      <button class="btn-sm btn-outline" onclick="exportUsuarios()">⬇ Exportar JSON</button>
-    </div>
-  `;
-}
-
-function addUsuario() {
-  const email = (document.getElementById('inp-user-email')?.value || '').trim().toLowerCase();
-  const nome  = (document.getElementById('inp-user-nome')?.value || '').trim();
-  const base  = document.getElementById('inp-user-base')?.value || '';
-  const turno = document.getElementById('inp-user-turno')?.value || '';
-
-  if (!email || !nome) { showAlert('user-alert', 'rd', '⚠️ Preencha email e nome.'); return; }
-  if (!email.includes('@')) { showAlert('user-alert', 'rd', '⚠️ Email inválido.'); return; }
-
-  const users = getUsuarios();
-  if (users.find(u => u.email === email)) { showAlert('user-alert', 'yw', '⚠️ Email já cadastrado.'); return; }
-
-  users.push({ email, nome, base, turno });
-  saveUsuarios(users);
-  document.getElementById('inp-user-email').value = '';
-  document.getElementById('inp-user-nome').value = '';
-  renderUsuarios();
-
-  // Salva no GAS
-  const cfg = getConfig();
-  if (cfg.webhookUrl) {
-    const params = 'action=addUsuario'
-      + '&email=' + encodeURIComponent(email)
-      + '&nome='  + encodeURIComponent(nome)
-      + '&base='  + encodeURIComponent(base)
-      + '&turno=' + encodeURIComponent(turno);
-    gasGet(cfg.webhookUrl, params, () => {});
-  }
-  showAlert('user-alert', 'gn', '✅ ' + nome + ' cadastrado!');
-}
-
-function removeUsuario(idx) {
-  const users = getUsuarios();
-  if (!confirm('Remover ' + users[idx].nome + '?')) return;
-  users.splice(idx, 1);
-  saveUsuarios(users);
-  renderUsuarios();
-}
-
-function exportUsuarios() {
-  const json = JSON.stringify(getUsuarios(), null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'vammo_usuarios.json';
-  a.click();
-}
-
 // ─── CARRINHOS ────────────────────────────────────────────────────────────────
+let _currentBaseTab = 'Mooca';
+
+function setBaseTab(base) {
+  _currentBaseTab = base;
+  renderCarrinhos();
+}
+
+function ncListFromRec(rec) {
+  if (!rec || !rec.ferramentas) return [];
+  return Object.entries(rec.ferramentas)
+    .filter(([,v]) => v && v.status === 'nao_ok')
+    .map(([k,v]) => ({ ferramenta: k, motivo: v.motivo || 'nc' }));
+}
+
+// Calcula estado atual de cada carrinho (logado/deslogado/sem-reg) + NCs abertas
+function computeCartState(nome, recs) {
+  // último registro
+  const last = recs.find(r => r.carrinho === nome);
+  let status = 'sem-reg';
+  if (last) status = last.tipo === 'checkin' ? 'logado' : 'deslogado';
+
+  // NCs abertas: agrega NCs de TODOS os registros desse carrinho e exclui as já repostas
+  const repostas = getNCRepostas();
+  const seen = new Set();
+  const abertas = [];
+  for (const r of recs) {
+    if (r.carrinho !== nome) continue;
+    ncListFromRec(r).forEach(nc => {
+      // chave por ferramenta — só conta NC mais recente por ferramenta, e ignora se já reposta
+      if (seen.has(nc.ferramenta)) return;
+      seen.add(nc.ferramenta);
+      if (repostas[ncKey(r.id, nc.ferramenta)]) return;
+      abertas.push({ ...nc, recId: r.id, ts: r.ts, mecanico: r.mecanico });
+    });
+  }
+  return { status, last, ncAbertas: abertas };
+}
+
 function renderCarrinhos() {
   const carts = getCarts();
   const recs  = getRecords();
   const q     = (document.getElementById('cart-search')?.value || '').toLowerCase();
 
-  // Chips de cadastro
-  const chipsEl = document.getElementById('cart-chips');
-  if (chipsEl) {
-    if (!carts.length) {
-      chipsEl.innerHTML = '<span style="color:var(--gr);font-size:13px;">Nenhum carrinho cadastrado.</span>';
-    } else {
-      chipsEl.innerHTML = carts.map(c =>
-        `<span class="cart-chip">${c}<button onclick="removeCart('${c}')" title="Remover">×</button></span>`
-      ).join('');
+  // ── Chips de cadastro agrupados por base
+  const chipsContainer = document.getElementById('cart-chips-by-base');
+  if (chipsContainer) {
+    chipsContainer.innerHTML = BASES.map(b => {
+      const list = carts.filter(c => c.base === b);
+      const chipsHtml = list.length
+        ? list.map(c => `<span class="cart-chip">${c.nome}<button onclick="removeCart('${c.nome}')" title="Remover">×</button></span>`).join('')
+        : `<span style="color:var(--gr);font-size:13px;">Nenhum carrinho.</span>`;
+      return `
+        <div style="margin-bottom:14px;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gr);letter-spacing:2px;text-transform:uppercase;font-weight:800;margin-bottom:6px;">Base ${b} <span style="color:var(--w2);">(${list.length})</span></div>
+          <div class="cart-list-chips">${chipsHtml}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── Tabs por base
+  const tabsEl = document.getElementById('cart-base-tabs');
+  const sectionsEl = document.getElementById('cart-base-sections');
+  if (!tabsEl || !sectionsEl) return;
+
+  // Contadores por base p/ exibir no chip
+  const tabs = BASES.map(b => {
+    const list = carts.filter(c => c.base === b);
+    return { base: b, total: list.length };
+  });
+  tabsEl.innerHTML = tabs.map(t =>
+    `<button class="base-tab ${t.base===_currentBaseTab?'active':''}" onclick="setBaseTab('${t.base}')">
+       ${t.base} <span class="count">${t.total}</span>
+     </button>`
+  ).join('');
+
+  // Stats globais
+  let totLog=0, totDeslog=0, totSem=0, totNC=0;
+  carts.forEach(c => {
+    const st = computeCartState(c.nome, recs);
+    if (st.status === 'logado') totLog++;
+    else if (st.status === 'deslogado') totDeslog++;
+    else totSem++;
+    if (st.ncAbertas.length > 0) totNC++;
+  });
+  const miniEl = document.getElementById('cart-stats-mini');
+  if (miniEl) miniEl.innerHTML = `
+    <div class="stat-card"><div class="sc-label">Logados</div><div class="sc-num sc-gn">${totLog}</div><div class="sc-sub">mecânico em uso</div></div>
+    <div class="stat-card"><div class="sc-label">Deslogados</div><div class="sc-num sc-rd">${totDeslog}</div><div class="sc-sub">parados</div></div>
+    <div class="stat-card"><div class="sc-label">Com NC aberta</div><div class="sc-num sc-yw">${totNC}</div><div class="sc-sub">requer atenção</div></div>
+    <div class="stat-card"><div class="sc-label">Sem registro</div><div class="sc-num">${totSem}</div><div class="sc-sub">nunca operado</div></div>
+  `;
+
+  // Seções: uma por base, mas só a ativa visível
+  sectionsEl.innerHTML = BASES.map(b => {
+    const list = carts.filter(c => c.base === b && (!q || c.nome.toLowerCase().includes(q)));
+    if (!list.length) {
+      return `<div class="base-section ${b===_currentBaseTab?'active':''}" data-base="${b}">
+        <div style="color:var(--gr);font-size:13px;padding:16px 0;">Nenhum carrinho ${q?'corresponde ao filtro':'cadastrado'}.</div>
+      </div>`;
     }
-  }
-
-  // Status grid
-  const gridEl = document.getElementById('cart-status-grid');
-  const footEl = document.getElementById('cart-footer');
-  if (!gridEl) return;
-
-  const filtered = carts.filter(c => !q || c.toLowerCase().includes(q));
-  if (!filtered.length) {
-    gridEl.innerHTML = '<div style="color:var(--gr);font-size:13px;padding:8px 0;">Nenhum carrinho.</div>';
-    if (footEl) footEl.textContent = '–';
-    return;
-  }
-
-  // Último registro por carrinho
-  const lastRec = {};
-  recs.forEach(r => { if (!lastRec[r.carrinho]) lastRec[r.carrinho] = r; });
-
-  let emUso = 0, disponivel = 0;
-  gridEl.innerHTML = filtered.map(c => {
-    const last = lastRec[c];
-    const status = !last ? 'sem-reg' : last.tipo === 'checkin' ? 'em-uso' : 'disponivel';
-    if (status === 'em-uso') emUso++;
-    if (status === 'disponivel') disponivel++;
-    const icon  = status === 'em-uso' ? '🔒' : status === 'disponivel' ? '🔓' : '–';
-    const cor   = status === 'em-uso' ? 'var(--yw)' : status === 'disponivel' ? 'var(--gn)' : 'var(--gr)';
-    const label = status === 'em-uso' ? 'Em uso' : status === 'disponivel' ? 'Disponível' : 'Sem registro';
-    const mec   = last ? last.mecanico : '';
-    const hora  = last ? new Date(last.ts).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '';
-    return `<div class="cart-card" onclick="openDetail('${last?.id||''}')">
-      <div style="font-size:22px">${icon}</div>
-      <div style="font-weight:800;font-size:16px;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;">${c}</div>
-      <div style="font-size:11px;color:${cor};font-weight:700;text-transform:uppercase;">${label}</div>
-      ${mec ? `<div style="font-size:11px;color:var(--gr);margin-top:2px;">${mec}</div>` : ''}
-      ${hora ? `<div style="font-size:10px;color:var(--gr);">${hora}</div>` : ''}
+    const cardsHtml = list.map(c => {
+      const st = computeCartState(c.nome, recs);
+      const cls = 'st-' + (st.status === 'logado' ? 'logado' : st.status === 'deslogado' ? 'deslogado' : 'sem-reg');
+      const hasNC = st.ncAbertas.length > 0;
+      const label = st.status === 'logado' ? 'Logado' : st.status === 'deslogado' ? 'Deslogado' : 'Sem registro';
+      const mec  = st.last ? st.last.mecanico : '';
+      const hora = st.last ? new Date(st.last.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+      const data = st.last ? new Date(st.last.ts).toLocaleDateString('pt-BR') : '';
+      const recIdAttr = st.last ? st.last.id : '';
+      return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
+        ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
+        <div>
+          <div class="ccv-id">${c.nome}</div>
+          <div class="ccv-status">${hasNC ? 'NC ABERTA' : label}</div>
+        </div>
+        <div>
+          ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
+          ${hora ? `<div class="ccv-time">${data} · ${hora}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="base-section ${b===_currentBaseTab?'active':''}" data-base="${b}">
+      <div class="cart-grid">${cardsHtml}</div>
     </div>`;
   }).join('');
 
-  // Mini stats
-  const miniEl = document.getElementById('cart-stats-mini');
-  if (miniEl) miniEl.innerHTML = `
-    <div class="stat-card"><div class="stat-val" style="color:var(--yw)">${emUso}</div><div class="stat-label">Em uso</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:var(--gn)">${disponivel}</div><div class="stat-label">Disponíveis</div></div>
-    <div class="stat-card"><div class="stat-val">${filtered.length - emUso - disponivel}</div><div class="stat-label">Sem registro</div></div>
-  `;
+  const footEl = document.getElementById('cart-footer');
+  if (footEl) {
+    const ativaCount = carts.filter(c => c.base === _currentBaseTab && (!q || c.nome.toLowerCase().includes(q))).length;
+    footEl.textContent = `Base ${_currentBaseTab}: ${ativaCount} carrinho(s) · Total geral: ${carts.length}`;
+  }
+}
 
-  if (footEl) footEl.textContent = filtered.length + ' carrinho(s)';
+function openCartDetail(nome, recId) {
+  // Se houver registro, abre o modal de detalhe existente; senão mostra resumo simples
+  if (recId) { openDetail(recId); return; }
+  const recs = getRecords();
+  const st = computeCartState(nome, recs);
+  let html = `<h3 style="font-family:'Barlow Condensed',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">Carrinho ${nome}</h3>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:12px;">Base ${getCartBase(nome)} · Sem registros ainda</div>`;
+  if (st.ncAbertas.length) {
+    html += `<div style="margin-top:12px;"><strong>NCs em aberto:</strong><ul>` +
+      st.ncAbertas.map(nc => `<li>${nc.ferramenta} — ${nc.motivo}</li>`).join('') + `</ul></div>`;
+  }
+  const body = document.getElementById('detail-body');
+  if (body) {
+    body.innerHTML = html;
+    document.getElementById('modal-detail').classList.remove('hidden');
+  }
 }
 
 function addCart() {
   const inp = document.getElementById('inp-cart');
+  const baseSel = document.getElementById('inp-cart-base');
   const val = (inp?.value || '').trim().toUpperCase();
+  const base = baseSel?.value || 'Mooca';
   if (!val) return;
   const carts = getCarts();
-  if (carts.includes(val)) {
+  if (carts.some(c => c.nome === val)) {
     showAlert('cart-alert-box', 'yw', '⚠️ Carrinho já cadastrado.');
     return;
   }
-  carts.push(val);
-  carts.sort();
+  carts.push({ nome: val, base });
+  carts.sort((a,b) => a.nome.localeCompare(b.nome));
   saveCarts(carts);
   inp.value = '';
+  _currentBaseTab = base;
   renderCarrinhos();
-  showAlert('cart-alert-box', 'gn', '✅ Carrinho ' + val + ' cadastrado!');
-}
-
-function addCartBatch() {
-  const raw = prompt('Cole os nomes dos carrinhos separados por vírgula:\nEx: R01, R02, R03');
-  if (!raw) return;
-  const carts = getCarts();
-  const novos = raw.split(',').map(s => s.trim().toUpperCase()).filter(s => s && !carts.includes(s));
-  if (!novos.length) { showAlert('cart-alert-box', 'yw', '⚠️ Nenhum novo carrinho para adicionar.'); return; }
-  novos.forEach(n => carts.push(n));
-  carts.sort();
-  saveCarts(carts);
-  renderCarrinhos();
-  showAlert('cart-alert-box', 'gn', '✅ ' + novos.length + ' carrinho(s) adicionado(s)!');
+  showAlert('cart-alert-box', 'gn', `✅ Carrinho ${val} cadastrado em ${base}!`);
 }
 
 function removeCart(nome) {
   if (!confirm('Remover o carrinho ' + nome + '?')) return;
-  const carts = getCarts().filter(c => c !== nome);
+  const carts = getCarts().filter(c => c.nome !== nome);
   saveCarts(carts);
   renderCarrinhos();
+}
+
+function resetCartsDefault() {
+  if (!confirm('Restaurar lista padrão das 3 bases?\nIsso recadastra MC01–MC35 (Mooca), OC01–OC50 (Osasco) e SC01–SC06 (SBC).\nCarrinhos extras criados manualmente serão mantidos.')) return;
+  const existing = getCarts();
+  const existingNames = new Set(existing.map(c => c.nome));
+  const def = defaultCarts();
+  // adiciona os faltantes do default; mantém os existentes
+  def.forEach(d => { if (!existingNames.has(d.nome)) existing.push(d); });
+  existing.sort((a,b) => a.nome.localeCompare(b.nome));
+  saveCarts(existing);
+  renderCarrinhos();
+  showAlert('cart-alert-box', 'gn', '✅ Lista padrão restaurada.');
 }
 
 // ─── COLABORADORES ────────────────────────────────────────────────────────────
@@ -1221,205 +1398,24 @@ function resetColab() {
   renderColab();
 }
 
-// ─── VALORES FERRAMENTAS ──────────────────────────────────────────────────────
-function getValores() { try { return JSON.parse(localStorage.getItem('vammo_valores')) || {}; } catch { return {}; } }
-function saveValores(v) { localStorage.setItem('vammo_valores', JSON.stringify(v)); }
-
-function renderValores() {
-  const vals = getValores();
-  const el = document.getElementById('valores-lista');
-  if (!el) return;
-  const keys = Object.keys(vals).sort();
-  if (!keys.length) {
-    el.innerHTML = '<div style="color:var(--gr);font-size:13px;padding:8px 0;">Nenhuma ferramenta cadastrada. Clique em "Importar ferramentas do app" para começar.</div>';
-    return;
-  }
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;">
-    <thead><tr>
-      <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--gr);border-bottom:1px solid var(--bd);">FERRAMENTA</th>
-      <th style="text-align:right;padding:8px 12px;font-size:11px;color:var(--gr);border-bottom:1px solid var(--bd);">VALOR R$</th>
-      <th style="width:80px;border-bottom:1px solid var(--bd);"></th>
-    </tr></thead>
-    <tbody id="valores-tbody">
-      ${keys.map(k => {
-        const kid = 'vrow-' + btoa(encodeURIComponent(k)).replace(/[^a-zA-Z0-9]/g,'');
-        return `<tr id="${kid}" style="border-bottom:1px solid rgba(255,255,255,.04);">
-          <td style="padding:10px 12px;font-size:13px;">${k}</td>
-          <td style="padding:6px 12px;text-align:right;">
-            <input type="number" 
-              value="${Number(vals[k]).toFixed(2)}" 
-              min="0" step="0.01"
-              onchange="saveValorInline('${k.replace(/\\/g,'\\\\').replace(/'/g,'\\\'').replace(/"/g,'&quot;')}', this.value)"
-              style="width:90px;text-align:right;padding:6px 8px;background:var(--c2);border:1.5px solid var(--bd);border-radius:8px;color:var(--wh);font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;">
-          </td>
-          <td style="padding:6px 12px;">
-            <button class="btn-sm btn-rd" onclick="removeValor('${k.replace(/\\/g,'\\\\').replace(/'/g,'\\\'')}')">×</button>
-          </td>
-        </tr>`;
-      }).join('')}
-    </tbody>
-  </table>
-  <div style="margin-top:12px;color:var(--az);font-size:13px;font-weight:700;" id="valores-total">
-    Total cadastrado: R$ ${Object.values(vals).reduce((a,b) => a + Number(b), 0).toFixed(2)}
-  </div>`;
-}
-
-function saveValorInline(nome, val) {
-  const preco = parseFloat(val);
-  if (isNaN(preco) || preco < 0) return;
-  const vals = getValores();
-  vals[nome] = preco;
-  saveValores(vals);
-  // Atualiza só o total sem re-renderizar (não perde foco)
-  const total = Object.values(vals).reduce((a,b) => a + Number(b), 0);
-  const el = document.getElementById('valores-total');
-  if (el) el.textContent = 'Total cadastrado: R$ ' + total.toFixed(2);
-  showAlert('valores-alert', 'gn', '✅ ' + nome + ' → R$ ' + preco.toFixed(2));
-}
-
-function addValor() {
-  const nome  = (document.getElementById('inp-valor-nome')?.value || '').trim();
-  const preco = parseFloat(document.getElementById('inp-valor-preco')?.value || '0');
-  if (!nome) { showAlert('valores-alert', 'rd', '⚠️ Informe o nome da ferramenta.'); return; }
-  if (isNaN(preco) || preco < 0) { showAlert('valores-alert', 'rd', '⚠️ Valor inválido.'); return; }
-  const vals = getValores();
-  vals[nome] = preco;
-  saveValores(vals);
-  document.getElementById('inp-valor-nome').value = '';
-  document.getElementById('inp-valor-preco').value = '';
-  renderValores();
-  showAlert('valores-alert', 'gn', '✅ ' + nome + ' salvo (R$ ' + preco.toFixed(2) + ')');
-}
-
-// Lista de ferramentas espelhada do app do mecânico
-const TOOLS_GESTOR = [
-  "Alicate de bico","Alicate de corte","Alicate universal","Alicate de pressão",
-  "Allen longa 4mm","Allen longa 5mm","Allen longa 6mm",
-  "Soquete 10mm","Soquete 12mm","Soquete 13mm","Soquete 14mm","Soquete 17mm","Soquete 19mm","Soquete 22mm",
-  "Chave L 8mm","Chave L 10mm","Chave L 12mm","Chave L 13mm","Chave L 14mm","Chave L 17mm",
-  "Combinada 8mm","Combinada 10mm","Combinada 12mm","Combinada 13mm","Combinada 14mm","Combinada 17mm","Combinada 19mm","Combinada 32mm",
-  "Marreta de borracha","Marreta 1kg",
-  "Chave Philips","Chave de fenda",
-  'Catraca 1/2" reversível','Extensor longo 1/2"'
-];
-
-function seedValores() {
-  const vals = getValores();
-  let adicionados = 0;
-  TOOLS_GESTOR.forEach(nome => {
-    if (!(nome in vals)) { vals[nome] = 0; adicionados++; }
-  });
-  if (adicionados > 0) {
-    saveValores(vals);
-    renderValores();
-    showAlert('valores-alert', 'gn', '✅ ' + adicionados + ' ferramentas importadas com R$ 0,00. Edite os valores!');
-  } else {
-    showAlert('valores-alert', 'yw', '⚠️ Todas as ferramentas já estão cadastradas.');
-  }
-}
-
-function removeValor(nome) {
-  const vals = getValores();
-  delete vals[nome];
-  saveValores(vals);
-  renderValores();
-}
-
-// Retorna o início da semana (segunda-feira) para uma data
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay(); // 0=dom, 1=seg...
-  const diff = (day === 0 ? -6 : 1 - day); // ajusta para segunda
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function isSameWeek(date1, date2) {
-  return getWeekStart(date1).getTime() === getWeekStart(date2).getTime();
-}
-
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function renderDashboard() {
-  const recs  = getRecords();
-  const bases = getBases();
-  const vals  = getValores();
-  const now   = new Date();
-  const today = now.toDateString();
+  const recs = getRecords();
+  const today = new Date().toDateString();
+  const todayRecs = recs.filter(r => new Date(r.ts).toDateString() === today);
+  const checkins = recs.filter(r => r.tipo === 'checkin').length;
+  const checkouts = recs.filter(r => r.tipo === 'checkout').length;
+  const allNCs = recs.flatMap(r => Object.entries(r.ferramentas || {}).filter(([,v]) => v.status === 'nao_ok'));
+  const faltando = allNCs.filter(([,v]) => v.motivo === 'faltando').length;
+  const quebrado = allNCs.filter(([,v]) => v.motivo === 'quebrado').length;
 
-  // Filtra semana atual (seg a dom)
-  const semanaRecs = recs.filter(r => isSameWeek(new Date(r.ts), now));
-  const todayRecs  = recs.filter(r => new Date(r.ts).toDateString() === today);
-
-  // NCs da semana
-  const ncSemana = semanaRecs.flatMap(r => Object.entries(r.ferramentas || {}).filter(([,v]) => v.status === 'nao_ok'));
-  const faltandoSem = ncSemana.filter(([,v]) => v.motivo === 'faltando').length;
-  const quebradoSem = ncSemana.filter(([,v]) => v.motivo === 'quebrado').length;
-
-  // Custo reposição do dia
-  const ncHoje = todayRecs.flatMap(r => Object.entries(r.ferramentas || {}).filter(([,v]) => v.status === 'nao_ok' && v.motivo === 'faltando'));
-  let custoHoje = 0;
-  ncHoje.forEach(([k]) => { if (vals[k]) custoHoje += Number(vals[k]); });
-
-  // Custo reposição da semana
-  const ncFaltSemana = ncSemana.filter(([,v]) => v.motivo === 'faltando');
-  let custoSemana = 0;
-  ncFaltSemana.forEach(([k]) => { if (vals[k]) custoSemana += Number(vals[k]); });
-
-  // Check-ins de hoje por base
-  const ciHoje = todayRecs.filter(r => r.tipo === 'checkin');
-  const ciPorBase = {};
-  bases.forEach(b => { ciPorBase[b] = 0; });
-  ciHoje.forEach(r => {
-    const usuario = getUsuarios().find(u => u.nome === r.mecanico);
-    const base = usuario?.base || 'Sem base';
-    if (!ciPorBase[base]) ciPorBase[base] = 0;
-    ciPorBase[base]++;
-  });
-
-  // Carrinhos disponíveis (último registro = checkout)
-  const carts = getCarts();
-  const lastRec = {};
-  recs.forEach(r => { if (!lastRec[r.carrinho]) lastRec[r.carrinho] = r; });
-  const dispPorBase = {};
-  bases.forEach(b => { dispPorBase[b] = { disp: 0, total: 0 }; });
-  carts.forEach(c => {
-    const usuario = getUsuarios().find(u => u.nome === lastRec[c]?.mecanico);
-    const base = usuario?.base || 'Sem base';
-    if (!dispPorBase[base]) dispPorBase[base] = { disp: 0, total: 0 };
-    dispPorBase[base].total++;
-    const status = !lastRec[c] ? 'disponivel' : lastRec[c].tipo === 'checkout' ? 'disponivel' : 'em-uso';
-    if (status === 'disponivel') dispPorBase[base].disp++;
-  });
-
-  // Stat cards principais
-  const semStr = getWeekStart(now).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'}) + ' – ' + now.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'});
   document.getElementById('stat-grid').innerHTML = `
     <div class="stat-card"><div class="sc-label">Registros Hoje</div><div class="sc-num sc-az">${todayRecs.length}</div><div class="sc-sub">Total: ${recs.length}</div></div>
-    <div class="stat-card"><div class="sc-label">NCs Semana</div><div class="sc-num sc-rd">${ncSemana.length}</div><div class="sc-sub">${faltandoSem} faltando · ${quebradoSem} quebrado</div></div>
-    <div class="stat-card"><div class="sc-label">Custo Hoje</div><div class="sc-num sc-yw">R$ ${custoHoje.toFixed(2)}</div><div class="sc-sub">Reposição ferramentas</div></div>
-    <div class="stat-card"><div class="sc-label">Custo Semana</div><div class="sc-num sc-rd">R$ ${custoSemana.toFixed(2)}</div><div class="sc-sub">${semStr}</div></div>
+    <div class="stat-card"><div class="sc-label">Check-ins</div><div class="sc-num sc-gn">${checkins}</div><div class="sc-sub">Check-outs: ${checkouts}</div></div>
+    <div class="stat-card"><div class="sc-label">Faltando</div><div class="sc-num sc-yw">${faltando}</div><div class="sc-sub">Ocorrências</div></div>
+    <div class="stat-card"><div class="sc-label">Quebrado</div><div class="sc-num sc-rd">${quebrado}</div><div class="sc-sub">Ocorrências</div></div>
   `;
 
-  // Check-ins por base
-  const baseCiHtml = bases.map(b => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);">
-      <span style="font-size:13px;font-weight:600;">${b}</span>
-      <span style="font-size:13px;color:var(--az);font-weight:700;">${ciPorBase[b] || 0} CI hoje</span>
-    </div>`).join('');
-
-  // Disponíveis por base
-  const baseDispHtml = bases.map(b => {
-    const info = dispPorBase[b] || {disp:0, total:0};
-    const pct = info.total ? Math.round(info.disp/info.total*100) : 0;
-    const cor = pct > 60 ? 'var(--gn)' : pct > 30 ? 'var(--yw)' : 'var(--rd)';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);">
-      <span style="font-size:13px;font-weight:600;">${b}</span>
-      <span style="font-size:13px;color:${cor};font-weight:700;">${info.disp}/${info.total} livres</span>
-    </div>`;
-  }).join('');
-
-  // Últimos registros
   const recentHtml = recs.slice(0, 8).map(r => `
     <tr onclick="openDetail('${r.id}')" style="cursor:pointer;">
       <td><strong>${r.carrinho}</strong></td>
@@ -1430,95 +1426,32 @@ function renderDashboard() {
   `).join('') || '<tr class="empty-row"><td colspan="4">Nenhum registro</td></tr>';
   document.getElementById('dash-recent').innerHTML = recentHtml;
 
-  // NC do dia
-  const ncHojeRecs = todayRecs.filter(r => r.nc_count > 0).slice(0, 4);
-  if (!ncHojeRecs.length) {
-    document.getElementById('dash-nc').innerHTML = '<div style="padding:24px;text-align:center;color:var(--gr);font-size:14px;">✅ Sem NCs hoje</div>';
-  } else {
-    document.getElementById('dash-nc').innerHTML = ncHojeRecs.flatMap(r =>
-      Object.entries(r.ferramentas || {})
-        .filter(([,v]) => v.status === 'nao_ok').slice(0, 2)
-        .map(([k,v]) => `
-          <div class="nc-card">
-            <div class="nc-icon">${v.motivo === 'faltando' ? '❓' : '💔'}</div>
-            <div>
-              <div class="nc-cart">Carrinho ${r.carrinho}</div>
-              <div class="nc-tool">${k}</div>
-              <div class="nc-meta">${r.mecanico} · ${fmtDate(r.ts)}</div>
-            </div>
-            <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}" style="margin-left:auto;flex-shrink:0">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
-          </div>`)
-    ).join('');
-  }
-
-  // Cards de base no dashboard
-  let extraEl = document.getElementById('dash-bases');
-  if (!extraEl) {
-    extraEl = document.createElement('div');
-    extraEl.id = 'dash-bases';
-    extraEl.className = 'two-col';
-    extraEl.style.marginTop = '16px';
-    document.getElementById('panel-dashboard').appendChild(extraEl);
-  }
-  extraEl.innerHTML = `
-    <div class="table-wrap">
-      <div class="table-head"><h2>📍 Check-ins Hoje por Base</h2></div>
-      <div style="padding:0 16px 8px;">${baseCiHtml || '<div style="padding:16px;color:var(--gr);font-size:13px;">Configure as bases em Usuários</div>'}</div>
-    </div>
-    <div class="table-wrap">
-      <div class="table-head"><h2>🛒 Carrinhos Disponíveis por Base</h2></div>
-      <div style="padding:0 16px 8px;">${baseDispHtml || '<div style="padding:16px;color:var(--gr);font-size:13px;">Cadastre carrinhos em Carrinhos</div>'}</div>
-    </div>
-  `;
-
-  const cfg = getConfig();
-  document.getElementById('sync-status').textContent = cfg.webhookUrl ? '🟢' : '🔴';
-  document.getElementById('total-records-footer').textContent = `${recs.length} registro(s)`;
-}
-
-// ─── NÃO CONFORMIDADES (semanal) ──────────────────────────────────────────────
-function renderNC() {
-  const recs = getRecords();
-  const now  = new Date();
-  const motivo = document.getElementById('nc-filt-motivo')?.value || '';
-
-  // Filtra semana atual
-  const semanaRecs = recs.filter(r => isSameWeek(new Date(r.ts), now));
-
-  let ncs = semanaRecs.flatMap(r =>
-    Object.entries(r.ferramentas || {})
-      .filter(([,v]) => v.status === 'nao_ok' && (!motivo || v.motivo === motivo))
-      .map(([k,v]) => ({ ferramenta:k, motivo:v.motivo||'nc', carrinho:r.carrinho, mecanico:r.mecanico, turno:r.turno, ts:r.ts, rid:r.id }))
-  );
-
-  // Stats da semana
-  const faltando = ncs.filter(n => n.motivo === 'faltando').length;
-  const quebrado = ncs.filter(n => n.motivo === 'quebrado').length;
-  const semStr = getWeekStart(now).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' – ' + now.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-  const ncStats = document.getElementById('nc-stats');
-  if (ncStats) ncStats.innerHTML = `
-    <div class="stat-card"><div class="sc-label">NCs na Semana</div><div class="sc-num sc-rd">${ncs.length}</div><div class="sc-sub">${semStr}</div></div>
-    <div class="stat-card"><div class="sc-label">Faltando</div><div class="sc-num sc-yw">${faltando}</div><div class="sc-sub">ocorrências</div></div>
-    <div class="stat-card"><div class="sc-label">Quebrado</div><div class="sc-num sc-rd">${quebrado}</div><div class="sc-sub">ocorrências</div></div>
-  `;
-
-  const tbody = document.getElementById('nc-tbody');
-  if (!tbody) return;
-  if (!ncs.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma NC nesta semana</td></tr>';
-    document.getElementById('nc-footer').textContent = '0 ocorrências';
+  const ncRecs = recs.filter(r => r.nc_count > 0).slice(0, 6);
+  if (!ncRecs.length) {
+    document.getElementById('dash-nc').innerHTML = '<div style="padding:24px;text-align:center;color:var(--gr);font-size:14px;">✅ Sem não conformidades recentes</div>';
     return;
   }
-  tbody.innerHTML = ncs.map(n => `
-    <tr onclick="openDetail('${n.rid}')" style="cursor:pointer;">
-      <td><strong>${n.ferramenta}</strong></td>
-      <td><span class="badge ${n.motivo === 'faltando' ? 'byw' : 'brd'}">${n.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span></td>
-      <td>${n.carrinho}</td>
-      <td>${n.mecanico}</td>
-      <td style="font-size:12px;">${n.turno}</td>
-      <td style="color:var(--gr);white-space:nowrap;">${fmtDate(n.ts)}</td>
-    </tr>`).join('');
-  document.getElementById('nc-footer').textContent = ncs.length + ' ocorrência(s) nesta semana';
+  document.getElementById('dash-nc').innerHTML = ncRecs.flatMap(r =>
+    Object.entries(r.ferramentas || {})
+      .filter(([,v]) => v.status === 'nao_ok')
+      .slice(0, 2)
+      .map(([k,v]) => `
+        <div class="nc-card">
+          <div class="nc-icon">${v.motivo === 'faltando' ? '❓' : '💔'}</div>
+          <div>
+            <div class="nc-cart">Carrinho ${r.carrinho}</div>
+            <div class="nc-tool">${k}</div>
+            <div class="nc-meta">${r.mecanico} · ${fmtDate(r.ts)}</div>
+          </div>
+          <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}" style="margin-left:auto;flex-shrink:0">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
+        </div>
+      `)
+  ).join('');
+
+  // footer sync info
+  const cfg = getConfig();
+  document.getElementById('sync-status').textContent = cfg.webhookUrl ? '🟢 Webhook configurado' : '🔴 Sem sync externo';
+  document.getElementById('total-records-footer').textContent = `${recs.length} registro(s)`;
 }
 
 // ─── REGISTROS ────────────────────────────────────────────────────────────────
@@ -1557,6 +1490,250 @@ function renderRegistros() {
     : `<tr class="empty-row"><td colspan="9">Nenhum registro encontrado</td></tr>`;
 
   document.getElementById('reg-footer').textContent = `${filtered.length} registro(s) de ${recs.length} total`;
+}
+
+// ─── NÃO CONFORMIDADES ────────────────────────────────────────────────────────
+function renderNC() {
+  const recs = getRecords();
+  const filtMotivo = document.getElementById('nc-filt-motivo')?.value || '';
+  const repostas = getNCRepostas();
+
+  // expande NCs a partir dos registros
+  const ncs = [];
+  recs.forEach(r => {
+    Object.entries(r.ferramentas || {}).forEach(([ferr, v]) => {
+      if (!v || v.status !== 'nao_ok') return;
+      ncs.push({
+        recId: r.id, ts: r.ts, carrinho: r.carrinho, mecanico: r.mecanico,
+        turno: r.turno, ferramenta: ferr, motivo: v.motivo || 'nc',
+        reposta: !!repostas[ncKey(r.id, ferr)]
+      });
+    });
+  });
+
+  const filtered = ncs.filter(nc => !filtMotivo || nc.motivo === filtMotivo);
+
+  // Stats
+  const abertas = ncs.filter(n => !n.reposta);
+  const faltando = abertas.filter(n => n.motivo === 'faltando').length;
+  const quebrado = abertas.filter(n => n.motivo === 'quebrado').length;
+  const repostasN = ncs.filter(n => n.reposta).length;
+  document.getElementById('nc-stats').innerHTML = `
+    <div class="stat-card"><div class="sc-label">NCs abertas</div><div class="sc-num sc-rd">${abertas.length}</div><div class="sc-sub">aguardam reposição</div></div>
+    <div class="stat-card"><div class="sc-label">Faltando</div><div class="sc-num sc-yw">${faltando}</div><div class="sc-sub">ocorrências abertas</div></div>
+    <div class="stat-card"><div class="sc-label">Quebrado</div><div class="sc-num sc-rd">${quebrado}</div><div class="sc-sub">ocorrências abertas</div></div>
+    <div class="stat-card"><div class="sc-label">Repostas</div><div class="sc-num sc-gn">${repostasN}</div><div class="sc-sub">total histórico</div></div>
+  `;
+
+  const tbody = document.getElementById('nc-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = filtered.length
+    ? filtered.map(nc => {
+        const base = getCartBase(nc.carrinho);
+        const btn = nc.reposta
+          ? `<button class="btn-repor" disabled>✓ Reposta</button>`
+          : `<button class="btn-repor" onclick="reporFerramenta('${nc.recId}', ${JSON.stringify(nc.ferramenta).replace(/"/g,'&quot;')}, '${nc.carrinho}', '${nc.motivo}')">↻ Repor</button>`;
+        const motivoBadge = nc.motivo === 'faltando'
+          ? '<span class="badge byw">Faltando</span>'
+          : nc.motivo === 'quebrado'
+            ? '<span class="badge brd">Quebrado</span>'
+            : `<span class="badge">${nc.motivo}</span>`;
+        return `<tr>
+          <td>${nc.ferramenta}</td>
+          <td>${motivoBadge}</td>
+          <td><strong>${nc.carrinho}</strong> <span style="color:var(--gr);font-size:11px;">· ${base}</span></td>
+          <td>${nc.mecanico||'-'}</td>
+          <td style="font-size:12px;">${nc.turno||'-'}</td>
+          <td style="color:var(--gr);white-space:nowrap;">${fmtDateFull(nc.ts)}</td>
+          <td style="text-align:right;">${btn}</td>
+        </tr>`;
+      }).join('')
+    : `<tr class="empty-row"><td colspan="7">Nenhuma não-conformidade encontrada.</td></tr>`;
+
+  // ajusta colunas (a tabela original tem 6 ths, vou regenerar pelo header)
+  document.getElementById('nc-footer').textContent = `${filtered.length} NC(s) · ${abertas.length} aberta(s) · ${repostasN} reposta(s)`;
+}
+
+// Sobrescreve thead da NC pra incluir coluna Ações
+function ensureNCHeader() {
+  const head = document.querySelector('#panel-nc thead tr');
+  if (head && head.children.length < 7) {
+    head.innerHTML = `
+      <th>Ferramenta</th><th>Problema</th><th>Carrinho</th>
+      <th>Mecânico</th><th>Turno</th><th>Data</th><th style="text-align:right;">Ação</th>`;
+  }
+}
+
+// Botão Repor: dá baixa no estoque, marca NC como reposta, registra histórico
+function reporFerramenta(recId, ferramenta, carrinho, motivo) {
+  const base = getCartBase(carrinho);
+  const est = getEstoque();
+  const disp = (est[base] && typeof est[base][ferramenta] === 'number') ? est[base][ferramenta] : 0;
+
+  const qtdStr = prompt(
+    `Repor "${ferramenta}" no carrinho ${carrinho} (Base ${base}).\n` +
+    `Estoque atual de reposição nessa base: ${disp}\n\n` +
+    `Quantidade a dar baixa do estoque:`,
+    '1'
+  );
+  if (qtdStr === null) return;
+  const qtd = parseInt(qtdStr, 10);
+  if (!qtd || qtd < 1) { showAlert('cart-alert-box', 'rd', '❌ Quantidade inválida.'); return; }
+  if (qtd > disp) {
+    if (!confirm(`⚠️ Estoque insuficiente (disponível: ${disp}, solicitado: ${qtd}).\nProsseguir mesmo assim? (estoque ficará negativo)`)) return;
+  }
+  const obs = prompt('Observação (opcional):', '') || '';
+
+  // 1) baixa no estoque
+  if (!est[base]) est[base] = {};
+  if (typeof est[base][ferramenta] !== 'number') est[base][ferramenta] = 0;
+  est[base][ferramenta] -= qtd;
+  saveEstoque(est);
+
+  // 2) marca NC como reposta
+  const rep = getNCRepostas();
+  rep[ncKey(recId, ferramenta)] = { ts: new Date().toISOString(), qtd, obs };
+  saveNCRepostas(rep);
+
+  // 3) registra histórico
+  const baixas = getBaixas();
+  baixas.unshift({
+    id: 'BX-' + Date.now().toString(36).toUpperCase(),
+    ts: new Date().toISOString(),
+    base, carrinho, ferramenta, motivo, qtd, obs,
+    recId
+  });
+  saveBaixas(baixas);
+
+  // Re-renderiza painéis afetados
+  renderNC();
+  renderEstoque();
+  // se carrinhos estiverem em tela
+  if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+
+  showAlert('cart-alert-box', 'gn', `✅ Reposição registrada: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`);
+}
+
+// ─── ESTOQUE ──────────────────────────────────────────────────────────────────
+let _currentEstBaseTab = 'Mooca';
+function setEstBaseTab(base) { _currentEstBaseTab = base; renderEstoque(); }
+
+function renderEstoque() {
+  const est = getEstoque();
+  const q = (document.getElementById('est-search')?.value || '').toLowerCase();
+
+  // Stats: totais por base
+  const statsEl = document.getElementById('est-stats');
+  if (statsEl) {
+    statsEl.innerHTML = BASES.map(b => {
+      const itens = Object.values(est[b] || {});
+      const total = itens.reduce((s,v) => s + Math.max(0,v), 0);
+      const zerados = itens.filter(v => v === 0).length;
+      const baixos  = itens.filter(v => v > 0 && v < 3).length;
+      return `<div class="stat-card">
+        <div class="sc-label">Base ${b}</div>
+        <div class="sc-num sc-az">${total}</div>
+        <div class="sc-sub">${zerados} zerada(s) · ${baixos} em alerta</div>
+      </div>`;
+    }).join('');
+  }
+
+  const tabsEl = document.getElementById('est-base-tabs');
+  const sectEl = document.getElementById('est-base-sections');
+  if (!tabsEl || !sectEl) return;
+
+  tabsEl.innerHTML = BASES.map(b =>
+    `<button class="base-tab ${b===_currentEstBaseTab?'active':''}" onclick="setEstBaseTab('${b}')">${b}</button>`
+  ).join('');
+
+  sectEl.innerHTML = BASES.map(b => {
+    const baseEst = est[b] || {};
+    const catsHtml = TOOLS_CATALOG.map(cat => {
+      const items = cat.items.filter(t => !q || t.toLowerCase().includes(q));
+      if (!items.length) return '';
+      return `<div class="est-cat-title">${cat.cat}</div>
+        <div class="estoque-grid">${items.map(t => {
+          const qtd = typeof baseEst[t] === 'number' ? baseEst[t] : 0;
+          const cls = qtd === 0 ? 'qtd-zero' : qtd < 3 ? 'qtd-baixo' : 'qtd-ok';
+          const tEsc = JSON.stringify(t).replace(/"/g,'&quot;');
+          return `<div class="est-card ${cls}">
+            <div class="et-info">
+              <div class="et-name" title="${t}">${t}</div>
+              <div class="et-cat">${cat.cat}</div>
+            </div>
+            <div class="et-qtd">${qtd}</div>
+            <div class="et-btns">
+              <button onclick="ajustarEstoque('${b}', ${tEsc}, +1)" title="+1">▲</button>
+              <button onclick="ajustarEstoque('${b}', ${tEsc}, -1)" title="-1">▼</button>
+            </div>
+            <button class="btn-sm btn-outline" style="font-size:11px;padding:6px 8px;" onclick="ajustarEstoquePrompt('${b}', ${tEsc})" title="Editar quantidade">✎</button>
+          </div>`;
+        }).join('')}</div>`;
+    }).join('');
+    return `<div class="base-section ${b===_currentEstBaseTab?'active':''}" data-base="${b}">${catsHtml || '<div style="color:var(--gr);font-size:13px;padding:8px 0;">Nenhuma ferramenta corresponde ao filtro.</div>'}</div>`;
+  }).join('');
+
+  renderBaixas();
+}
+
+function ajustarEstoque(base, ferramenta, delta) {
+  const est = getEstoque();
+  if (!est[base]) est[base] = {};
+  const cur = typeof est[base][ferramenta] === 'number' ? est[base][ferramenta] : 0;
+  est[base][ferramenta] = Math.max(0, cur + delta);
+  saveEstoque(est);
+  renderEstoque();
+}
+function ajustarEstoquePrompt(base, ferramenta) {
+  const est = getEstoque();
+  const cur = (est[base] && typeof est[base][ferramenta] === 'number') ? est[base][ferramenta] : 0;
+  const v = prompt(`Quantidade em estoque de "${ferramenta}" na base ${base}:`, String(cur));
+  if (v === null) return;
+  const n = parseInt(v, 10);
+  if (isNaN(n) || n < 0) { showAlert('est-alert-box','rd','❌ Valor inválido.'); return; }
+  if (!est[base]) est[base] = {};
+  est[base][ferramenta] = n;
+  saveEstoque(est);
+  renderEstoque();
+  showAlert('est-alert-box','gn',`✅ ${ferramenta}: ${n} un. em ${base}.`);
+}
+
+function renderBaixas() {
+  const baixas = getBaixas();
+  const f = document.getElementById('baixa-filt-base')?.value || '';
+  const list = f ? baixas.filter(b => b.base === f) : baixas;
+  const tbody = document.getElementById('baixas-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = list.length
+    ? list.slice(0,200).map(b => `<tr>
+        <td style="color:var(--gr);white-space:nowrap;">${fmtDateFull(b.ts)}</td>
+        <td>${b.base}</td>
+        <td><strong>${b.carrinho}</strong></td>
+        <td>${b.ferramenta}</td>
+        <td style="font-size:12px;">${b.motivo||'-'}</td>
+        <td style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--az);">${b.qtd}</td>
+        <td style="font-size:12px;color:var(--gr);">${b.obs||'-'}</td>
+      </tr>`).join('')
+    : `<tr class="empty-row"><td colspan="7">Nenhuma baixa registrada${f?' nessa base':''}.</td></tr>`;
+  document.getElementById('baixas-footer').textContent = `${list.length} baixa(s)${baixas.length!==list.length?` de ${baixas.length} total`:''}`;
+}
+
+function exportEstoqueCSV() {
+  const est = getEstoque();
+  const rows = [['Base','Categoria','Ferramenta','Quantidade']];
+  BASES.forEach(b => {
+    TOOLS_CATALOG.forEach(cat => {
+      cat.items.forEach(t => {
+        rows.push([b, cat.cat, t, est[b] && est[b][t] != null ? est[b][t] : 0]);
+      });
+    });
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `vammo_estoque_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
 }
 
 function renderConfig() {
@@ -1630,19 +1807,9 @@ function salvarFoto(base64, nome) {
 
 function salvar(data) {
   var id = data.id;
-
-  // Se fotos já são URLs do Drive (vindas do app), usa direto
-  // Se são base64, tenta fazer upload pro Drive via salvarFoto
-  var fotoSupRaw = data.fotos && data.fotos.sup;
-  var fotoInfRaw = data.fotos && data.fotos.inf;
-  var fotoElvRaw = data.fotos && data.fotos.elv;
-
-  var fotoSup = (typeof fotoSupRaw === 'string' && fotoSupRaw.indexOf('http') === 0)
-    ? fotoSupRaw : salvarFoto(fotoSupRaw, id + '_sup.jpg');
-  var fotoInf = (typeof fotoInfRaw === 'string' && fotoInfRaw.indexOf('http') === 0)
-    ? fotoInfRaw : salvarFoto(fotoInfRaw, id + '_inf.jpg');
-  var fotoElv = (typeof fotoElvRaw === 'string' && fotoElvRaw.indexOf('http') === 0)
-    ? fotoElvRaw : salvarFoto(fotoElvRaw, id + '_elv.jpg');
+  var fotoSup = salvarFoto(data.fotos && data.fotos.sup, id + '_sup.jpg');
+  var fotoInf = salvarFoto(data.fotos && data.fotos.inf, id + '_inf.jpg');
+  var fotoElv = salvarFoto(data.fotos && data.fotos.elv, id + '_elv.jpg');
 
   var shR = aba('Registros', ['ID','Tipo','Carrinho','Turno','Mecanico','NC_Count','Timestamp','Foto_Sup','Foto_Inf','Foto_Elv']);
   var flatR = shR.getDataRange().getValues().flat().map(String);
@@ -1655,7 +1822,7 @@ function salvar(data) {
   if (flatJ.indexOf(String(id)) === -1) {
     var rec = { id:id, ts:data.ts, tipo:data.tipo, carrinho:data.carrinho, turno:data.turno, mecanico:data.mecanico,
       nc_count:data.nc_count||0, nc_list:data.nc_list||'',
-      fotos:{ sup: fotoSup || !!fotoSupRaw, inf: fotoInf || !!fotoInfRaw, elv: fotoElv || !!fotoElvRaw },
+      fotos:{ sup:fotoSup||(data.fotos&&!!data.fotos.sup), inf:fotoInf||(data.fotos&&!!data.fotos.inf), elv:fotoElv||(data.fotos&&!!data.fotos.elv) },
       assinatura:!!data.assinatura, ferramentas:data.ferramentas||{} };
     shJ.appendRow([id, JSON.stringify(rec)]);
   }
@@ -1673,7 +1840,8 @@ function salvar(data) {
     var items = ncList.split('|');
     for (var n = 0; n < items.length; n++) {
       var parts = items[n].split(':');
-      var ferr = decodeURIComponent(parts[0]||'');      var motivo = parts[1]||'nc';
+      var ferr = decodeURIComponent(parts[0]||'');
+      var motivo = parts[1]||'nc';
       if (ferr) shNC.appendRow([id, ferr, motivo, data.carrinho, data.mecanico, data.turno, data.ts]);
     }
   }
@@ -1683,37 +1851,6 @@ function doPost(e) {
   try {
     var raw = (e.postData && e.postData.contents) ? e.postData.contents : '';
     var data = JSON.parse(raw);
-
-    // Envio de fotos separado
-    if (data.action === 'photos') {
-      var id = data.id;
-      if (!id) return out({ success: false, error: 'id ausente' });
-
-      var fotoSup = salvarFoto(data.fotos && data.fotos.sup, id + '_sup.jpg');
-      var fotoInf = salvarFoto(data.fotos && data.fotos.inf, id + '_inf.jpg');
-      var fotoElv = salvarFoto(data.fotos && data.fotos.elv, id + '_elv.jpg');
-
-      // Atualiza o registro no JSON_Completo com os links do Drive
-      var shJ = getSheet().getSheetByName('JSON_Completo');
-      if (shJ) {
-        var rows = shJ.getDataRange().getValues();
-        for (var i = 1; i < rows.length; i++) {
-          if (String(rows[i][0]) === String(id)) {
-            try {
-              var rec = JSON.parse(rows[i][1]);
-              if (fotoSup) rec.fotos.sup = fotoSup;
-              if (fotoInf) rec.fotos.inf = fotoInf;
-              if (fotoElv) rec.fotos.elv = fotoElv;
-              shJ.getRange(i+1, 2).setValue(JSON.stringify(rec));
-            } catch(x) {}
-            break;
-          }
-        }
-      }
-      return out({ success: true, id: id, fotos: { sup: !!fotoSup, inf: !!fotoInf, elv: !!fotoElv } });
-    }
-
-    // Envio normal
     salvar(data);
     return out({ success: true, id: data.id });
   } catch(err) { return out({ success: false, error: err.toString() }); }
@@ -1725,81 +1862,13 @@ function doGet(e) {
 
   if (action === 'ping') return out({ ok: true, ts: new Date().toISOString() }, callback);
 
-  if (action === 'usuarios') {
-    try {
-      var shU = getSheet().getSheetByName('Usuarios');
-      if (!shU) return out({ usuarios: [] }, callback);
-      var rows = shU.getDataRange().getValues();
-      var usuarios = [];
-      for (var ui = 1; ui < rows.length; ui++) {
-        if (rows[ui][0]) {
-          // Suporta tabela com 3 colunas (sem base) ou 4 colunas (com base)
-          var hasBase = rows[ui].length >= 4;
-          usuarios.push({
-            email: rows[ui][0],
-            nome:  rows[ui][1],
-            base:  hasBase ? rows[ui][2] : '',
-            turno: hasBase ? rows[ui][3] : rows[ui][2]
-          });
-        }
-      }
-      return out({ usuarios: usuarios }, callback);
-    } catch(err) { return out({ usuarios: [], error: err.toString() }, callback); }
-  }
-
-  if (action === 'addUsuario') {
-    try {
-      var shU2 = aba('Usuarios', ['Email','Nome','Base','Turno']);
-      var emailNovo = decodeURIComponent(p.email || '').toLowerCase();
-      var nomeNovo  = decodeURIComponent(p.nome  || '');
-      var baseNova  = decodeURIComponent(p.base  || '');
-      var turnoNovo = decodeURIComponent(p.turno || '');
-      if (!emailNovo) return out({ success: false, error: 'email ausente' }, callback);
-      var rowsU = shU2.getDataRange().getValues();
-      for (var dup = 1; dup < rowsU.length; dup++) {
-        if (String(rowsU[dup][0]).toLowerCase() === emailNovo) {
-          return out({ success: true, msg: 'ja existe' }, callback);
-        }
-      }
-      shU2.appendRow([emailNovo, nomeNovo, baseNova, turnoNovo]);
-      return out({ success: true }, callback);
-    } catch(err) { return out({ success: false, error: err.toString() }, callback); }
-  }
-
-  if (action === 'updateFotos') {
-    try {
-      var id = p.id || '';
-      var shJ = getSheet().getSheetByName('JSON_Completo');
-      if (shJ && id) {
-        var rows = shJ.getDataRange().getValues();
-        for (var fi = 1; fi < rows.length; fi++) {
-          if (String(rows[fi][0]) === String(id)) {
-            try {
-              var rec = JSON.parse(rows[fi][1]);
-              if (p.sup) rec.fotos.sup = decodeURIComponent(p.sup);
-              if (p.inf) rec.fotos.inf = decodeURIComponent(p.inf);
-              if (p.elv) rec.fotos.elv = decodeURIComponent(p.elv);
-              shJ.getRange(fi+1, 2).setValue(JSON.stringify(rec));
-            } catch(x) {}
-            break;
-          }
-        }
-      }
-      return out({ success: true }, callback);
-    } catch(err) { return out({ success: false, error: err.toString() }, callback); }
-  }
-
   if (action === 'post') {
     try {
       var id = p.id || '';
       if (!id) return out({ success: false, error: 'id ausente' }, callback);
-      var fotoSup = p.foto_sup ? decodeURIComponent(p.foto_sup) : false;
-      var fotoInf = p.foto_inf ? decodeURIComponent(p.foto_inf) : false;
-      var fotoElv = p.foto_elv ? decodeURIComponent(p.foto_elv) : false;
       var data = { id:id, ts:p.ts, tipo:p.tipo, carrinho:p.carrinho, turno:p.turno, mecanico:p.mecanico,
         nc_count:parseInt(p.nc_count)||0, nc_list:p.nc_list||'',
-        fotos:{ sup: fotoSup || false, inf: fotoInf || false, elv: fotoElv || false },
-        assinatura:p.assinatura==='1' };
+        fotos:{ sup:false, inf:false, elv:false }, assinatura:p.assinatura==='1' };
       salvar(data);
       return out({ success: true, id: id }, callback);
     } catch(err) { return out({ success: false, error: err.toString() }, callback); }
@@ -1869,8 +1938,8 @@ function gasGet(url, params, callback) {
   let done = false;
 
   const timer = setTimeout(function() {
-    if (!done) { done=true; cleanup(); callback(null, 'Timeout 45s — GAS demorou demais. Tente novamente.'); }
-  }, 45000);
+    if (!done) { done=true; cleanup(); callback(null, 'Timeout 15s — GAS não respondeu'); }
+  }, 15000);
 
   window[cbName] = function(data) {
     if (!done) { done=true; cleanup(); callback(data, null); }
@@ -1928,52 +1997,25 @@ function syncAgora() {
     }
     const records = data.records || [];
     let existentes = getRecords();
-    const idxMap = {};
-    existentes.forEach((r, i) => { idxMap[r.id] = i; });
+    const ids = new Set(existentes.map(r => r.id));
     let adicionados = 0;
-    let atualizados = 0;
-
     records.forEach(rec => {
-      if (!rec.id) return;
-      if (idxMap[rec.id] !== undefined) {
-        // Atualiza fotos se o servidor tiver links reais
-        const local = existentes[idxMap[rec.id]];
-        let mudou = false;
-        ['sup','inf','elv'].forEach(k => {
-          const serverFoto = rec.fotos && rec.fotos[k];
-          const localFoto  = local.fotos && local.fotos[k];
-          // Se servidor tem URL do Drive e local tem só boolean/null, atualiza
-          if (typeof serverFoto === 'string' && serverFoto.startsWith('http') &&
-              (typeof localFoto !== 'string' || !localFoto.startsWith('http'))) {
-            if (!local.fotos) local.fotos = {};
-            local.fotos[k] = serverFoto;
-            mudou = true;
-          }
-        });
-        if (mudou) { existentes[idxMap[rec.id]] = local; atualizados++; }
-      } else {
-        existentes.unshift(rec);
-        idxMap[rec.id] = 0; // aproximado
-        adicionados++;
-      }
+      if (rec.id && !ids.has(rec.id)) { existentes.unshift(rec); ids.add(rec.id); adicionados++; }
     });
-
     existentes.sort((a,b) => new Date(b.ts)-new Date(a.ts));
     localStorage.setItem('vammo_registros', JSON.stringify(existentes));
     const hora = new Date().toLocaleTimeString('pt-BR');
-    const msg = adicionados > 0 ? '+'+adicionados+' novo(s)' : atualizados > 0 ? atualizados+' foto(s) atualizada(s)' : 'sem novidades';
-    log('✅ ' + hora + ' — ' + msg + ' · ' + records.length + ' total');
-    if (statusEl) statusEl.textContent = (adicionados > 0 || atualizados > 0) ? '🟢 ✓' : '🟢';
-    if (adicionados > 0 || atualizados > 0) {
+    log('✅ ' + hora + ' — ' + (adicionados>0?'+'+adicionados+' novo(s)':'sem novidades') + ' · ' + records.length + ' total');
+    if (statusEl) statusEl.textContent = adicionados>0 ? '🟢 +'+adicionados : '🟢';
+    if (adicionados > 0) {
+      // Recarrega o painel ativo sem chamar syncAgora de novo
       const active = document.querySelector('.panel.active')?.id?.replace('panel-', '');
       if (active) showPanel(active);
-      if (adicionados > 0) {
-        const toast = document.createElement('div');
-        toast.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1.5px solid #22c55e;color:#22c55e;padding:12px 22px;border-radius:12px;font-family:\'Barlow Condensed\',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;z-index:9999;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.7);';
-        toast.textContent = '📥 ' + adicionados + ' novo(s) registro(s)!';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 4000);
-      }
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1.5px solid #22c55e;color:#22c55e;padding:12px 22px;border-radius:12px;font-family:\'Barlow Condensed\',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;z-index:9999;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.7);';
+      toast.textContent = '📥 ' + adicionados + ' novo(s) registro(s)!';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
     }
   });
 }
@@ -2027,16 +2069,8 @@ function openDetail(id) {
     // Fotos podem ser: base64 real, true/false (enviado via GAS), ou null
     function fotoThumb(val, label) {
       if (!val) return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gr);background:var(--c2);">📷<br>${label}<br><span style="color:var(--gr);">sem imagem</span></div>`;
-      if (typeof val === 'string' && val.startsWith('data:')) return `<img class="photo-thumb" src="${val}" title="${label}" onclick="window.open(this.src)" style="cursor:pointer;width:100px;height:75px;object-fit:cover;border-radius:8px;">`;
-      if (typeof val === 'string' && val.startsWith('http')) {
-        const match = val.match(/id=([^&]+)/);
-        const fileId = match ? match[1] : null;
-        const thumbUrl = fileId ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w300` : val;
-        const openUrl = fileId ? `https://drive.google.com/file/d/${fileId}/view` : val;
-        return `<a href="${openUrl}" target="_blank" style="display:inline-block;width:100px;height:75px;flex-shrink:0;">
-          <img src="${thumbUrl}" title="${label}" class="photo-thumb" style="width:100px;height:75px;object-fit:cover;border-radius:8px;border:1px solid var(--az);display:block;">
-        </a>`;
-      }      return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--gn);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gn);background:var(--c2);">✅<br>${label}<br><span style="color:var(--gr);">capturada</span></div>`;
+      if (typeof val === 'string' && val.startsWith('data:')) return `<img class="photo-thumb" src="${val}" title="${label}" onclick="window.open(this.src)" style="cursor:pointer;">`;
+      return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--gn);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gn);background:var(--c2);">✅<br>${label}<br><span style="color:var(--gr);">capturada</span></div>`;
     }
     return `<div class="detail-section">
       <h4>Fotos</h4>
