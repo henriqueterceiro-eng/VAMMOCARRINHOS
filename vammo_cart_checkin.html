@@ -355,6 +355,18 @@
     .cwi-btn.cwi-ok.sel { background: var(--gn); border-color: var(--gn); }
     .cwi-btn.cwi-nk.sel { background: var(--rd); border-color: var(--rd); }
     .cwi-btn:active { transform: scale(.93); }
+    .cl-todas-ok-btn {
+      margin-top: 12px; width: 100%;
+      padding: 12px; border-radius: 12px;
+      background: transparent; border: 1.5px dashed var(--gn);
+      color: var(--gn); cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14px; font-weight: 800;
+      letter-spacing: 2px; text-transform: uppercase;
+      transition: all .15s;
+    }
+    .cl-todas-ok-btn:hover { background: rgba(34,197,94,.12); border-style: solid; }
+    .cl-todas-ok-btn:active { transform: scale(.98); }
     .cl-card-wizard .cw-cat {
       font-family: 'Barlow Condensed', sans-serif;
       font-size: 11px; font-weight: 800;
@@ -1580,9 +1592,22 @@ function renderCurrentCategory() {
   if (!card) return;
 
   const done = catComplete(cat);
+  const isLast = _clIdx === TOOLS.length - 1;
   const total = cat.items.length;
   const okN = cat.items.filter(t => S.ferramentas[t]?.status === 'ok').length;
   const ncN = cat.items.filter(t => S.ferramentas[t]?.status === 'nao_ok').length;
+
+  // Mensagem do rodapé varia conforme estado e se é última categoria
+  let footerHtml = '';
+  if (done && !isLast) {
+    footerHtml = `<button class="cl-btn-big cl-ok" style="margin-top:10px;" onclick="nextCategory()">
+      <span class="cwb-icon">→</span><span>Próxima categoria</span>
+    </button>`;
+  } else if (done && isLast) {
+    footerHtml = `<div style="margin-top:10px;padding:14px;border-radius:12px;background:rgba(34,197,94,.12);border:1px solid var(--gn);text-align:center;color:var(--gn);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;">
+      ✅ Checklist completo · clique em <strong>Avançar</strong>
+    </div>`;
+  }
 
   card.className = 'cl-card-wizard cw-cat-mode' + (done ? ' done' : '');
   card.innerHTML = `
@@ -1611,12 +1636,27 @@ function renderCurrentCategory() {
         </div>`;
       }).join('')}
     </div>
-    ${done ? `<button class="cl-btn-big cl-ok" style="margin-top:10px;" onclick="nextCategory()"><span class="cwb-icon">→</span><span>Próxima categoria</span></button>` : ''}
+    <button class="cl-todas-ok-btn" onclick="marcarTodasOk()">
+      ✅ Marcar todas como OK
+    </button>
+    ${footerHtml}
   `;
   // Habilita/desabilita anterior/pular
   const navBtns = document.querySelectorAll('.cl-nav .cl-nav-btn');
   if (navBtns[0]) navBtns[0].disabled = _clIdx === 0;
   if (navBtns[1]) navBtns[1].disabled = _clIdx === TOOLS.length - 1;
+}
+
+function marcarTodasOk() {
+  const cat = TOOLS[_clIdx];
+  if (!cat) return;
+  cat.items.forEach(item => {
+    S.ferramentas[item] = { status: 'ok', motivo: null };
+  });
+  updateStats();
+  updateClProgress();
+  renderCurrentCategory();
+  updateNextBtn();
 }
 
 function updateClProgress() {
@@ -1642,8 +1682,6 @@ function setTool(encKey, status) {
   updateClProgress();
   renderCurrentCategory();
   updateNextBtn();
-  // auto-avança se a categoria toda ficou completa
-  maybeAutoAdvanceCategory();
 }
 
 function setMotivo(motivo) {
@@ -1654,14 +1692,6 @@ function setMotivo(motivo) {
   updateNextBtn();
   document.getElementById('modal-nc').classList.add('hidden');
   pendingNCtool = null;
-  maybeAutoAdvanceCategory();
-}
-
-function maybeAutoAdvanceCategory() {
-  const cat = TOOLS[_clIdx];
-  if (cat && catComplete(cat) && _clIdx < TOOLS.length - 1) {
-    setTimeout(() => nextCategory(), 400);
-  }
 }
 
 function cancelNC() {
