@@ -316,6 +316,45 @@
       min-height: 260px;
     }
     .cl-card-wizard.done { border-color: var(--gn); }
+    .cl-card-wizard.cw-cat-mode { align-items: stretch; padding: 18px 14px; gap: 10px; }
+    .cl-card-wizard .cw-cat-meta {
+      text-align: center; font-size: 12px; color: var(--gr);
+      font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px;
+      margin: -6px 0 6px;
+    }
+    .cl-card-wizard .cw-cat-list {
+      display: flex; flex-direction: column; gap: 6px;
+      width: 100%;
+    }
+    .cwi-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 10px;
+      background: var(--c2); border: 1px solid var(--bd);
+    }
+    .cwi-row.is-ok { border-color: rgba(34,197,94,.5); background: rgba(34,197,94,.06); }
+    .cwi-row.is-nk { border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.06); }
+    .cwi-info { flex: 1; min-width: 0; }
+    .cwi-name {
+      font-size: 14px; font-weight: 600; color: var(--wh);
+      line-height: 1.2;
+    }
+    .cwi-sub {
+      font-size: 11px; color: var(--gr);
+      margin-top: 2px; letter-spacing: .5px;
+    }
+    .cwi-sub.is-ok { color: var(--gn); font-weight: 700; }
+    .cwi-sub.is-nk { color: var(--rd); font-weight: 700; }
+    .cwi-btns { display: flex; gap: 4px; flex-shrink: 0; }
+    .cwi-btn {
+      width: 40px; height: 40px; border-radius: 8px;
+      border: 1.5px solid var(--bd); background: transparent;
+      cursor: pointer; font-size: 18px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .12s;
+    }
+    .cwi-btn.cwi-ok.sel { background: var(--gn); border-color: var(--gn); }
+    .cwi-btn.cwi-nk.sel { background: var(--rd); border-color: var(--rd); }
+    .cwi-btn:active { transform: scale(.93); }
     .cl-card-wizard .cw-cat {
       font-family: 'Barlow Condensed', sans-serif;
       font-size: 11px; font-weight: 800;
@@ -793,10 +832,10 @@
     <!-- Card grande da ferramenta atual -->
     <div id="cl-current" class="cl-card-wizard"></div>
 
-    <!-- Navegação interna -->
+    <!-- Navegação interna entre categorias -->
     <div class="cl-nav">
-      <button class="cl-nav-btn" onclick="prevTool()">← Anterior</button>
-      <button class="cl-nav-btn" onclick="nextTool()">Pular →</button>
+      <button class="cl-nav-btn" onclick="prevCategory()">← Categoria anterior</button>
+      <button class="cl-nav-btn" onclick="nextCategory()">Próxima categoria →</button>
     </div>
   </div>
 
@@ -1428,69 +1467,77 @@ function doLogout() {
 }
 
 // ─── SCREEN: CHECKLIST ────────────────────────────────────────────────────────
-// ─── CHECKLIST WIZARD (uma ferramenta por vez) ────────────────────────────────
-// Flat list de {cat, item} para indexar facilmente
-function flatChecklist() {
-  const out = [];
-  TOOLS.forEach(c => c.items.forEach(item => out.push({ cat: c.cat, item })));
-  return out;
-}
-let _clIdx = 0;
+// ─── CHECKLIST WIZARD (uma categoria por vez, todas as ferramentas da categoria juntas) ─
+let _clIdx = 0; // índice da CATEGORIA atual
+
+function catComplete(cat) { return cat.items.every(t => S.ferramentas[t]?.status); }
 
 function renderChecklist() {
-  const flat = flatChecklist();
-  // Na primeira vez (ou se a operação foi resetada), pula pra primeira não-marcada
-  if (S.ferramentas[flat[_clIdx]?.item]?.status) {
-    const next = flat.findIndex(f => !S.ferramentas[f.item]?.status);
+  // Na primeira entrada, pula pra primeira categoria com algo pendente
+  if (TOOLS[_clIdx] && catComplete(TOOLS[_clIdx])) {
+    const next = TOOLS.findIndex(c => !catComplete(c));
     if (next >= 0) _clIdx = next;
   }
-  if (_clIdx < 0 || _clIdx >= flat.length) _clIdx = 0;
-  renderCurrentTool();
+  if (_clIdx < 0 || _clIdx >= TOOLS.length) _clIdx = 0;
+  renderCurrentCategory();
   updateStats();
   updateClProgress();
 }
 
-function renderCurrentTool() {
-  const flat = flatChecklist();
-  const it = flat[_clIdx];
-  if (!it) return;
-  const st = S.ferramentas[it.item] || {};
-  const isOk = st.status === 'ok';
-  const isNk = st.status === 'nao_ok';
-  const statusLine = isOk
-    ? '<span class="cw-current-status is-ok">✅ OK</span>'
-    : isNk
-      ? `<span class="cw-current-status is-nk">❌ ${st.motivo === 'faltando' ? 'Faltando' : 'Quebrado/Danificado'}</span>`
-      : '<span class="cw-current-status">Aguardando resposta</span>';
+function renderCurrentCategory() {
+  const cat = TOOLS[_clIdx];
+  if (!cat) return;
   const card = document.getElementById('cl-current');
   if (!card) return;
-  card.className = 'cl-card-wizard' + (st.status ? ' done' : '');
+
+  const done = catComplete(cat);
+  const total = cat.items.length;
+  const okN = cat.items.filter(t => S.ferramentas[t]?.status === 'ok').length;
+  const ncN = cat.items.filter(t => S.ferramentas[t]?.status === 'nao_ok').length;
+
+  card.className = 'cl-card-wizard cw-cat-mode' + (done ? ' done' : '');
   card.innerHTML = `
-    <div class="cw-cat">${it.cat}</div>
-    <div class="cw-name">${it.item}</div>
-    ${statusLine}
-    <div class="cw-actions">
-      <button class="cl-btn-big cl-ok ${isOk?'sel':''}" onclick="setTool('${encodeURIComponent(it.item)}','ok')">
-        <span class="cwb-icon">✅</span><span>OK</span>
-      </button>
-      <button class="cl-btn-big cl-nk ${isNk?'sel':''}" onclick="setTool('${encodeURIComponent(it.item)}','nao_ok')">
-        <span class="cwb-icon">❌</span><span>Problema</span>
-      </button>
+    <div class="cw-cat">Categoria ${_clIdx + 1} de ${TOOLS.length}</div>
+    <div class="cw-name">${cat.cat}</div>
+    <div class="cw-cat-meta">${total} item${total>1?'s':''} · ✅ ${okN} · ❌ ${ncN}${done?' · <span style="color:var(--gn);">categoria completa</span>':''}</div>
+    <div class="cw-cat-list">
+      ${cat.items.map(item => {
+        const st = S.ferramentas[item] || {};
+        const isOk = st.status === 'ok';
+        const isNk = st.status === 'nao_ok';
+        const sub = isNk
+          ? `<div class="cwi-sub is-nk">❌ ${st.motivo === 'faltando' ? 'Faltando' : 'Quebrado/Danificado'}</div>`
+          : isOk
+            ? `<div class="cwi-sub is-ok">✅ OK</div>`
+            : `<div class="cwi-sub">Aguardando</div>`;
+        return `<div class="cwi-row ${isOk?'is-ok':isNk?'is-nk':''}">
+          <div class="cwi-info">
+            <div class="cwi-name">${item}</div>
+            ${sub}
+          </div>
+          <div class="cwi-btns">
+            <button class="cwi-btn cwi-ok ${isOk?'sel':''}" onclick="setTool('${encodeURIComponent(item)}','ok')" title="OK">✅</button>
+            <button class="cwi-btn cwi-nk ${isNk?'sel':''}" onclick="setTool('${encodeURIComponent(item)}','nao_ok')" title="Problema">❌</button>
+          </div>
+        </div>`;
+      }).join('')}
     </div>
+    ${done ? `<button class="cl-btn-big cl-ok" style="margin-top:10px;" onclick="nextCategory()"><span class="cwb-icon">→</span><span>Próxima categoria</span></button>` : ''}
   `;
   // Habilita/desabilita anterior/pular
   const navBtns = document.querySelectorAll('.cl-nav .cl-nav-btn');
   if (navBtns[0]) navBtns[0].disabled = _clIdx === 0;
-  if (navBtns[1]) navBtns[1].disabled = _clIdx === flat.length - 1;
+  if (navBtns[1]) navBtns[1].disabled = _clIdx === TOOLS.length - 1;
 }
 
 function updateClProgress() {
-  const flat = flatChecklist();
-  const done = flat.filter(f => S.ferramentas[f.item]?.status).length;
+  const totItems = TOOLS.flatMap(c => c.items).length;
+  const doneItems = TOOLS.flatMap(c => c.items).filter(t => S.ferramentas[t]?.status).length;
+  const catsDone = TOOLS.filter(catComplete).length;
   const fill = document.getElementById('cl-progress-fill');
   const lbl  = document.getElementById('cl-progress-label');
-  if (fill) fill.style.width = Math.round((done / flat.length) * 100) + '%';
-  if (lbl)  lbl.textContent = `${done} de ${flat.length} verificadas · atual ${_clIdx + 1}/${flat.length}`;
+  if (fill) fill.style.width = Math.round((doneItems / totItems) * 100) + '%';
+  if (lbl)  lbl.textContent = `Categoria ${_clIdx + 1}/${TOOLS.length} · ${catsDone} completas · ${doneItems}/${totItems} itens`;
 }
 
 function setTool(encKey, status) {
@@ -1504,22 +1551,28 @@ function setTool(encKey, status) {
   S.ferramentas[key] = { status, motivo: null };
   updateStats();
   updateClProgress();
-  renderCurrentTool();
+  renderCurrentCategory();
   updateNextBtn();
-  // avança automaticamente
-  setTimeout(() => nextTool(), 250);
+  // auto-avança se a categoria toda ficou completa
+  maybeAutoAdvanceCategory();
 }
 
 function setMotivo(motivo) {
   S.ferramentas[pendingNCtool] = { status: 'nao_ok', motivo };
   updateStats();
   updateClProgress();
-  renderCurrentTool();
+  renderCurrentCategory();
   updateNextBtn();
   document.getElementById('modal-nc').classList.add('hidden');
   pendingNCtool = null;
-  // avança automaticamente após escolher motivo
-  setTimeout(() => nextTool(), 250);
+  maybeAutoAdvanceCategory();
+}
+
+function maybeAutoAdvanceCategory() {
+  const cat = TOOLS[_clIdx];
+  if (cat && catComplete(cat) && _clIdx < TOOLS.length - 1) {
+    setTimeout(() => nextCategory(), 400);
+  }
 }
 
 function cancelNC() {
@@ -1527,17 +1580,22 @@ function cancelNC() {
   pendingNCtool = null;
 }
 
-function nextTool() {
-  const flat = flatChecklist();
-  if (_clIdx < flat.length - 1) _clIdx++;
-  renderCurrentTool();
+function nextCategory() {
+  if (_clIdx < TOOLS.length - 1) _clIdx++;
+  renderCurrentCategory();
   updateClProgress();
+  // scroll pro topo da categoria
+  document.getElementById('cl-current')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-function prevTool() {
+function prevCategory() {
   if (_clIdx > 0) _clIdx--;
-  renderCurrentTool();
+  renderCurrentCategory();
   updateClProgress();
+  document.getElementById('cl-current')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+// Aliases pra compat com botões antigos da nav
+function nextTool() { nextCategory(); }
+function prevTool() { prevCategory(); }
 
 function updateStats() {
   const all = TOOLS.flatMap(c => c.items);
