@@ -1037,11 +1037,12 @@
         </div>
 
         <div class="config-card">
-          <h3>🗑 Dados Locais</h3>
-          <p class="config-desc">Limpa os registros armazenados localmente neste dispositivo.</p>
-          <div style="display:flex;gap:8px;">
-            <button class="btn-sm btn-rd" onclick="clearRegistros()">Limpar Registros</button>
-            <button class="btn-sm btn-outline" onclick="clearAll()">Limpar Tudo</button>
+          <h3>🗑 Dados de Teste / Reset</h3>
+          <p class="config-desc">⚠ Limpa registros, NCs e baixas — local <strong>e</strong> no servidor (planilha do Drive). Use só após validar o teste piloto.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-sm btn-rd" onclick="resetTestData()">🗑 Resetar tudo (local + servidor)</button>
+            <button class="btn-sm btn-outline" onclick="clearRegistros()">Limpar só local</button>
+            <button class="btn-sm btn-outline" onclick="clearAll()">Limpar tudo local</button>
           </div>
         </div>
       </div>
@@ -2395,6 +2396,40 @@ function clearAll() {
   if (!confirm('Limpar TODOS os dados locais (registros + configurações)?')) return;
   ['vammo_registros','vammo_config'].forEach(k => localStorage.removeItem(k));
   showAlert('config-alert', 'gn', '✅ Dados locais limpos.');
+}
+
+// Reset completo: limpa local de teste + chama GAS pra zerar planilha
+function resetTestData() {
+  if (!confirm('⚠ ATENÇÃO\n\nIsto vai APAGAR:\n• Registros de check-in/check-out (local + servidor)\n• NCs marcadas como repostas\n• Histórico de baixas\n• Planilha do Drive (3 abas)\n\nVAI MANTER:\n• Login Google dos mecânicos\n• Lista de colaboradores e supervisores\n• Carrinhos cadastrados por base\n• Estoque por base\n• Configurações (URL do servidor)\n\nProsseguir?')) return;
+  if (!confirm('Tem certeza? Esta ação é IRREVERSÍVEL no servidor.')) return;
+
+  // 1) Limpa local (mantém cadastros)
+  ['vammo_registros','vammo_nc_repostas','vammo_baixas'].forEach(k => localStorage.removeItem(k));
+
+  // 2) Chama GAS pra limpar planilha
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) {
+    showAlert('config-alert', 'yw', '⚠️ Local limpo, mas URL do servidor não configurada.');
+    refreshAll();
+    return;
+  }
+  showAlert('config-alert', 'az', '⏳ Limpando dados do servidor...');
+  gasGet(cfg.webhookUrl, 'action=resetTest&token=VAMMO_RESET_2026', (data, err) => {
+    if (err) {
+      showAlert('config-alert', 'rd', '❌ Erro no servidor: ' + err + ' — local foi limpo.');
+      refreshAll();
+      return;
+    }
+    if (data?.error) {
+      showAlert('config-alert', 'rd', '❌ ' + data.error);
+      refreshAll();
+      return;
+    }
+    const c = data?.cleared || {};
+    showAlert('config-alert', 'gn',
+      `✅ Reset completo! Servidor: ${c.Registros||0} registros, ${c.Nao_Conformidades||0} NCs, ${c.JSON_Completo||0} JSON. Local: zerado.`);
+    refreshAll();
+  });
 }
 
 // ─── FOTOS / LIGHTBOX ─────────────────────────────────────────────────────────
