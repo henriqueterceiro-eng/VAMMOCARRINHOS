@@ -57,6 +57,7 @@
   <title>VAMMO · Carrinho</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -565,7 +566,11 @@
   <div class="sep">·</div>
   <div class="page-title" id="bar-title">Carrinho</div>
   <div class="step-badge" id="step-badge"></div>
-  <button onclick="abrirConfig()" style="margin-left:auto;background:none;border:none;color:var(--gr);font-size:20px;cursor:pointer;padding:4px 8px;line-height:1;" title="Configurações">⚙️</button>
+  <div id="user-chip" style="margin-left:auto;display:none;align-items:center;gap:6px;font-size:11px;color:var(--w2);background:var(--c2);padding:4px 8px 4px 10px;border-radius:12px;border:1px solid var(--bd);max-width:180px;">
+    <span id="user-chip-email" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Barlow',sans-serif;font-weight:600;">–</span>
+    <button onclick="doLogout()" title="Sair / trocar usuário" style="background:none;border:none;color:var(--gr);font-size:13px;cursor:pointer;padding:0 2px;line-height:1;">⎋</button>
+  </div>
+  <button onclick="abrirConfig()" style="background:none;border:none;color:var(--gr);font-size:20px;cursor:pointer;padding:4px 8px;line-height:1;" title="Configurações">⚙️</button>
 </div>
 <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
 
@@ -605,8 +610,26 @@
 
 <div class="main">
 
+  <!-- SCREEN: LOGIN -->
+  <div class="screen active" id="screen-login">
+    <div class="s-title">Login<br>Vammo</div>
+    <div class="s-sub">Entre com sua conta @vammo.com</div>
+
+    <div id="gsi-button-wrap" style="display:flex;justify-content:center;padding:20px 0;min-height:60px;"></div>
+
+    <div id="login-status" style="text-align:center;font-size:13px;color:var(--gr);min-height:18px;margin-bottom:12px;"></div>
+
+    <div id="login-fallback" style="display:none;">
+      <div style="text-align:center;color:var(--gr);font-size:12px;margin:8px 0 12px;letter-spacing:1px;text-transform:uppercase;">— ou selecione na lista —</div>
+      <div class="mec-search">
+        <input type="text" id="login-search-inp" placeholder="Buscar seu e-mail..." oninput="renderLoginPicker(this.value)">
+      </div>
+      <div id="login-list" style="max-height:50vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+
   <!-- SCREEN: TIPO -->
-  <div class="screen active" id="screen-tipo">
+  <div class="screen" id="screen-tipo">
     <div class="s-title">O que<br>vamos fazer?</div>
     <div class="s-sub">Selecione o tipo de operação</div>
 
@@ -674,39 +697,6 @@
       </div>
       <label for="file-qr" class="sig-clear" style="display:block;width:100%;margin-top:8px;text-align:center;cursor:pointer;box-sizing:border-box;">↩ Escanear outro carrinho</label>
     </div>
-  </div>
-
-  <!-- SCREEN: TURNO -->
-  <div class="screen" id="screen-turno">
-    <div class="s-title">Turno</div>
-    <div class="s-sub">Qual é o seu turno hoje?</div>
-
-    <button class="turno-btn terror" onclick="selectTurno('Terror do Backlog')">
-      <span class="turno-icon">💀</span>
-      <div class="turno-info">
-        <div class="turno-name">Terror do Backlog</div>
-        <div class="turno-count" id="count-terror">–</div>
-      </div>
-    </button>
-    <button class="turno-btn invictus" onclick="selectTurno('Invictus')">
-      <span class="turno-icon">⚡</span>
-      <div class="turno-info">
-        <div class="turno-name">Invictus</div>
-        <div class="turno-count" id="count-invictus">–</div>
-      </div>
-    </button>
-  </div>
-
-  <!-- SCREEN: MECÂNICO -->
-  <div class="screen" id="screen-mec">
-    <div class="s-title">Mecânico</div>
-    <div class="s-sub">Quem está assumindo o carrinho?</div>
-
-    <div class="mec-search">
-      <input type="text" id="mec-search-inp" placeholder="Buscar colaborador..."
-        oninput="renderMecanicos(this.value)">
-    </div>
-    <div id="mec-list"></div>
   </div>
 
   <!-- SCREEN: CHECKLIST -->
@@ -899,8 +889,11 @@ let S = {
   assinatura: null
 };
 
-const SCREENS = ['screen-tipo','screen-scan','screen-turno','screen-mec','screen-checklist','screen-fotos','screen-assin','screen-resumo','screen-ok'];
-const STEP_TITLES = ['Operação','Carrinho','Turno','Mecânico','Checklist','Fotos','Assinatura','Confirmar','Concluído'];
+// OAuth Client ID Web (autorizado em https://henriqueterceiro-eng.github.io)
+const GOOGLE_CLIENT_ID = '662702497307-qom2jv0sboe0n4686jsaisftov6bqrep.apps.googleusercontent.com';
+
+const SCREENS = ['screen-login','screen-tipo','screen-scan','screen-checklist','screen-fotos','screen-assin','screen-resumo','screen-ok'];
+const STEP_TITLES = ['Login','Operação','Carrinho','Checklist','Fotos','Assinatura','Confirmar','Concluído'];
 let curScreen = 0;
 let pendingNCtool = null;
 let sigDrawing = false;
@@ -943,18 +936,24 @@ function goTo(idx) {
     if (idx === SCREENS.indexOf('screen-scan')) startQR();
     else stopQR();
 
-    if (idx === SCREENS.indexOf('screen-mec')) renderMecanicos('');
     if (idx === SCREENS.indexOf('screen-checklist')) renderChecklist();
     if (idx === SCREENS.indexOf('screen-resumo')) renderResumo();
     if (idx === SCREENS.indexOf('screen-assin')) initSig();
     if (idx === SCREENS.indexOf('screen-ok')) { stopQR(); renderOK(); }
 
-    const isOK = idx === SCREENS.indexOf('screen-ok');
-    const isTipo = idx === SCREENS.indexOf('screen-tipo');
-    document.getElementById('bottom-bar').innerHTML = isOK
-      ? `<button class="btn-novo" onclick="resetApp()">➕ Nova Operação</button>`
-      : `<button class="btn-back" id="btn-back" onclick="goBack()" style="${isTipo?'display:none':''}">←</button>
-         <button class="btn-next" id="btn-next" onclick="goNext()">Avançar →</button>`;
+    const screenId = SCREENS[idx];
+    const isOK = screenId === 'screen-ok';
+    const isTipo = screenId === 'screen-tipo';
+    const isLogin = screenId === 'screen-login';
+    const bb = document.getElementById('bottom-bar');
+    if (isLogin) {
+      bb.innerHTML = ''; // login: sem barra de navegação
+    } else {
+      bb.innerHTML = isOK
+        ? `<button class="btn-novo" onclick="resetApp()">➕ Nova Operação</button>`
+        : `<button class="btn-back" id="btn-back" onclick="goBack()" style="${isTipo?'display:none':''}">←</button>
+           <button class="btn-next" id="btn-next" onclick="goNext()">Avançar →</button>`;
+    }
 
     updateNextBtn();
   } catch(e) {
@@ -994,10 +993,9 @@ function updateNextBtn() {
 
 function canAdvance() {
   switch (SCREENS[curScreen]) {
+    case 'screen-login': return !!S.mecanico;
     case 'screen-tipo': return !!S.tipo;
     case 'screen-scan': return !!S.carrinho;
-    case 'screen-turno': return !!S.turno;
-    case 'screen-mec': return !!S.mecanico;
     case 'screen-checklist': return checklistComplete();
     case 'screen-fotos': return S.fotos.sup && S.fotos.inf && S.fotos.elv;
     case 'screen-assin': return sigHasData;
@@ -1009,7 +1007,7 @@ function canAdvance() {
 // ─── SCREEN: TIPO ─────────────────────────────────────────────────────────────
 function selectTipo(tipo) {
   S.tipo = tipo;
-  goTo(1);
+  goTo(SCREENS.indexOf('screen-scan'));
 }
 
 // ─── SCREEN: QR ───────────────────────────────────────────────────────────────
@@ -1122,56 +1120,139 @@ function setCart(num) {
   updateNextBtn();
 }
 
-// ─── SCREEN: TURNO ────────────────────────────────────────────────────────────
-function selectTurno(turno) {
-  S.turno = turno;
-  const colab = getColab();
-  goTo(3);
+// ─── AUTH (Google Sign-In + fallback picker) ──────────────────────────────────
+function getStoredUser() {
+  try { return JSON.parse(localStorage.getItem('vammo_user') || 'null'); } catch { return null; }
+}
+function setStoredUser(u) {
+  if (u) localStorage.setItem('vammo_user', JSON.stringify(u));
+  else   localStorage.removeItem('vammo_user');
+}
+function emailDisplayName(email) {
+  const local = String(email||'').split('@')[0] || '';
+  return local.split('.').filter(Boolean).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+}
+function decodeJwtPayload(token) {
+  try {
+    const part = token.split('.')[1];
+    const json = atob(part.replace(/-/g,'+').replace(/_/g,'/'));
+    return JSON.parse(decodeURIComponent(escape(json)));
+  } catch { return null; }
 }
 
-function updateTurnoCount() {
-  const total = getColab().length;
-  const txt = `${total} colaborador${total !== 1 ? 'es' : ''} cadastrado${total !== 1 ? 's' : ''}`;
-  const a = document.getElementById('count-terror'); if (a) a.textContent = txt;
-  const b = document.getElementById('count-invictus'); if (b) b.textContent = txt;
+function authedAs(email, name) {
+  const e = String(email||'').toLowerCase();
+  if (!e) return false;
+  const allow = new Set(getColab().map(x => x.toLowerCase()));
+  if (!allow.has(e)) {
+    const st = document.getElementById('login-status');
+    if (st) {
+      st.innerHTML = `❌ <b>${e}</b><br>não está na lista de colaboradores autorizados.<br>Peça ao gestor para cadastrar.`;
+      st.style.color = 'var(--rd)';
+    }
+    return false;
+  }
+  S.mecanico = e;
+  setStoredUser({ email: e, name: name || emailDisplayName(e), ts: new Date().toISOString() });
+  updateUserChip();
+  // pula direto pra tela de tipo
+  goTo(SCREENS.indexOf('screen-tipo'));
+  return true;
 }
 
-// ─── SCREEN: MECÂNICO ─────────────────────────────────────────────────────────
-// Lista flat de e-mails — não filtra mais por turno (colab pode operar em qualquer base).
-function renderMecanicos(filter) {
+function handleCredentialResponse(resp) {
+  if (!resp || !resp.credential) return;
+  const p = decodeJwtPayload(resp.credential);
+  if (!p) return;
+  authedAs(p.email, p.name);
+}
+
+function initGoogleAuth() {
+  if (!window.google || !google.accounts || !google.accounts.id) {
+    // GSI ainda não carregou — tenta de novo em 200ms
+    return setTimeout(initGoogleAuth, 200);
+  }
+  if (!GOOGLE_CLIENT_ID) {
+    document.getElementById('login-fallback').style.display = 'block';
+    document.getElementById('login-status').textContent = 'Sem Client ID configurado — selecione na lista abaixo.';
+    return;
+  }
+  try {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      ux_mode: 'popup',
+      auto_select: false
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('gsi-button-wrap'),
+      { theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 280 }
+    );
+    // mostra fallback como opção alternativa
+    document.getElementById('login-fallback').style.display = 'block';
+  } catch (e) {
+    console.error('GSI init falhou:', e);
+    document.getElementById('login-status').textContent = '⚠️ Google login indisponível — use a lista abaixo.';
+    document.getElementById('login-fallback').style.display = 'block';
+  }
+}
+
+function renderLoginPicker(filter) {
   const emails = getColab();
   const q = (filter || '').toLowerCase().trim();
   const list = emails.filter(e => !q || e.toLowerCase().includes(q));
-  const el = document.getElementById('mec-list');
+  const el = document.getElementById('login-list');
+  if (!el) return;
   if (!emails.length) {
-    el.innerHTML = '<div class="empty-state">Nenhum colaborador cadastrado.<br>Peça ao gestor para cadastrar seu e-mail.</div>';
+    el.innerHTML = '<div class="empty-state">Nenhum colaborador cadastrado.</div>';
     return;
   }
   if (!list.length) {
-    el.innerHTML = `<div class="empty-state">Nenhum e-mail corresponde a "${q}".</div>`;
+    el.innerHTML = `<div class="empty-state">Nenhum e-mail com "${q}".</div>`;
     return;
   }
-  el.innerHTML = list.map(email => {
-    const localPart = email.split('@')[0] || '';
-    const parts = localPart.split('.').filter(Boolean);
-    const display = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+  el.innerHTML = list.slice(0, 50).map(email => {
+    const display = emailDisplayName(email);
+    const parts = email.split('@')[0].split('.');
     const initials = parts.slice(0,2).map(p => p[0]).join('').toUpperCase() || '??';
-    const sel = S.mecanico === email ? 'sel' : '';
-    return `<div class="mec-item ${sel}" onclick="selectMec('${email}')">
+    return `<div class="mec-item" onclick="loginPicker('${email}')">
       <div class="mec-avatar">${initials}</div>
       <div style="min-width:0;flex:1;">
         <div class="mec-name">${display}</div>
         <div class="mec-role" style="font-size:11px;opacity:.7;">${email}</div>
       </div>
-      ${sel ? '<span style="margin-left:auto;font-size:20px">✅</span>' : ''}
     </div>`;
-  }).join('');
+  }).join('') + (list.length > 50 ? `<div style="text-align:center;padding:8px;font-size:11px;color:var(--gr);">+ ${list.length-50} resultados — refine a busca</div>` : '');
 }
 
-function selectMec(email) {
-  S.mecanico = email;
-  renderMecanicos(document.getElementById('mec-search-inp')?.value || '');
-  updateNextBtn();
+function loginPicker(email) {
+  authedAs(email, emailDisplayName(email));
+}
+
+function updateUserChip() {
+  const u = getStoredUser();
+  const chip = document.getElementById('user-chip');
+  const lbl  = document.getElementById('user-chip-email');
+  if (!chip || !lbl) return;
+  if (u && u.email) {
+    lbl.textContent = u.email;
+    chip.style.display = 'flex';
+  } else {
+    chip.style.display = 'none';
+  }
+}
+
+function doLogout() {
+  if (!confirm('Sair / trocar de usuário?')) return;
+  setStoredUser(null);
+  S.mecanico = null;
+  if (window.google && google.accounts && google.accounts.id) {
+    try { google.accounts.id.disableAutoSelect(); } catch {}
+  }
+  updateUserChip();
+  // reseta toda a operação atual
+  resetApp();
+  goTo(SCREENS.indexOf('screen-login'));
 }
 
 // ─── SCREEN: CHECKLIST ────────────────────────────────────────────────────────
@@ -1398,7 +1479,6 @@ function renderResumo() {
       <h3>Dados da Operação</h3>
       <div class="res-row"><span class="lbl">Tipo</span><span class="val">${tipoBadge}</span></div>
       <div class="res-row"><span class="lbl">Carrinho</span><span class="val">${S.carrinho}</span></div>
-      <div class="res-row"><span class="lbl">Turno</span><span class="val">${S.turno}</span></div>
       <div class="res-row"><span class="lbl">Mecânico</span><span class="val">${S.mecanico}</span></div>
       <div class="res-row"><span class="lbl">Checklist</span>
         <span class="val">${ok}/${tot} OK ${ncs.length > 0 ? `· <span style="color:var(--rd)">${ncs.length} prob.</span>` : ''}</span>
@@ -1418,7 +1498,7 @@ function submit() {
 
   const rec = {
     id, ts, tipo: S.tipo,
-    carrinho: S.carrinho, turno: S.turno, mecanico: S.mecanico,
+    carrinho: S.carrinho, turno: '', mecanico: S.mecanico,
     ferramentas: S.ferramentas,
     fotos: S.fotos,
     assinatura: S.assinatura,
@@ -1557,7 +1637,9 @@ function baixarJSON(blob, nome) {
 
 // ─── RESET ────────────────────────────────────────────────────────────────────
 function resetApp() {
-  S = { tipo: null, carrinho: null, turno: null, mecanico: null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null };
+  // mantém mecânico logado (login é persistente; trocar usuário é via doLogout)
+  const u = getStoredUser();
+  S = { tipo: null, carrinho: null, turno: '', mecanico: u ? u.email : null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null };
   sigHasData = false;
 
   // Reset tela de scan
@@ -1565,9 +1647,6 @@ function resetApp() {
   document.getElementById('qr-scan-area').style.display = 'block';
   document.getElementById('qr-status').textContent = '';
   try { document.getElementById('file-qr').value = ''; } catch(_) {}
-
-  // Reset mecânico
-  document.getElementById('mec-search-inp').value = '';
 
   // Reset fotos
   ['sup','inf','elv'].forEach(s => {
@@ -1585,7 +1664,8 @@ function resetApp() {
   document.getElementById('sig-wrap')?.classList.remove('signed');
   document.getElementById('ok-nc-warn').style.display = 'none';
 
-  goTo(0);
+  // se já está logado, vai pra screen-tipo; senão para login
+  goTo(SCREENS.indexOf(u ? 'screen-tipo' : 'screen-login'));
 }
 
 // ─── CONFIG MODAL ─────────────────────────────────────────────────────────────
@@ -1736,9 +1816,30 @@ function decodeQRConfigFallback(file, st) {
 }
 
 
-updateTurnoCount();
-updateBar();
-updateNextBtn();
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+(function bootstrap() {
+  const u = getStoredUser();
+  if (u && u.email) {
+    // valida que ainda está na lista autorizada
+    const allow = new Set(getColab().map(x => x.toLowerCase()));
+    if (allow.has(u.email.toLowerCase())) {
+      S.mecanico = u.email;
+      updateUserChip();
+      goTo(SCREENS.indexOf('screen-tipo'));
+    } else {
+      setStoredUser(null);
+      goTo(SCREENS.indexOf('screen-login'));
+      initGoogleAuth();
+      renderLoginPicker('');
+    }
+  } else {
+    goTo(SCREENS.indexOf('screen-login'));
+    initGoogleAuth();
+    renderLoginPicker('');
+  }
+  updateBar();
+  updateNextBtn();
+})();
 </script>
 <!-- iframe oculto para receber o submit do form sem navegar a página -->
 <iframe name="gas-sink" style="display:none;" aria-hidden="true"></iframe>
