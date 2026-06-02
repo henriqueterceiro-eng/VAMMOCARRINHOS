@@ -376,16 +376,73 @@
       font-weight: 700; margin-bottom: 10px;
       font-family: 'Barlow Condensed', sans-serif;
     }
-    .photo-thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
-    .photo-thumb {
-      width: 100px; height: 75px; border-radius: 8px;
+    .photo-thumbs { display: flex; gap: 10px; flex-wrap: wrap; }
+    .photo-card {
+      position: relative; width: 150px;
+      display: flex; flex-direction: column; align-items: stretch;
+    }
+    .photo-card .ph-img {
+      width: 150px; height: 150px; border-radius: 10px;
       object-fit: cover; border: 1px solid var(--bd);
-      cursor: pointer;
+      cursor: zoom-in; background: var(--c2);
+      transition: transform .15s, border-color .15s;
+    }
+    .photo-card .ph-img:hover { border-color: var(--az); transform: scale(1.02); }
+    .photo-card .ph-label {
+      font-size: 11px; color: var(--gr); margin-top: 6px;
+      text-align: center; letter-spacing: .5px;
+    }
+    .photo-card .ph-empty {
+      width: 150px; height: 150px; border-radius: 10px;
+      border: 1.5px dashed var(--bd); background: var(--c2);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 4px; color: var(--gr);
+      font-size: 11px;
     }
     .sig-thumb {
       max-width: 100%; border-radius: 8px;
       border: 1px solid var(--bd); background: #fff;
     }
+
+    /* ── LIGHTBOX ── */
+    .lightbox {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.92);
+      z-index: 9999;
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox img {
+      max-width: 96vw; max-height: 92vh;
+      border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,.6);
+      cursor: zoom-out;
+    }
+    .lightbox-close {
+      position: absolute; top: 16px; right: 20px;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(255,255,255,.1); color: var(--wh);
+      border: 1px solid rgba(255,255,255,.3); cursor: pointer;
+      font-size: 22px; display: flex; align-items: center; justify-content: center;
+    }
+    .lightbox-close:hover { background: rgba(255,255,255,.2); }
+    .lightbox-caption {
+      position: absolute; bottom: 16px; left: 0; right: 0;
+      text-align: center; color: var(--w2); font-size: 13px;
+      letter-spacing: 1px; text-transform: uppercase;
+      font-family: 'Barlow Condensed', sans-serif;
+    }
+    .lightbox-open-tab {
+      position: absolute; bottom: 16px; right: 20px;
+      padding: 8px 14px; border-radius: 8px;
+      background: rgba(255,255,255,.1); color: var(--wh);
+      border: 1px solid rgba(255,255,255,.3); cursor: pointer;
+      font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+      font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .lightbox-open-tab:hover { background: rgba(255,255,255,.2); }
 
     /* ─── RESPONSIVE ─── */
     @media (max-width: 768px) {
@@ -993,6 +1050,14 @@
     <h2><button class="modal-close" onclick="closeDetail()">✕</button> Detalhes do Registro</h2>
     <div id="detail-body"></div>
   </div>
+</div>
+
+<!-- LIGHTBOX para auditoria de fotos -->
+<div class="lightbox" id="lightbox" onclick="if(event.target===this) closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()" title="Fechar (ESC)">✕</button>
+  <img id="lightbox-img" src="" alt="" onclick="closeLightbox()">
+  <div class="lightbox-caption" id="lightbox-caption">–</div>
+  <a class="lightbox-open-tab" id="lightbox-open" href="#" target="_blank" rel="noopener">↗ Abrir em nova aba</a>
 </div>
 
 <script>
@@ -2178,6 +2243,80 @@ function clearAll() {
   showAlert('config-alert', 'gn', '✅ Dados locais limpos.');
 }
 
+// ─── FOTOS / LIGHTBOX ─────────────────────────────────────────────────────────
+// Aceita: base64 dataURL, URL do Drive (uc?id= ou file/d/), null/false
+function driveFileId(url) {
+  const m1 = /[?&]id=([a-zA-Z0-9_-]{20,})/.exec(url || '');
+  if (m1) return m1[1];
+  const m2 = /\/file\/d\/([a-zA-Z0-9_-]{20,})/.exec(url || '');
+  if (m2) return m2[1];
+  return null;
+}
+// size = 'w400' (thumb) ou 'w1600' (ampliada)
+function fotoSrc(val, size) {
+  if (!val) return null;
+  if (typeof val !== 'string') return null; // true/false legado → nada
+  if (val.startsWith('data:')) return val;
+  const fid = driveFileId(val);
+  if (fid) return 'https://drive.google.com/thumbnail?id=' + fid + '&sz=' + (size || 'w400');
+  return val; // outro tipo de URL — devolve cru
+}
+function fotoFullSrc(val) {
+  if (!val || typeof val !== 'string') return null;
+  if (val.startsWith('data:')) return val;
+  const fid = driveFileId(val);
+  if (fid) return 'https://drive.google.com/thumbnail?id=' + fid + '&sz=w2000';
+  return val;
+}
+function fotoOpenInTab(val) {
+  if (!val || typeof val !== 'string') return null;
+  if (val.startsWith('data:')) return val;
+  const fid = driveFileId(val);
+  if (fid) return 'https://drive.google.com/file/d/' + fid + '/view';
+  return val;
+}
+
+function fotoThumb(val, label) {
+  const thumb = fotoSrc(val, 'w400');
+  if (!thumb) {
+    // legacy true (capturada mas sem URL/base64) ou null
+    if (val === true) {
+      return `<div class="photo-card"><div class="ph-empty" style="border-color:var(--gn);color:var(--gn);">✅<br>capturada<br><span style="color:var(--gr);font-size:10px;">sem preview</span></div><div class="ph-label">${label}</div></div>`;
+    }
+    return `<div class="photo-card"><div class="ph-empty">📷<br>sem imagem</div><div class="ph-label">${label}</div></div>`;
+  }
+  const fullEscaped = encodeURIComponent(JSON.stringify(val));
+  const lblEscaped = encodeURIComponent(label);
+  return `<div class="photo-card">
+    <img class="ph-img" src="${thumb}" alt="${label}" loading="lazy"
+      onclick="openLightbox(decodeURIComponent('${fullEscaped}'), decodeURIComponent('${lblEscaped}'))"
+      onerror="this.outerHTML='<div class=&quot;ph-empty&quot; style=&quot;border-color:var(--yw);color:var(--yw);&quot;>⚠️<br>preview falhou<br><span style=&quot;color:var(--gr);font-size:10px;&quot;>clique abrir</span></div>'">
+    <div class="ph-label">${label}</div>
+  </div>`;
+}
+
+function openLightbox(rawVal, label) {
+  const val = JSON.parse(rawVal);
+  const big = fotoFullSrc(val);
+  if (!big) return;
+  const img = document.getElementById('lightbox-img');
+  const cap = document.getElementById('lightbox-caption');
+  const tab = document.getElementById('lightbox-open');
+  if (img) img.src = big;
+  if (cap) cap.textContent = label || '';
+  if (tab) tab.href = fotoOpenInTab(val) || big;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  const img = document.getElementById('lightbox-img');
+  if (img) img.src = '';
+}
+// fecha com ESC
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('lightbox')?.classList.contains('open')) closeLightbox();
+});
+
 // ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
 function openDetail(id) {
   const recs = getRecords();
@@ -2188,14 +2327,8 @@ function openDetail(id) {
   const ok = Object.values(rec.ferramentas || {}).filter(v => v.status === 'ok').length;
 
   const fotosHtml = rec.fotos ? (() => {
-    // Fotos podem ser: base64 real, true/false (enviado via GAS), ou null
-    function fotoThumb(val, label) {
-      if (!val) return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gr);background:var(--c2);">📷<br>${label}<br><span style="color:var(--gr);">sem imagem</span></div>`;
-      if (typeof val === 'string' && val.startsWith('data:')) return `<img class="photo-thumb" src="${val}" title="${label}" onclick="window.open(this.src)" style="cursor:pointer;">`;
-      return `<div style="width:100px;height:75px;border-radius:8px;border:1px solid var(--gn);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:var(--gn);background:var(--c2);">✅<br>${label}<br><span style="color:var(--gr);">capturada</span></div>`;
-    }
     return `<div class="detail-section">
-      <h4>Fotos</h4>
+      <h4>Fotos <span style="color:var(--gr);font-weight:400;font-size:11px;margin-left:6px;">clique pra ampliar</span></h4>
       <div class="photo-thumbs">
         ${fotoThumb(rec.fotos.sup, 'Gav. Superior')}
         ${fotoThumb(rec.fotos.inf, 'Gav. Inferior')}
@@ -2206,7 +2339,10 @@ function openDetail(id) {
 
   const sigHtml = rec.assinatura ? (() => {
     if (typeof rec.assinatura === 'string' && rec.assinatura.startsWith('data:')) {
-      return `<div class="detail-section"><h4>Assinatura</h4><img class="sig-thumb" src="${rec.assinatura}" style="max-height:120px;"></div>`;
+      const escSig = encodeURIComponent(JSON.stringify(rec.assinatura));
+      return `<div class="detail-section"><h4>Assinatura <span style="color:var(--gr);font-weight:400;font-size:11px;margin-left:6px;">clique pra ampliar</span></h4>
+        <img class="sig-thumb" src="${rec.assinatura}" style="max-height:120px;cursor:zoom-in;"
+          onclick="openLightbox(decodeURIComponent('${escSig}'), 'Assinatura do mecânico')"></div>`;
     }
     return `<div class="detail-section"><h4>Assinatura</h4><div style="color:var(--gn);font-size:13px;">✅ Assinatura coletada no celular</div></div>`;
   })() : '';
