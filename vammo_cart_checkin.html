@@ -36,13 +36,20 @@
 
     // Service Worker inline via Blob
     const _swCode = `
-      const CACHE = 'vammo-cart-v1';
+      const CACHE = 'vammo-cart-v2';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
       });
-      self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+      self.addEventListener('activate', e => {
+        // limpa caches antigos
+        e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+      });
       self.addEventListener('fetch', e => {
+        // Cross-origin (GAS, Google Sign-In, fontes, CDN) → browser direto
+        if (new URL(e.request.url).origin !== self.location.origin) return;
+        // Não cachear POST
+        if (e.request.method !== 'GET') return;
         e.respondWith(
           caches.match(e.request).then(r => r || fetch(e.request).catch(() => r))
         );
@@ -2139,13 +2146,13 @@ function salvarConfigUrl() {
 
 // ─── JSONP — mesma função do gestor, comprovadamente funciona ────────────────
 function gasGet(url, params, callback) {
-  const cbName = '_gas_' + Date.now();
+  const cbName = '_gas_' + Date.now() + '_' + Math.floor(Math.random()*9999);
   const script = document.createElement('script');
   let done = false;
 
   const timer = setTimeout(() => {
-    if (!done) { done=true; cleanup(); callback(null, 'Timeout 15s — GAS não respondeu'); }
-  }, 15000);
+    if (!done) { done=true; cleanup(); callback(null, 'Timeout 25s — GAS não respondeu'); }
+  }, 25000);
 
   window[cbName] = function(data) {
     if (!done) { done=true; cleanup(); callback(data, null); }
