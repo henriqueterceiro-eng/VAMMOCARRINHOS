@@ -843,7 +843,7 @@
           <div style="padding:16px 20px;">
             <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Adicionar carrinho</div>
             <div class="add-cart-form">
-              <input type="text" id="inp-cart" placeholder="Ex: MC36, OC51, SC07..." maxlength="10"
+              <input type="text" id="inp-cart" placeholder="Ex: MC 36, OC 51, SC 07..." maxlength="10"
                 onkeydown="if(event.key==='Enter') addCart()"
                 style="text-transform:uppercase;">
               <select class="select-filt" id="inp-cart-base">
@@ -1027,17 +1027,24 @@ function defaultCarts() {
   BASES.forEach(b => {
     const pre = BASE_PREFIX[b];
     for (let i = 1; i <= BASE_COUNT[b]; i++) {
-      arr.push({ nome: pre + String(i).padStart(2,'0'), base: b });
+      arr.push({ nome: pre + ' ' + String(i).padStart(2,'0'), base: b });
     }
   });
   return arr;
 }
 function inferBaseFromName(nome) {
-  const up = String(nome || '').toUpperCase();
+  const up = String(nome || '').toUpperCase().replace(/\s+/g,'');
   for (const b of BASES) {
     if (up.startsWith(BASE_PREFIX[b])) return b;
   }
   return 'Mooca';
+}
+// Normaliza "MC01" / "mc 1" / "OC-3" → "MC 01" (prefixo + espaço + 2 dígitos)
+function normalizeCartName(nome) {
+  const raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
+  const m = raw.match(/^(MC|OC|SC)(\d+)$/);
+  if (!m) return String(nome || '').trim().toUpperCase();
+  return m[1] + ' ' + m[2].padStart(2,'0');
 }
 function getCarts() {
   let raw;
@@ -1056,16 +1063,38 @@ function getCarts() {
     localStorage.setItem('vammo_carts', JSON.stringify(migrados));
     return migrados;
   }
-  // garante que defaults estão presentes (idempotente, executa 1× via flag)
-  if (!localStorage.getItem('vammo_carts_seeded_v3')) {
-    const nomes = new Set(raw.map(c => c.nome));
-    let mudou = false;
-    defaultCarts().forEach(d => { if (!nomes.has(d.nome)) { raw.push(d); mudou = true; } });
-    if (mudou) {
-      raw.sort((a,b) => a.nome.localeCompare(b.nome));
-      localStorage.setItem('vammo_carts', JSON.stringify(raw));
+  // v4: padroniza nomes para "MC 01" (prefixo + espaço + 2 dígitos)
+  if (!localStorage.getItem('vammo_carts_seeded_v4')) {
+    const renameMap = {}; // antigoNome -> novoNome
+    raw = raw.map(c => {
+      const novo = normalizeCartName(c.nome);
+      if (novo !== c.nome) renameMap[c.nome] = novo;
+      return { ...c, nome: novo, base: c.base || inferBaseFromName(novo) };
+    });
+    // dedup (caso 2 entradas migrem para o mesmo nome)
+    const vistos = new Set();
+    raw = raw.filter(c => { if (vistos.has(c.nome)) return false; vistos.add(c.nome); return true; });
+    // injeta defaults faltantes
+    defaultCarts().forEach(d => { if (!vistos.has(d.nome)) { raw.push(d); vistos.add(d.nome); } });
+    raw.sort((a,b) => a.nome.localeCompare(b.nome));
+    localStorage.setItem('vammo_carts', JSON.stringify(raw));
+    // renomeia carrinho nos registros pra preservar o link
+    if (Object.keys(renameMap).length) {
+      try {
+        const recs = JSON.parse(localStorage.getItem('vammo_registros')) || [];
+        let mudou = false;
+        recs.forEach(r => { if (r.carrinho && renameMap[r.carrinho]) { r.carrinho = renameMap[r.carrinho]; mudou = true; } });
+        if (mudou) localStorage.setItem('vammo_registros', JSON.stringify(recs));
+      } catch {}
+      // renomeia em baixas tb
+      try {
+        const baixas = JSON.parse(localStorage.getItem('vammo_baixas')) || [];
+        let mudou = false;
+        baixas.forEach(b => { if (b.carrinho && renameMap[b.carrinho]) { b.carrinho = renameMap[b.carrinho]; mudou = true; } });
+        if (mudou) localStorage.setItem('vammo_baixas', JSON.stringify(baixas));
+      } catch {}
     }
-    localStorage.setItem('vammo_carts_seeded_v3', '1');
+    localStorage.setItem('vammo_carts_seeded_v4', '1');
   }
   return raw;
 }
@@ -1304,7 +1333,8 @@ function openCartDetail(nome, recId) {
 function addCart() {
   const inp = document.getElementById('inp-cart');
   const baseSel = document.getElementById('inp-cart-base');
-  const val = (inp?.value || '').trim().toUpperCase();
+  const raw = (inp?.value || '').trim();
+  const val = normalizeCartName(raw);
   const base = baseSel?.value || 'Mooca';
   if (!val) return;
   const carts = getCarts();
@@ -1329,7 +1359,7 @@ function removeCart(nome) {
 }
 
 function resetCartsDefault() {
-  if (!confirm('Restaurar lista padrão das 3 bases?\nIsso recadastra MC01–MC35 (Mooca), OC01–OC50 (Osasco) e SC01–SC06 (SBC).\nCarrinhos extras criados manualmente serão mantidos.')) return;
+  if (!confirm('Restaurar lista padrão das 3 bases?\nIsso recadastra MC 01–MC 35 (Mooca), OC 01–OC 50 (Osasco) e SC 01–SC 06 (SBC).\nCarrinhos extras criados manualmente serão mantidos.')) return;
   const existing = getCarts();
   const existingNames = new Set(existing.map(c => c.nome));
   const def = defaultCarts();
