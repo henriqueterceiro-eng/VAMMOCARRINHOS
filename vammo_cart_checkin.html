@@ -486,6 +486,10 @@
       animation: pulse 1s ease;
     }
     @keyframes pulse { 0%{transform:scale(.7);opacity:0} 60%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
+    @keyframes pulseLock {
+      0%, 100% { box-shadow: 0 4px 24px rgba(239,68,68,.35); }
+      50%      { box-shadow: 0 4px 24px rgba(239,68,68,.7), 0 0 0 6px rgba(239,68,68,.18); }
+    }
     .s-title {
       font-family: 'Barlow Condensed', sans-serif;
       font-size: 38px; font-weight: 900;
@@ -1274,20 +1278,35 @@ function checkCartLock(cartName) {
       const me = u ? u.email.toLowerCase() : '';
       if (mec && mec === me) {
         // Mesmo mecânico tentando logar de novo (caso raro)
-        statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.1);font-size:13px;color:var(--yw);text-align:center;font-weight:700;';
-        statusBox.textContent = '⚠️ Você já está logado neste carrinho. Faça checkout antes de novo check-in.';
+        statusBox.style.cssText = 'margin-top:10px;padding:14px 16px;border-radius:12px;border:2px solid var(--yw);background:rgba(245,158,11,.18);font-size:14px;color:var(--yw);text-align:center;font-weight:700;line-height:1.4;';
+        statusBox.innerHTML = '⚠️ <strong>Você já está logado neste carrinho.</strong><br><span style="font-size:12px;font-weight:400;opacity:.9;">Faça checkout antes de fazer um novo check-in.</span>';
         S.cartLocked = true;
         updateNextBtn();
         return;
       }
-      // Bloqueia: ocupado por outro
+      // Bloqueia: ocupado por outro — modal/overlay BEM chamativo
       const quando = data.ts ? new Date(data.ts).toLocaleString('pt-BR', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' }) : '';
-      statusBox.style.cssText = 'margin-top:10px;padding:12px 14px;border-radius:10px;border:2px solid var(--rd);background:rgba(239,68,68,.12);font-size:13px;color:var(--rd);text-align:left;line-height:1.4;';
-      statusBox.innerHTML = `🔒 <strong>Carrinho ocupado</strong><br>
-        <strong>${mec}</strong> está logado neste carrinho${quando ? ` desde <strong>${quando}</strong>` : ''}.<br>
-        <span style="font-size:12px;opacity:.85;">Peça pra esse mecânico fazer checkout, ou avise o gestor.</span>`;
+      statusBox.style.cssText = `
+        margin-top:14px; padding:24px 18px; border-radius:14px;
+        border:3px solid var(--rd); background:linear-gradient(180deg, rgba(239,68,68,.22), rgba(239,68,68,.08));
+        text-align:center; line-height:1.5;
+        box-shadow: 0 4px 24px rgba(239,68,68,.35);
+        animation: pulseLock 1.4s ease-in-out infinite;
+      `;
+      statusBox.innerHTML = `
+        <div style="font-size:48px;line-height:1;margin-bottom:10px;">🔒</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;letter-spacing:2px;color:var(--rd);text-transform:uppercase;margin-bottom:8px;">Carrinho Ocupado</div>
+        <div style="font-size:14px;color:var(--wh);margin-bottom:6px;">Está logado por:</div>
+        <div style="font-size:15px;font-weight:700;color:var(--rd);margin-bottom:10px;word-break:break-all;">${mec}</div>
+        ${quando ? `<div style="font-size:12px;color:var(--gr);margin-bottom:14px;">desde ${quando}</div>` : ''}
+        <div style="background:rgba(0,0,0,.35);border-radius:10px;padding:12px;font-size:13px;color:var(--wh);line-height:1.5;">
+          ⚠️ <strong>Chame o supervisor</strong> para liberar este carrinho via <em>"Forçar Checkout"</em> no app do gestor.
+        </div>
+      `;
       S.cartLocked = true;
       updateNextBtn();
+      // vibra pra chamar atenção
+      if (navigator.vibrate) try { navigator.vibrate([200, 100, 200]); } catch(_) {}
     }
   });
 }
