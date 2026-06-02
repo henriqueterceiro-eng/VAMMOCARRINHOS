@@ -1037,13 +1037,18 @@
         </div>
 
         <div class="config-card">
-          <h3>🗑 Dados de Teste / Reset</h3>
-          <p class="config-desc">⚠ Limpa registros, NCs e baixas — local <strong>e</strong> no servidor (planilha do Drive). Use só após validar o teste piloto.</p>
+          <h3>🗑 Resetar dados de teste</h3>
+          <p class="config-desc">Apaga só NCs e baixas. <strong>Preserva</strong> os check-ins/checkouts em andamento dos mecânicos.</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn-sm btn-rd" onclick="resetTestData()">🗑 Resetar tudo (local + servidor)</button>
-            <button class="btn-sm btn-outline" onclick="clearRegistros()">Limpar só local</button>
-            <button class="btn-sm btn-outline" onclick="clearAll()">Limpar tudo local</button>
+            <button class="btn-sm btn-rd" onclick="resetNCsOnly()">🧹 Limpar só NCs (preserva check-ins)</button>
           </div>
+          <details style="margin-top:14px;">
+            <summary style="cursor:pointer;font-size:12px;color:var(--gr);">⚠ Opções perigosas (limpa TUDO)</summary>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+              <button class="btn-sm btn-rd" onclick="resetTestData()" style="background:rgba(239,68,68,.3);">💣 Apagar TUDO (local + servidor)</button>
+              <button class="btn-sm btn-outline" onclick="clearRegistros()">Limpar só local</button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -2396,6 +2401,33 @@ function clearAll() {
   if (!confirm('Limpar TODOS os dados locais (registros + configurações)?')) return;
   ['vammo_registros','vammo_config'].forEach(k => localStorage.removeItem(k));
   showAlert('config-alert', 'gn', '✅ Dados locais limpos.');
+}
+
+// Reset cirúrgico: SÓ as NCs (preserva check-ins/checkouts)
+function resetNCsOnly() {
+  if (!confirm('🧹 Limpar SÓ as NCs?\n\nAÇÃO:\n• Apaga aba "Não Conformidades" no Drive\n• Muda ferramentas marcadas "Não OK" para "OK" nos registros\n• Zera contagem de NCs por registro\n\nPRESERVA:\n• Check-ins/checkouts dos mecânicos\n• Quem está logado em qual carrinho\n• Tudo o mais\n\nProsseguir?')) return;
+
+  // Local: só limpa as flags de NC reposta e baixas (não toca em registros)
+  localStorage.removeItem('vammo_nc_repostas');
+  localStorage.removeItem('vammo_baixas');
+
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) {
+    showAlert('config-alert', 'yw', '⚠️ Local limpo, mas URL do servidor não configurada.');
+    refreshAll();
+    return;
+  }
+  showAlert('config-alert', 'az', '⏳ Limpando NCs no servidor...');
+  gasGet(cfg.webhookUrl, 'action=clearNCs&token=VAMMO_RESET_2026', (data, err) => {
+    if (err) { showAlert('config-alert', 'rd', '❌ ' + err); refreshAll(); return; }
+    if (data?.error) { showAlert('config-alert', 'rd', '❌ ' + data.error); refreshAll(); return; }
+    const c = data?.cleared || {};
+    showAlert('config-alert', 'gn',
+      `✅ NCs limpas! ${c.Nao_Conformidades||0} entradas + ${c.ferramentas_marcadas||0} ferramentas resetadas. Check-ins preservados.`);
+    // Re-puxa do servidor pra atualizar locais
+    syncAgora();
+    setTimeout(refreshAll, 1500);
+  });
 }
 
 // Reset completo: limpa local de teste + chama GAS pra zerar planilha
