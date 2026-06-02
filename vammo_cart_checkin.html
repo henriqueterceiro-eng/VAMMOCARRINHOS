@@ -1098,8 +1098,8 @@ function goTo(idx) {
     if (isLogin) {
       bb.innerHTML = ''; // login: sem barra de navegação
     } else if (isOK) {
-      // Botão desabilitado até o envio completar (ou 8s de fallback)
-      bb.innerHTML = `<button class="btn-novo" id="btn-novo" onclick="resetApp()" disabled style="opacity:.4;cursor:wait;">⏳ Aguarde envio...</button>`;
+      // Botão ativo desde o início — envio continua em segundo plano
+      bb.innerHTML = `<button class="btn-novo" id="btn-novo" onclick="resetApp()">➕ Nova Operação</button>`;
     } else {
       bb.innerHTML = `<button class="btn-back" id="btn-back" onclick="goBack()" style="${isTipo?'display:none':''}">←</button>
            <button class="btn-next" id="btn-next" onclick="goNext()">Avançar →</button>`;
@@ -1643,7 +1643,8 @@ function onPhoto(slot, input) {
   reader.onload = async e => {
     let dataUrl = e.target.result;
     try {
-      dataUrl = await resizeDataUrl(dataUrl, 1024, 0.75);
+      // 800px JPEG q=0.65 → ~70-120KB por foto (cabe rápido na rede móvel)
+      dataUrl = await resizeDataUrl(dataUrl, 800, 0.65);
     } catch (err) {
       console.warn('Resize falhou, usando original:', err);
     }
@@ -1825,18 +1826,13 @@ function submit() {
   if (!cfg.webhookUrl) {
     statusEl.textContent = '⚙️ Servidor não configurado — use o ⚙️ no topo.';
     statusEl.style.color = 'var(--gr)';
-    enableNovaOperacao();
     return;
   }
 
-  statusEl.textContent = '⏳ Enviando fotos e dados...';
+  statusEl.textContent = '⏳ Enviando em segundo plano (fotos + dados)...';
   statusEl.style.color = 'var(--az)';
 
-  // Fallback de segurança: libera Nova Operação em no máximo 12s
-  setTimeout(enableNovaOperacao, 12000);
-
-  // Com HTTPS (GitHub Pages) usa fetch POST — envia fotos completas
-  // Com file:// usa JSONP sem fotos (fallback)
+  // Envio em segundo plano — usuário NÃO precisa esperar.
   if (location.protocol === 'https:') {
     enviarPost(cfg.webhookUrl, rec, statusEl);
   } else {
