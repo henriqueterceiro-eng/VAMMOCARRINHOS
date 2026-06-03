@@ -1954,10 +1954,22 @@ function reporFerramenta(recId, ferramenta, carrinho, motivo) {
   });
   saveBaixas(baixas);
 
+  // 4) Notifica GAS pra marcar a NC como reposta no servidor
+  //    (essencial pra o checkin não pré-carregar essa NC de novo)
+  const cfg = getConfig();
+  if (cfg.webhookUrl) {
+    gasGet(cfg.webhookUrl,
+      'action=reporNC&cart=' + encodeURIComponent(carrinho) +
+      '&ferramenta=' + encodeURIComponent(ferramenta) +
+      '&supervisor=gestor',
+      (data, err) => {
+        if (err || !data?.ok) console.warn('reporNC GAS falhou:', err || data);
+      });
+  }
+
   // Re-renderiza painéis afetados
   renderNC();
   renderEstoque();
-  // se carrinhos estiverem em tela
   if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
 
   showAlert('cart-alert-box', 'gn', `✅ Reposição registrada: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`);

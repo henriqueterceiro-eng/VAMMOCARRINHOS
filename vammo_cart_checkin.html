@@ -1383,6 +1383,39 @@ function setCart(num) {
   updateNextBtn();
   // Para check-in: valida se o carrinho não está ocupado por outro
   if (S.tipo === 'checkin') checkCartLock(S.carrinho);
+  // Sempre: pré-carrega NCs abertas pra esse carrinho (persistem entre operações)
+  loadOpenNCs(S.carrinho);
+}
+
+// Carrega NCs abertas do servidor e marca as ferramentas no estado local
+// como nao_ok com flag _persistent (pra distinguir das que o user marcou agora)
+function loadOpenNCs(cart) {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  S.openNCs = []; // pendentes
+  gasGet(cfg.webhookUrl, 'action=openNCs&cart=' + encodeURIComponent(cart), (data, err) => {
+    if (err || !data || !Array.isArray(data.ncs)) return;
+    S.openNCs = data.ncs;
+    data.ncs.forEach(nc => {
+      // só pré-marca se o user ainda não tocou nessa ferramenta nesta sessão
+      if (!S.ferramentas[nc.ferramenta]) {
+        S.ferramentas[nc.ferramenta] = {
+          status: 'nao_ok',
+          motivo: nc.motivo || 'nc',
+          _persistent: true,
+          _origMec: nc.mecanico_original || '',
+          _origTs: nc.ts || ''
+        };
+      }
+    });
+    // se já está na tela de checklist, re-renderiza
+    if (SCREENS[curScreen] === 'screen-checklist') {
+      renderCurrentCategory();
+      updateStats();
+      updateClProgress();
+    }
+    updateNextBtn();
+  });
 }
 
 // Consulta GAS: o carrinho tem checkin sem checkout? Se sim e for outro usuário, bloqueia.
@@ -1659,8 +1692,22 @@ function renderCurrentCategory() {
 function marcarTodasOk() {
   const cat = TOOLS[_clIdx];
   if (!cat) return;
+  // Avisa se há NCs persistentes nessa categoria
+  const ncsPersistentes = cat.items.filter(t =>
+    S.ferramentas[t]?._persistent && S.ferramentas[t]?.status === 'nao_ok'
+  );
+  if (ncsPersistentes.length > 0) {
+    const ok = confirm(
+      '⚠ Esta categoria tem ' + ncsPersistentes.length + ' NC(s) ABERTA(s):\n' +
+      ncsPersistentes.map(t => '• ' + t).join('\n') + '\n\n' +
+      'Marcar TODAS como OK?\n\n' +
+      '📞 Notifique seu supervisor — as NCs só fecham via app gestor.'
+    );
+    if (!ok) return;
+  }
   cat.items.forEach(item => {
-    S.ferramentas[item] = { status: 'ok', motivo: null };
+    const wasPersistent = S.ferramentas[item]?._persistent && S.ferramentas[item]?.status === 'nao_ok';
+    S.ferramentas[item] = { status: 'ok', motivo: null, _resolutionRequested: wasPersistent || undefined };
   });
   updateStats();
   updateClProgress();
@@ -1680,6 +1727,27 @@ function updateClProgress() {
 
 function setTool(encKey, status) {
   const key = decodeURIComponent(encKey);
+  // Se a ferramenta tem NC persistente (vinda do servidor) e o user clicou OK,
+  // mostra aviso: a NC só fecha quando o supervisor repor.
+  if (status === 'ok' && S.ferramentas[key]?._persistent && S.ferramentas[key]?.status === 'nao_ok') {
+    const motivo = S.ferramentas[key].motivo === 'faltando' ? 'Faltando' : 'Quebrado/Danificado';
+    const ok = confirm(
+      '⚠ NC ABERTA nesta ferramenta\n\n' +
+      key + '\n' +
+      'Problema registrado: ' + motivo + '\n\n' +
+      'Você deseja resolver essa NC?\n\n' +
+      '📞 Notifique seu supervisor — a NC só será encerrada quando ele confirmar a reposição no app gestor.\n\n' +
+      'Marcar como OK mesmo assim?'
+    );
+    if (!ok) return; // user cancelou, NC persistente continua
+    // user confirmou: marca como OK localmente; supervisor ainda precisa repor pra fechar no servidor
+    S.ferramentas[key] = { status: 'ok', motivo: null, _resolutionRequested: true };
+    updateStats();
+    updateClProgress();
+    renderCurrentCategory();
+    updateNextBtn();
+    return;
+  }
   if (status === 'nao_ok') {
     pendingNCtool = key;
     document.getElementById('modal-tool-name').textContent = key;
@@ -2132,7 +2200,7 @@ function baixarJSON(blob, nome) {
 function resetApp() {
   // mantém mecânico logado (login é persistente; trocar usuário é via doLogout)
   const u = getStoredUser();
-  S = { tipo: null, carrinho: null, turno: '', mecanico: u ? u.email : null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null, cartLocked: false, cartChecking: false };
+  S = { tipo: null, carrinho: null, turno: '', mecanico: u ? u.email : null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null, cartLocked: false, cartChecking: false, openNCs: [] };
   _clIdx = 0;
   sigHasData = false;
 
