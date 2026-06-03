@@ -1317,7 +1317,7 @@ function showPanel(id) {
   if (id === 'registros') renderRegistros();
   if (id === 'nc') renderNC();
   if (id === 'carrinhos') renderCarrinhos();
-  if (id === 'estoque') renderEstoque();
+  if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); }
   if (id === 'colab') renderColab();
   if (id === 'config') renderConfig();
 }
@@ -1933,11 +1933,22 @@ function reporFerramenta(recId, ferramenta, carrinho, motivo) {
   }
   const obs = prompt('Observação (opcional):', '') || '';
 
-  // 1) baixa no estoque
+  // 1) baixa no estoque (local + servidor)
   if (!est[base]) est[base] = {};
   if (typeof est[base][ferramenta] !== 'number') est[base][ferramenta] = 0;
   est[base][ferramenta] -= qtd;
   saveEstoque(est);
+  // sincroniza baixa com GAS
+  const cfg0 = getConfig();
+  if (cfg0.webhookUrl) {
+    gasGet(cfg0.webhookUrl,
+      'action=estoqueAdjust&base=' + encodeURIComponent(base) +
+      '&ferramenta=' + encodeURIComponent(ferramenta) +
+      '&delta=' + (-qtd),
+      (data, err) => {
+        if (err || !data?.ok) console.warn('estoqueAdjust GAS falhou:', err || data);
+      });
+  }
 
   // 2) marca NC como reposta
   const rep = getNCRepostas();
@@ -2055,14 +2066,35 @@ function renderEstoque() {
   renderBaixas();
 }
 
+// Otimista: atualiza local imediatamente, depois sincroniza com GAS.
+// Se GAS falhar, faz rollback do local e mostra erro.
 function ajustarEstoque(base, ferramenta, delta) {
   const est = getEstoque();
   if (!est[base]) est[base] = {};
   const cur = typeof est[base][ferramenta] === 'number' ? est[base][ferramenta] : 0;
-  est[base][ferramenta] = Math.max(0, cur + delta);
+  const novo = Math.max(0, cur + delta);
+  est[base][ferramenta] = novo;
   saveEstoque(est);
   renderEstoque();
+  // sincroniza com servidor
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl,
+    'action=estoqueAdjust&base=' + encodeURIComponent(base) +
+    '&ferramenta=' + encodeURIComponent(ferramenta) +
+    '&delta=' + (novo - cur),
+    (data, err) => {
+      if (err || !data?.ok) {
+        // rollback
+        const e2 = getEstoque(); if (!e2[base]) e2[base] = {};
+        e2[base][ferramenta] = cur;
+        saveEstoque(e2);
+        renderEstoque();
+        showAlert('est-alert-box','rd',`❌ Falha ao sincronizar com servidor — desfeito.`);
+      }
+    });
 }
+
 function ajustarEstoquePrompt(base, ferramenta) {
   const est = getEstoque();
   const cur = (est[base] && typeof est[base][ferramenta] === 'number') ? est[base][ferramenta] : 0;
@@ -2074,7 +2106,49 @@ function ajustarEstoquePrompt(base, ferramenta) {
   est[base][ferramenta] = n;
   saveEstoque(est);
   renderEstoque();
-  showAlert('est-alert-box','gn',`✅ ${ferramenta}: ${n} un. em ${base}.`);
+  // sincroniza
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) {
+    showAlert('est-alert-box','yw',`⚠️ ${ferramenta}: ${n} un. em ${base}. (Sem servidor configurado — só local!)`);
+    return;
+  }
+  showAlert('est-alert-box','az','⏳ Sincronizando...');
+  gasGet(cfg.webhookUrl,
+    'action=estoqueSet&base=' + encodeURIComponent(base) +
+    '&ferramenta=' + encodeURIComponent(ferramenta) +
+    '&qtd=' + n,
+    (data, err) => {
+      if (err || !data?.ok) {
+        // rollback
+        const e2 = getEstoque(); if (!e2[base]) e2[base] = {};
+        e2[base][ferramenta] = cur;
+        saveEstoque(e2);
+        renderEstoque();
+        showAlert('est-alert-box','rd',`❌ Falha ao sincronizar — desfeito.`);
+      } else {
+        showAlert('est-alert-box','gn',`✅ ${ferramenta}: ${n} un. em ${base}. Sincronizado.`);
+      }
+    });
+}
+
+// Puxa estoque do servidor e atualiza cache local
+function syncEstoqueFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=estoqueGet', (data, err) => {
+    if (err || !data?.estoque) return;
+    // mescla: GAS é fonte da verdade
+    const est = defaultEstoque();
+    Object.keys(data.estoque).forEach(b => {
+      Object.keys(data.estoque[b]).forEach(f => {
+        if (!est[b]) est[b] = {};
+        est[b][f] = data.estoque[b][f];
+      });
+    });
+    saveEstoque(est);
+    // re-renderiza se a aba estoque estiver visível
+    if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+  });
 }
 
 function renderBaixas() {
@@ -2719,6 +2793,7 @@ function importarRegistros(input) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 renderDashboard();
 iniciarAutoSync(); // sync automático a cada 30s se URL configurada
+syncEstoqueFromGAS(); // puxa estoque do servidor ao abrir
 
 // Seed data para demonstração se não houver registros
 if (!getRecords().length) {
