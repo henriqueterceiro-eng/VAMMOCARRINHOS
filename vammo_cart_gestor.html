@@ -1957,22 +1957,42 @@ function reporFerramenta(recId, ferramenta, carrinho, motivo) {
   // 4) Notifica GAS pra marcar a NC como reposta no servidor
   //    (essencial pra o checkin não pré-carregar essa NC de novo)
   const cfg = getConfig();
-  if (cfg.webhookUrl) {
-    gasGet(cfg.webhookUrl,
-      'action=reporNC&cart=' + encodeURIComponent(carrinho) +
-      '&ferramenta=' + encodeURIComponent(ferramenta) +
-      '&supervisor=gestor',
-      (data, err) => {
-        if (err || !data?.ok) console.warn('reporNC GAS falhou:', err || data);
-      });
+  if (!cfg.webhookUrl) {
+    showAlert('cart-alert-box', 'yw',
+      `⚠️ Reposição local ok, mas SEM URL de servidor — a NC vai voltar pros mecânicos. Configure em ⚙️.`);
+    renderNC(); renderEstoque();
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+    return;
   }
+  showAlert('cart-alert-box', 'az', '⏳ Sincronizando com servidor...');
+  reporNCnoGASComRetry(cfg.webhookUrl, carrinho, ferramenta, 0, (sucesso, err) => {
+    if (sucesso) {
+      showAlert('cart-alert-box', 'gn',
+        `✅ Reposição confirmada no servidor: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`);
+    } else {
+      showAlert('cart-alert-box', 'rd',
+        `❌ Erro ao sincronizar com servidor: ${err || 'sem resposta'}. A NC pode voltar! Clique "🔄 Atualizar" e tente repor de novo.`);
+    }
+    renderNC(); renderEstoque();
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+  });
+}
 
-  // Re-renderiza painéis afetados
-  renderNC();
-  renderEstoque();
-  if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
-
-  showAlert('cart-alert-box', 'gn', `✅ Reposição registrada: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`);
+// Retry até 3× se o GAS não confirmar. Backoff curto entre tentativas.
+function reporNCnoGASComRetry(url, carrinho, ferramenta, tentativa, done) {
+  gasGet(url,
+    'action=reporNC&cart=' + encodeURIComponent(carrinho) +
+    '&ferramenta=' + encodeURIComponent(ferramenta) +
+    '&supervisor=gestor',
+    (data, err) => {
+      if (!err && data?.ok) { done(true); return; }
+      if (tentativa < 2) {
+        // tenta de novo após 1s
+        setTimeout(() => reporNCnoGASComRetry(url, carrinho, ferramenta, tentativa + 1, done), 1000);
+      } else {
+        done(false, err || data?.error || 'sem resposta após 3 tentativas');
+      }
+    });
 }
 
 // ─── ESTOQUE ──────────────────────────────────────────────────────────────────
