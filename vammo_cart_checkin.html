@@ -440,6 +440,8 @@
       -webkit-user-select: none; user-select: none;
     }
     .photo-slot.done { border-style: solid; border-color: var(--gn); }
+    .photo-slot.loading { border-color: var(--az); animation: pulseLoad 1s ease-in-out infinite; }
+    @keyframes pulseLoad { 0%,100% { opacity:.6 } 50% { opacity:1 } }
     .photo-slot img {
       position: absolute; inset: 0;
       width: 100%; height: 100%; object-fit: cover;
@@ -1741,45 +1743,94 @@ function checklistComplete() {
 // ─── SCREEN: FOTOS ────────────────────────────────────────────────────────────
 // Os slots são <label for="file-xxx"> — o toque abre a câmera nativamente,
 // sem nenhum JS intermediário (compatível iOS/Android/file://)
-// Reduz uma imagem dataURL para max 1024px de largura, JPEG qualidade 0.75
-// Caem de ~1-3MB pra ~80-200KB → cabe no localStorage e no POST pro GAS
-function resizeDataUrl(dataUrl, maxWidth, quality) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const ratio = img.width > maxWidth ? maxWidth / img.width : 1;
-      const w = Math.round(img.width * ratio);
-      const h = Math.round(img.height * ratio);
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      try { resolve(canvas.toDataURL('image/jpeg', quality)); }
-      catch (e) { reject(e); }
-    };
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
+// Processa foto da câmera diretamente do Blob (evita dataURL intermediário
+// que dobra o uso de memória). Reduz pra max width e converte pra JPEG q=0.65.
+async function fileToResizedDataUrl(file, maxWidth, quality) {
+  let bitmap, srcW, srcH, useBitmap = false;
+  // 1) Tenta createImageBitmap (mais eficiente — GPU-accelerated em muitos browsers)
+  if (typeof createImageBitmap === 'function') {
+    try {
+      bitmap = await createImageBitmap(file);
+      srcW = bitmap.width; srcH = bitmap.height;
+      useBitmap = true;
+    } catch (e) {
+      console.warn('createImageBitmap falhou, fallback:', e);
+    }
+  }
+  // 2) Fallback: Image via objectURL (evita base64 gigante em memória)
+  if (!useBitmap) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = reject;
+        i.src = url;
+      });
+      bitmap = img;
+      srcW = img.naturalWidth; srcH = img.naturalHeight;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  // 3) Redimensiona via canvas
+  const ratio = srcW > maxWidth ? maxWidth / srcW : 1;
+  const w = Math.round(srcW * ratio);
+  const h = Math.round(srcH * ratio);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  // libera bitmap (importante em mobile)
+  if (useBitmap && bitmap.close) try { bitmap.close(); } catch(_) {}
+  const dataUrl = canvas.toDataURL('image/jpeg', quality);
+  // libera canvas
+  canvas.width = 0; canvas.height = 0;
+  return dataUrl;
 }
 
-function onPhoto(slot, input) {
+async function onPhoto(slot, input) {
   const file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async e => {
-    let dataUrl = e.target.result;
+  // Mostra feedback imediato (foto grande pode demorar 1-3s pra processar)
+  const slotEl = document.getElementById('slot-' + slot);
+  if (slotEl) slotEl.classList.add('loading');
+  try {
+    let dataUrl;
     try {
-      // 800px JPEG q=0.65 → ~70-120KB por foto (cabe rápido na rede móvel)
-      dataUrl = await resizeDataUrl(dataUrl, 800, 0.65);
-    } catch (err) {
-      console.warn('Resize falhou, usando original:', err);
+      // 800px JPEG q=0.65 (~70-120KB)
+      dataUrl = await fileToResizedDataUrl(file, 800, 0.65);
+    } catch (e1) {
+      console.warn('Resize 800 falhou, tentando 600:', e1);
+      // 2ª tentativa mais conservadora pra celulares fracos
+      dataUrl = await fileToResizedDataUrl(file, 600, 0.55);
     }
     S.fotos[slot] = dataUrl;
     document.getElementById('img-' + slot).src = dataUrl;
-    document.getElementById('slot-' + slot).classList.add('done');
+    if (slotEl) { slotEl.classList.remove('loading'); slotEl.classList.add('done'); }
     updateNextBtn();
-  };
-  reader.readAsDataURL(file);
+  } catch (err) {
+    console.error('Foto ' + slot + ' erro:', err);
+    if (slotEl) slotEl.classList.remove('loading');
+    // Tenta usar a foto crua (sem resize) como último recurso
+    try {
+      const rawUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      S.fotos[slot] = rawUrl;
+      document.getElementById('img-' + slot).src = rawUrl;
+      if (slotEl) slotEl.classList.add('done');
+      updateNextBtn();
+    } catch (err2) {
+      alert('Não consegui processar a foto.\n\nTente novamente, ou tire uma foto mais simples. Se persistir, feche apps em segundo plano e tente de novo.');
+    }
+  } finally {
+    // Limpa input pra permitir refoto do mesmo slot
+    try { input.value = ''; } catch(_) {}
+  }
 }
 
 function closeCam() {} // mantido por compatibilidade
