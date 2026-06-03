@@ -853,11 +853,14 @@
 
       <!-- ── NÃO CONFORMIDADES ── -->
       <div class="panel" id="panel-nc">
+        <div id="nc-alert-box" style="margin-bottom:12px;"></div>
         <div class="stat-grid" id="nc-stats"></div>
         <div class="table-wrap" style="margin-bottom:16px;">
           <div class="table-head">
             <h2>Ferramentas com Problemas</h2>
             <div class="spacer"></div>
+            <button class="btn-sm btn-outline" onclick="syncNCsComServidor()" title="Alinhar com o servidor (resolve discrepâncias)">🩺 Sincronizar com servidor</button>
+            <button class="btn-sm btn-outline" onclick="resolverNCsEmMassa()" title="Marcar várias NCs como repostas de uma vez">✔ Resolver em massa</button>
             <select class="select-filt" id="nc-filt-motivo" onchange="renderNC()">
               <option value="">Todos</option>
               <option value="faltando">Faltando</option>
@@ -1842,6 +1845,135 @@ function renderRegistros() {
 }
 
 // ─── NÃO CONFORMIDADES ────────────────────────────────────────────────────────
+// Puxa lista atual de NCs ABERTAS no servidor e marca como reposta no LOCAL
+// todas as NCs (em todos os registros) que NÃO estão mais abertas no server.
+// Útil quando o local diverge do server (ex: mecânico resolveu via app dele,
+// ou houve falha de sincronia anterior).
+function syncNCsComServidor() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { showAlert('nc-alert-box','rd','❌ URL do servidor não configurada.'); return; }
+  showAlert('nc-alert-box','az','⏳ Consultando servidor...');
+  gasGet(cfg.webhookUrl, 'action=allOpenNCs', (data, err) => {
+    if (err || !data?.ncs) { showAlert('nc-alert-box','rd','❌ ' + (err || 'sem resposta')); return; }
+    // Conjunto "ainda aberta" no servidor: chave = "CART|FERRAMENTA"
+    const abertas = new Set(data.ncs.map(nc => normalizeCartName(nc.carrinho) + '|' + nc.ferramenta));
+    // Varre os registros locais e marca como reposta no nc_repostas tudo que
+    // não está mais aberto no servidor.
+    const recs = getRecords();
+    const rep = getNCRepostas();
+    let marcadas = 0;
+    recs.forEach(r => {
+      Object.entries(r.ferramentas || {}).forEach(([f, v]) => {
+        if (!v || v.status !== 'nao_ok') return;
+        const cartN = normalizeCartName(r.carrinho);
+        const k = cartN + '|' + f;
+        const repKey = ncKey(r.id, f);
+        if (!abertas.has(k) && !rep[repKey]) {
+          rep[repKey] = { ts: new Date().toISOString(), source: 'sync-servidor', qtd: 0 };
+          marcadas++;
+        }
+      });
+    });
+    saveNCRepostas(rep);
+    renderNC();
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+    showAlert('nc-alert-box','gn',
+      `✅ Sincronizado: ${data.ncs.length} NC(s) abertas no servidor · ${marcadas} NC(s) local(is) marcadas como repostas.`);
+  });
+}
+
+// Mostra lista de NCs abertas com checkboxes pra resolver várias de uma vez
+function resolverNCsEmMassa() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { showAlert('nc-alert-box','rd','❌ URL do servidor não configurada.'); return; }
+  showAlert('nc-alert-box','az','⏳ Buscando NCs abertas no servidor...');
+  gasGet(cfg.webhookUrl, 'action=allOpenNCs', (data, err) => {
+    if (err || !data?.ncs) { showAlert('nc-alert-box','rd','❌ ' + (err || 'sem resposta')); return; }
+    const ncs = data.ncs;
+    if (!ncs.length) { showAlert('nc-alert-box','gn','✅ Nenhuma NC aberta no servidor.'); return; }
+    abrirModalResolverMassa(ncs);
+  });
+}
+
+function abrirModalResolverMassa(ncs) {
+  const body = document.getElementById('detail-body');
+  if (!body) return;
+  const listHtml = ncs.map((nc, i) => {
+    const motCls = nc.motivo === 'faltando' ? 'byw' : 'brd';
+    const motTxt = nc.motivo === 'faltando' ? 'Faltando' : 'Quebrado';
+    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--bd);cursor:pointer;">
+      <input type="checkbox" class="massa-chk" data-idx="${i}" checked style="cursor:pointer;width:18px;height:18px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13px;">${normalizeCartName(nc.carrinho)} · ${nc.ferramenta}</div>
+        <div style="font-size:11px;color:var(--gr);"><span class="badge ${motCls}">${motTxt}</span> · ${nc.mecanico}</div>
+      </div>
+    </label>`;
+  }).join('');
+  body.innerHTML = `
+    <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:8px;">Resolver NCs em massa</h3>
+    <div style="font-size:12px;color:var(--gr);margin-bottom:10px;">
+      <strong>${ncs.length}</strong> NC(s) aberta(s) no servidor. Marque as que você quer resolver.<br>
+      <span style="color:var(--yw);">⚠ Não dá baixa de estoque — pra dar baixa, use o botão "↻ Repor" individual.</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="btn-sm btn-outline" onclick="document.querySelectorAll('.massa-chk').forEach(c=>c.checked=true)">✓ Marcar todas</button>
+      <button class="btn-sm btn-outline" onclick="document.querySelectorAll('.massa-chk').forEach(c=>c.checked=false)">✗ Desmarcar todas</button>
+    </div>
+    <div style="max-height:50vh;overflow-y:auto;border:1px solid var(--bd);border-radius:8px;margin-bottom:14px;">
+      ${listHtml}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-sm btn-outline" style="flex:1;" onclick="closeDetail()">Cancelar</button>
+      <button class="btn-sm btn-az" style="flex:2;" onclick="confirmarResolverMassa()">✔ Resolver selecionadas</button>
+    </div>
+  `;
+  // Guarda os ncs no escopo pra confirmarResolverMassa achar
+  window._massaNcs = ncs;
+  document.getElementById('modal-detail').classList.remove('hidden');
+}
+
+function confirmarResolverMassa() {
+  const ncs = window._massaNcs || [];
+  const checked = Array.from(document.querySelectorAll('.massa-chk'))
+    .filter(c => c.checked)
+    .map(c => ncs[parseInt(c.dataset.idx, 10)])
+    .filter(Boolean);
+  if (!checked.length) { showAlert('nc-alert-box','yw','⚠️ Nada selecionado.'); return; }
+  closeDetail();
+  const cfg = getConfig();
+  showAlert('nc-alert-box','az',`⏳ Resolvendo ${checked.length} NC(s)...`);
+  let done = 0, ok = 0, fail = 0;
+  checked.forEach(nc => {
+    gasGet(cfg.webhookUrl,
+      'action=reporNC&cart=' + encodeURIComponent(nc.carrinho) +
+      '&ferramenta=' + encodeURIComponent(nc.ferramenta) +
+      '&supervisor=gestor-massa',
+      (data, err) => {
+        done++;
+        if (!err && data?.ok) ok++; else fail++;
+        if (done === checked.length) {
+          // Marca local como repostas também
+          const rep = getNCRepostas();
+          const recs = getRecords();
+          checked.forEach(nc => {
+            const cartN = normalizeCartName(nc.carrinho);
+            recs.forEach(r => {
+              if (normalizeCartName(r.carrinho) === cartN &&
+                  r.ferramentas?.[nc.ferramenta]?.status === 'nao_ok') {
+                rep[ncKey(r.id, nc.ferramenta)] = { ts: new Date().toISOString(), source: 'massa', qtd: 0 };
+              }
+            });
+          });
+          saveNCRepostas(rep);
+          renderNC();
+          if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+          showAlert('nc-alert-box', fail ? 'yw' : 'gn',
+            `${fail ? '⚠️' : '✅'} ${ok} resolvida(s) · ${fail} falha(s).`);
+        }
+      });
+  });
+}
+
 function renderNC() {
   const recs = getRecords();
   const filtMotivo = document.getElementById('nc-filt-motivo')?.value || '';
