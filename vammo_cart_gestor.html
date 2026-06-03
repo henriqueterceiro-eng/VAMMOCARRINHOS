@@ -566,7 +566,7 @@
     }
     .cart-card-v3:hover { transform: translateY(-2px); }
     .cart-card-v3.st-logado     { border-color: var(--gn); background: linear-gradient(180deg, rgba(34,197,94,.10), var(--c1)); }
-    .cart-card-v3.st-deslogado  { border-color: var(--rd); background: linear-gradient(180deg, rgba(239,68,68,.10), var(--c1)); }
+    .cart-card-v3.st-deslogado  { border-color: var(--w2); background: linear-gradient(180deg, rgba(200,200,200,.06), var(--c1)); }
     .cart-card-v3.st-sem-reg    { border-color: var(--bd); opacity: .7; }
     .cart-card-v3 .ccv-id {
       font-family: 'Barlow Condensed', sans-serif;
@@ -574,14 +574,14 @@
       letter-spacing: 2px; line-height: 1; margin-bottom: 4px;
     }
     .cart-card-v3.st-logado    .ccv-id { color: var(--gn); }
-    .cart-card-v3.st-deslogado .ccv-id { color: var(--rd); }
+    .cart-card-v3.st-deslogado .ccv-id { color: var(--w2); }
     .cart-card-v3.st-sem-reg   .ccv-id { color: var(--gr); }
     .cart-card-v3 .ccv-status {
       font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
       text-transform: uppercase;
     }
     .cart-card-v3.st-logado    .ccv-status { color: var(--gn); }
-    .cart-card-v3.st-deslogado .ccv-status { color: var(--rd); }
+    .cart-card-v3.st-deslogado .ccv-status { color: var(--w2); }
     .cart-card-v3.st-sem-reg   .ccv-status { color: var(--gr); }
     .cart-card-v3 .ccv-mec { font-size: 12px; color: var(--w2); margin-top: 4px; line-height: 1.3; }
     .cart-card-v3 .ccv-time { font-size: 10px; color: var(--gr); margin-top: 2px; }
@@ -1420,7 +1420,7 @@ function renderCarrinhos() {
   const miniEl = document.getElementById('cart-stats-mini');
   if (miniEl) miniEl.innerHTML = `
     <div class="stat-card"><div class="sc-label">Logados</div><div class="sc-num sc-gn">${totLog}</div><div class="sc-sub">mecânico em uso</div></div>
-    <div class="stat-card"><div class="sc-label">Deslogados</div><div class="sc-num sc-rd">${totDeslog}</div><div class="sc-sub">parados</div></div>
+    <div class="stat-card"><div class="sc-label">Deslogados</div><div class="sc-num">${totDeslog}</div><div class="sc-sub">parados</div></div>
     <div class="stat-card"><div class="sc-label">Com NC aberta</div><div class="sc-num sc-yw">${totNC}</div><div class="sc-sub">requer atenção</div></div>
     <div class="stat-card"><div class="sc-label">Sem registro</div><div class="sc-num">${totSem}</div><div class="sc-sub">nunca operado</div></div>
   `;
