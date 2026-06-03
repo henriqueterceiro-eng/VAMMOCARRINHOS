@@ -1692,27 +1692,44 @@ function renderCurrentCategory() {
 function marcarTodasOk() {
   const cat = TOOLS[_clIdx];
   if (!cat) return;
-  // Avisa se há NCs persistentes nessa categoria
+  // Se há NCs persistentes, confirma resolução em massa
   const ncsPersistentes = cat.items.filter(t =>
     S.ferramentas[t]?._persistent && S.ferramentas[t]?.status === 'nao_ok'
   );
   if (ncsPersistentes.length > 0) {
     const ok = confirm(
-      '⚠ Esta categoria tem ' + ncsPersistentes.length + ' NC(s) ABERTA(s):\n' +
+      '✅ Resolver ' + ncsPersistentes.length + ' NC(s) ABERTA(s) e marcar todas como OK?\n\n' +
       ncsPersistentes.map(t => '• ' + t).join('\n') + '\n\n' +
-      'Marcar TODAS como OK?\n\n' +
-      '📞 Notifique seu supervisor — as NCs só fecham via app gestor.'
+      'As NCs vão ser fechadas e o supervisor verá no histórico.\n\n' +
+      'Confirma?'
     );
     if (!ok) return;
+    // Fecha cada NC persistente no servidor
+    ncsPersistentes.forEach(t => resolverNCNoServidor(t));
   }
   cat.items.forEach(item => {
     const wasPersistent = S.ferramentas[item]?._persistent && S.ferramentas[item]?.status === 'nao_ok';
-    S.ferramentas[item] = { status: 'ok', motivo: null, _resolutionRequested: wasPersistent || undefined };
+    S.ferramentas[item] = { status: 'ok', motivo: null, _resolvedByMec: wasPersistent || undefined };
   });
   updateStats();
   updateClProgress();
   renderCurrentCategory();
   updateNextBtn();
+}
+
+// Chama GAS pra marcar a NC como reposta pelo próprio mecânico
+function resolverNCNoServidor(ferramenta) {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl || !S.carrinho) return;
+  const u = getStoredUser();
+  const quem = u ? u.email : 'mecanico';
+  gasGet(cfg.webhookUrl,
+    'action=reporNC&cart=' + encodeURIComponent(S.carrinho) +
+    '&ferramenta=' + encodeURIComponent(ferramenta) +
+    '&supervisor=' + encodeURIComponent('Resolvido pelo mecânico: ' + quem),
+    (data, err) => {
+      if (err || !data?.ok) console.warn('resolverNCNoServidor falhou:', err || data);
+    });
 }
 
 function updateClProgress() {
@@ -1728,20 +1745,19 @@ function updateClProgress() {
 function setTool(encKey, status) {
   const key = decodeURIComponent(encKey);
   // Se a ferramenta tem NC persistente (vinda do servidor) e o user clicou OK,
-  // mostra aviso: a NC só fecha quando o supervisor repor.
+  // ele está resolvendo a NC (ex: achou o alicate). Confirma e fecha no servidor.
   if (status === 'ok' && S.ferramentas[key]?._persistent && S.ferramentas[key]?.status === 'nao_ok') {
     const motivo = S.ferramentas[key].motivo === 'faltando' ? 'Faltando' : 'Quebrado/Danificado';
     const ok = confirm(
-      '⚠ NC ABERTA nesta ferramenta\n\n' +
+      '✅ Resolver esta NC?\n\n' +
       key + '\n' +
       'Problema registrado: ' + motivo + '\n\n' +
-      'Você deseja resolver essa NC?\n\n' +
-      '📞 Notifique seu supervisor — a NC só será encerrada quando ele confirmar a reposição no app gestor.\n\n' +
-      'Marcar como OK mesmo assim?'
+      'Você está marcando como OK — a NC vai ser fechada e o supervisor verá no histórico.\n\n' +
+      'Confirma que está tudo certo agora?'
     );
-    if (!ok) return; // user cancelou, NC persistente continua
-    // user confirmou: marca como OK localmente; supervisor ainda precisa repor pra fechar no servidor
-    S.ferramentas[key] = { status: 'ok', motivo: null, _resolutionRequested: true };
+    if (!ok) return;
+    resolverNCNoServidor(key);
+    S.ferramentas[key] = { status: 'ok', motivo: null, _resolvedByMec: true };
     updateStats();
     updateClProgress();
     renderCurrentCategory();
