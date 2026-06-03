@@ -689,6 +689,23 @@
       border-color: var(--bd); cursor: default;
     }
     .btn-repor[disabled]:hover { background: var(--c2); color: var(--gr); }
+
+    /* Opções de tipo de reposição (radio cards) */
+    .repor-tipo-opt {
+      display: flex; gap: 8px; padding: 12px;
+      border: 1.5px solid var(--bd); border-radius: 10px;
+      background: var(--c2); cursor: pointer;
+      transition: all .15s;
+    }
+    .repor-tipo-opt:hover { border-color: var(--az); }
+    .repor-tipo-opt input { margin-top: 2px; cursor: pointer; }
+    .repor-tipo-opt:has(input:checked) { border-color: var(--az); background: rgba(46,194,255,.10); }
+    .repor-tipo-opt .rt-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14px; font-weight: 800; color: var(--wh);
+      letter-spacing: .5px; margin-bottom: 3px;
+    }
+    .repor-tipo-opt .rt-desc { font-size: 11px; color: var(--gr); line-height: 1.3; }
   </style>
   <!-- ═══ PWA GESTOR ═══ -->
   <meta name="theme-color" content="#0a0a0a">
@@ -959,7 +976,7 @@
           <table>
             <thead><tr>
               <th>Data/Hora</th><th>Base</th><th>Carrinho</th>
-              <th>Ferramenta</th><th>Motivo</th><th>Qtd</th><th>Obs</th>
+              <th>Ferramenta</th><th>Tipo</th><th>Qtd</th><th>Obs</th>
             </tr></thead>
             <tbody id="baixas-tbody"></tbody>
           </table>
@@ -1098,6 +1115,52 @@
     <div style="display:flex;gap:10px;margin-top:22px;">
       <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeForceModal()">Cancelar</button>
       <button class="btn-sm" style="flex:2;padding:12px;background:var(--yw);color:var(--bk);border:none;font-weight:900;" onclick="confirmForceCheckout()">🔓 Confirmar Checkout Forçado</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Resolver NC (Reposição ou Ajuste) -->
+<div class="modal-ov hidden" id="modal-repor">
+  <div class="modal-box" style="max-width:480px;">
+    <h2 style="margin-bottom:8px;"><button class="modal-close" onclick="closeReporModal()">✕</button> ↻ Resolver NC</h2>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:18px;" id="repor-cart-info">–</div>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Tipo de resolução *</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <label class="repor-tipo-opt" data-tipo="reposicao">
+          <input type="radio" name="repor-tipo" value="reposicao" onchange="onTipoReporChange()">
+          <div>
+            <div class="rt-title">📦 Reposição</div>
+            <div class="rt-desc">Repôs a ferramenta — <strong>dá baixa</strong> do estoque</div>
+          </div>
+        </label>
+        <label class="repor-tipo-opt" data-tipo="ajuste">
+          <input type="radio" name="repor-tipo" value="ajuste" onchange="onTipoReporChange()">
+          <div>
+            <div class="rt-title">🛠 Ajuste / Erro</div>
+            <div class="rt-desc">Mecânico marcou sem querer — <strong>não mexe</strong> no estoque</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div id="repor-qtd-wrap" style="margin-bottom:14px;display:none;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Quantidade a dar baixa *</div>
+      <input type="number" id="repor-qtd" min="1" value="1" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;">
+      <div style="font-size:11px;color:var(--gr);margin-top:4px;" id="repor-estoque-info">–</div>
+    </div>
+
+    <div style="margin-bottom:8px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Observação <span style="font-weight:400;text-transform:none;color:var(--gr);">(opcional)</span></div>
+      <input type="text" id="repor-obs" placeholder="Ex: ferramenta nova de SBC, ou mecânico achou..." class="select-filt" style="width:100%;padding:11px 12px;font-size:13px;">
+    </div>
+
+    <div id="repor-alert" style="margin-top:14px;"></div>
+
+    <div style="display:flex;gap:10px;margin-top:22px;">
+      <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeReporModal()">Cancelar</button>
+      <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="confirmRepor()">↻ Confirmar</button>
     </div>
   </div>
 </div>
@@ -2046,53 +2109,89 @@ function ensureNCHeader() {
 }
 
 // Botão Repor: dá baixa no estoque, marca NC como reposta, registra histórico
+// Estado do modal
+let _reporCtx = null;
+
 function reporFerramenta(recId, ferramenta, carrinho, motivo) {
   const base = getCartBase(carrinho);
   const est = getEstoque();
   const disp = (est[base] && typeof est[base][ferramenta] === 'number') ? est[base][ferramenta] : 0;
+  _reporCtx = { recId, ferramenta, carrinho, motivo, base, disp };
+  // Reset modal state
+  document.getElementById('repor-cart-info').innerHTML =
+    `<strong>${ferramenta}</strong> · Carrinho <strong>${carrinho}</strong> · Base ${base}`;
+  document.querySelectorAll('input[name="repor-tipo"]').forEach(r => { r.checked = false; });
+  document.getElementById('repor-qtd-wrap').style.display = 'none';
+  document.getElementById('repor-qtd').value = '1';
+  document.getElementById('repor-estoque-info').textContent = `Estoque atual nessa base: ${disp}`;
+  document.getElementById('repor-obs').value = '';
+  document.getElementById('repor-alert').innerHTML = '';
+  document.getElementById('modal-repor').classList.remove('hidden');
+}
 
-  const qtdStr = prompt(
-    `Repor "${ferramenta}" no carrinho ${carrinho} (Base ${base}).\n` +
-    `Estoque atual de reposição nessa base: ${disp}\n\n` +
-    `Quantidade a dar baixa do estoque:`,
-    '1'
-  );
-  if (qtdStr === null) return;
-  const qtd = parseInt(qtdStr, 10);
-  if (!qtd || qtd < 1) { showAlert('cart-alert-box', 'rd', '❌ Quantidade inválida.'); return; }
-  if (qtd > disp) {
-    if (!confirm(`⚠️ Estoque insuficiente (disponível: ${disp}, solicitado: ${qtd}).\nProsseguir mesmo assim? (estoque ficará negativo)`)) return;
+function closeReporModal() {
+  document.getElementById('modal-repor').classList.add('hidden');
+  _reporCtx = null;
+}
+
+function onTipoReporChange() {
+  const tipo = document.querySelector('input[name="repor-tipo"]:checked')?.value;
+  document.getElementById('repor-qtd-wrap').style.display = (tipo === 'reposicao') ? 'block' : 'none';
+}
+
+function confirmRepor() {
+  const ctx = _reporCtx;
+  if (!ctx) return;
+  const tipo = document.querySelector('input[name="repor-tipo"]:checked')?.value;
+  if (!tipo) { showAlert('repor-alert', 'rd', '❌ Selecione o tipo de resolução.'); return; }
+  const obs = document.getElementById('repor-obs').value.trim();
+
+  if (tipo === 'reposicao') {
+    const qtd = parseInt(document.getElementById('repor-qtd').value, 10);
+    if (!qtd || qtd < 1) { showAlert('repor-alert', 'rd', '❌ Quantidade inválida.'); return; }
+    if (qtd > ctx.disp) {
+      if (!confirm(`⚠️ Estoque insuficiente (disponível: ${ctx.disp}, solicitado: ${qtd}).\nProsseguir mesmo assim? (estoque fica negativo)`)) return;
+    }
+    executaRepor(ctx, 'reposicao', qtd, obs);
+  } else if (tipo === 'ajuste') {
+    executaRepor(ctx, 'ajuste', 0, obs || 'Ajuste — mecânico marcou sem querer');
   }
-  const obs = prompt('Observação (opcional):', '') || '';
+}
 
-  // 1) baixa no estoque (local + servidor)
-  if (!est[base]) est[base] = {};
-  if (typeof est[base][ferramenta] !== 'number') est[base][ferramenta] = 0;
-  est[base][ferramenta] -= qtd;
-  saveEstoque(est);
-  // sincroniza baixa com GAS
-  const cfg0 = getConfig();
-  if (cfg0.webhookUrl) {
-    gasGet(cfg0.webhookUrl,
-      'action=estoqueAdjust&base=' + encodeURIComponent(base) +
-      '&ferramenta=' + encodeURIComponent(ferramenta) +
-      '&delta=' + (-qtd),
-      (data, err) => {
-        if (err || !data?.ok) console.warn('estoqueAdjust GAS falhou:', err || data);
-      });
+function executaRepor(ctx, tipo, qtd, obs) {
+  const { recId, ferramenta, carrinho, motivo, base } = ctx;
+  const est = getEstoque();
+
+  // 1) baixa no estoque APENAS se for reposição
+  if (tipo === 'reposicao' && qtd > 0) {
+    if (!est[base]) est[base] = {};
+    if (typeof est[base][ferramenta] !== 'number') est[base][ferramenta] = 0;
+    est[base][ferramenta] -= qtd;
+    saveEstoque(est);
+    const cfg0 = getConfig();
+    if (cfg0.webhookUrl) {
+      gasGet(cfg0.webhookUrl,
+        'action=estoqueAdjust&base=' + encodeURIComponent(base) +
+        '&ferramenta=' + encodeURIComponent(ferramenta) +
+        '&delta=' + (-qtd),
+        (data, err) => {
+          if (err || !data?.ok) console.warn('estoqueAdjust GAS falhou:', err || data);
+        });
+    }
   }
 
-  // 2) marca NC como reposta
+  // 2) marca NC como reposta no local
   const rep = getNCRepostas();
-  rep[ncKey(recId, ferramenta)] = { ts: new Date().toISOString(), qtd, obs };
+  rep[ncKey(recId, ferramenta)] = { ts: new Date().toISOString(), qtd, obs, tipo };
   saveNCRepostas(rep);
 
-  // 3) registra histórico
+  // 3) registra histórico (ajuste fica registrado com qtd=0)
   const baixas = getBaixas();
   baixas.unshift({
     id: 'BX-' + Date.now().toString(36).toUpperCase(),
     ts: new Date().toISOString(),
     base, carrinho, ferramenta, motivo, qtd, obs,
+    tipo, // 'reposicao' ou 'ajuste'
     recId
   });
   saveBaixas(baixas);
@@ -2100,21 +2199,26 @@ function reporFerramenta(recId, ferramenta, carrinho, motivo) {
   // 4) Notifica GAS pra marcar a NC como reposta no servidor
   //    (essencial pra o checkin não pré-carregar essa NC de novo)
   const cfg = getConfig();
+  const tipoLabel = tipo === 'reposicao' ? 'Reposição' : 'Ajuste';
   if (!cfg.webhookUrl) {
+    closeReporModal();
     showAlert('cart-alert-box', 'yw',
-      `⚠️ Reposição local ok, mas SEM URL de servidor — a NC vai voltar pros mecânicos. Configure em ⚙️.`);
+      `⚠️ ${tipoLabel} local ok, mas SEM URL de servidor — a NC vai voltar pros mecânicos. Configure em ⚙️.`);
     renderNC(); renderEstoque();
     if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
     return;
   }
-  showAlert('cart-alert-box', 'az', '⏳ Sincronizando com servidor...');
+  showAlert('repor-alert', 'az', '⏳ Sincronizando com servidor...');
   reporNCnoGASComRetry(cfg.webhookUrl, carrinho, ferramenta, 0, (sucesso, err) => {
+    closeReporModal();
     if (sucesso) {
-      showAlert('cart-alert-box', 'gn',
-        `✅ Reposição confirmada no servidor: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`);
+      const msg = tipo === 'reposicao'
+        ? `✅ Reposição confirmada: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`
+        : `✅ Ajuste registrado: NC de ${ferramenta} (${carrinho}) fechada sem mexer no estoque.`;
+      showAlert('cart-alert-box', 'gn', msg);
     } else {
       showAlert('cart-alert-box', 'rd',
-        `❌ Erro ao sincronizar com servidor: ${err || 'sem resposta'}. A NC pode voltar! Clique "🔄 Atualizar" e tente repor de novo.`);
+        `❌ Erro ao sincronizar com servidor: ${err || 'sem resposta'}. A NC pode voltar! Tente de novo.`);
     }
     renderNC(); renderEstoque();
     if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
@@ -2290,15 +2394,24 @@ function renderBaixas() {
   const tbody = document.getElementById('baixas-tbody');
   if (!tbody) return;
   tbody.innerHTML = list.length
-    ? list.slice(0,200).map(b => `<tr>
-        <td style="color:var(--gr);white-space:nowrap;">${fmtDateFull(b.ts)}</td>
-        <td>${b.base}</td>
-        <td><strong>${b.carrinho}</strong></td>
-        <td>${b.ferramenta}</td>
-        <td style="font-size:12px;">${b.motivo||'-'}</td>
-        <td style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--az);">${b.qtd}</td>
-        <td style="font-size:12px;color:var(--gr);">${b.obs||'-'}</td>
-      </tr>`).join('')
+    ? list.slice(0,200).map(b => {
+        const tipo = b.tipo || (b.qtd > 0 ? 'reposicao' : 'ajuste');
+        const tipoTag = tipo === 'reposicao'
+          ? '<span class="badge baz" style="background:rgba(46,194,255,.15);color:var(--az);border:1px solid var(--az);">📦 Reposição</span>'
+          : '<span class="badge" style="background:rgba(245,158,11,.12);color:var(--yw);border:1px solid var(--yw);">🛠 Ajuste</span>';
+        const qtdCell = tipo === 'reposicao'
+          ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--az);">${b.qtd}</span>`
+          : `<span style="color:var(--gr);font-size:12px;">—</span>`;
+        return `<tr>
+          <td style="color:var(--gr);white-space:nowrap;">${fmtDateFull(b.ts)}</td>
+          <td>${b.base}</td>
+          <td><strong>${b.carrinho}</strong></td>
+          <td>${b.ferramenta}</td>
+          <td>${tipoTag}</td>
+          <td>${qtdCell}</td>
+          <td style="font-size:12px;color:var(--gr);">${b.obs||'-'}</td>
+        </tr>`;
+      }).join('')
     : `<tr class="empty-row"><td colspan="7">Nenhuma baixa registrada${f?' nessa base':''}.</td></tr>`;
   document.getElementById('baixas-footer').textContent = `${list.length} baixa(s)${baixas.length!==list.length?` de ${baixas.length} total`:''}`;
 }
