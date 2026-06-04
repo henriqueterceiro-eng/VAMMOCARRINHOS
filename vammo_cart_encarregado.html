@@ -2,7 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vammo Encarregado">
 <title>VAMMO · Encarregado</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -14,86 +19,138 @@
     --wh: #ffffff; --w2: #c8c8c8; --gr: #666;
     --gn: #22c55e; --rd: #ef4444; --yw: #f59e0b;
   }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Barlow', sans-serif; background:var(--bk); color:var(--wh); min-height:100vh; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:'Barlow', sans-serif;
+    background:var(--bk); color:var(--wh);
+    user-select:none; -webkit-user-select:none;
+    overscroll-behavior:none;
+  }
+
+  /* Layout fixo: header em cima, conteúdo embaixo ocupando 100% */
+  #app { display:flex; flex-direction:column; height:100vh; }
 
   .top-bar {
-    height:60px; background:var(--dk);
-    border-bottom:1px solid var(--bd);
+    height:64px; flex-shrink:0;
+    background:var(--dk);
+    border-bottom:2px solid var(--bd);
     display:flex; align-items:center;
-    padding:0 20px; gap:14px;
-    position:sticky; top:0; z-index:40;
+    padding:0 22px; gap:18px;
+    z-index:40;
   }
   .top-bar .logo {
     font-family:'Barlow Condensed', sans-serif;
-    font-weight:900; font-size:20px;
-    letter-spacing:2.5px; color:var(--az);
+    font-weight:900; font-size:26px;
+    letter-spacing:3px; color:var(--az);
     text-transform:uppercase;
   }
-  .top-bar .sep { color:var(--bd); font-size:18px; }
+  .top-bar .sep { color:var(--bd); font-size:22px; }
   .top-bar .title {
     font-family:'Barlow Condensed', sans-serif;
-    font-size:18px; font-weight:800;
-    letter-spacing:2px; text-transform:uppercase;
+    font-size:22px; font-weight:800;
+    letter-spacing:2.5px; text-transform:uppercase;
+    color:var(--wh);
   }
   .top-bar .spacer { flex:1; }
-  .sync-badge { font-size:11px; color:var(--gr); letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; }
-  .top-bar .refresh {
-    padding:6px 12px; background:transparent; border:1px solid var(--bd);
-    border-radius:6px; color:var(--w2); cursor:pointer;
-    font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px;
+  .sync-badge {
+    font-size:13px; color:var(--gr); letter-spacing:1px;
+    font-family:'Barlow Condensed',sans-serif;
+    display:flex; align-items:center; gap:6px;
   }
-  .top-bar .refresh:hover { background:var(--c2); color:var(--az); border-color:var(--az); }
+  .sync-badge .dot { width:10px; height:10px; border-radius:50%; background:var(--gr); }
+  .sync-badge.ok .dot { background:var(--gn); box-shadow:0 0 8px var(--gn); }
+  .sync-badge.loading .dot { background:var(--yw); animation:pulseDot 1s infinite; }
+  @keyframes pulseDot { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+  .top-bar .icon-btn {
+    width:44px; height:44px; border-radius:10px;
+    background:transparent; border:1px solid var(--bd);
+    color:var(--w2); cursor:pointer; font-size:20px;
+    display:flex; align-items:center; justify-content:center;
+    transition:all .15s;
+  }
+  .top-bar .icon-btn:hover, .top-bar .icon-btn:active { background:var(--c2); color:var(--az); border-color:var(--az); }
 
-  .page-body { padding:18px; max-width:1280px; margin:0 auto; }
+  .page-body {
+    flex:1; min-height:0;
+    padding:18px 22px;
+    display:flex; flex-direction:column; gap:14px;
+    overflow:hidden;
+  }
 
   .stat-grid {
-    display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
-    gap:10px; margin-bottom:20px;
+    display:grid; grid-template-columns:repeat(4, 1fr);
+    gap:14px; flex-shrink:0;
   }
-  .stat-card { background:var(--c1); border-radius:12px; border:1px solid var(--bd); padding:14px; }
-  .sc-label { font-size:10px; color:var(--gr); letter-spacing:1.5px; text-transform:uppercase; font-weight:600; margin-bottom:6px; }
-  .sc-num { font-family:'Barlow Condensed', sans-serif; font-size:36px; font-weight:900; line-height:1; }
-  .sc-sub { font-size:11px; color:var(--gr); margin-top:3px; }
+  .stat-card {
+    background:var(--c1); border-radius:14px;
+    border:2px solid var(--bd); padding:18px 20px;
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .sc-label { font-size:12px; color:var(--gr); letter-spacing:2px; text-transform:uppercase; font-weight:700; }
+  .sc-num { font-family:'Barlow Condensed', sans-serif; font-size:54px; font-weight:900; line-height:1; }
+  .sc-sub { font-size:13px; color:var(--w2); }
   .sc-gn { color:var(--gn); } .sc-rd { color:var(--rd); } .sc-yw { color:var(--yw); } .sc-az { color:var(--az); }
+  .stat-card.has-nc { border-color:var(--yw); animation:pulseStatNC 1.6s ease-in-out infinite; }
+  @keyframes pulseStatNC {
+    0%,100% { box-shadow:0 0 0 0 rgba(245,158,11,.4); }
+    50% { box-shadow:0 0 0 8px rgba(245,158,11,0); }
+  }
 
+  /* Grid de cards: usa todo o espaço restante, scroll só quando precisa */
+  #cart-grid-wrap { flex:1; min-height:0; overflow-y:auto; padding-right:4px; }
   .cart-grid {
-    display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
-    gap:10px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));
+    gap:12px;
+  }
+  /* Telas grandes (tablet 1024+ landscape): grid mais denso */
+  @media (min-width: 1024px) {
+    .cart-grid { grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:14px; }
+  }
+  @media (min-width: 1440px) {
+    .cart-grid { grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px; }
   }
   .cart-card-v3 {
     position:relative; cursor:pointer;
-    background:var(--c1); border-radius:12px;
-    border:2px solid var(--bd); padding:14px 16px;
-    transition:transform .15s, border-color .2s;
-    min-height:110px;
+    background:var(--c1); border-radius:14px;
+    border:3px solid var(--bd); padding:16px 18px;
+    transition:transform .15s, border-color .2s, box-shadow .2s;
+    min-height:130px;
     display:flex; flex-direction:column; justify-content:space-between;
   }
-  .cart-card-v3:hover { transform:translateY(-2px); }
-  .cart-card-v3.st-logado { border-color:var(--gn); background:linear-gradient(180deg, rgba(34,197,94,.10), var(--c1)); }
+  .cart-card-v3:active { transform:scale(.97); }
+  .cart-card-v3.st-logado {
+    border-color:var(--gn);
+    background:linear-gradient(180deg, rgba(34,197,94,.15), var(--c1));
+    box-shadow:0 0 14px rgba(34,197,94,.18);
+  }
   .cart-card-v3.st-deslogado { border-color:var(--w2); background:linear-gradient(180deg, rgba(200,200,200,.06), var(--c1)); }
-  .cart-card-v3.st-sem-reg { border-color:var(--bd); opacity:.7; }
+  .cart-card-v3.st-sem-reg { border-color:var(--bd); opacity:.6; }
   .cart-card-v3 .ccv-id {
     font-family:'Barlow Condensed', sans-serif;
-    font-size:26px; font-weight:900;
-    letter-spacing:2px; line-height:1; margin-bottom:4px;
+    font-size:34px; font-weight:900;
+    letter-spacing:2.5px; line-height:1; margin-bottom:6px;
   }
   .cart-card-v3.st-logado .ccv-id { color:var(--gn); }
   .cart-card-v3.st-deslogado .ccv-id { color:var(--w2); }
   .cart-card-v3.st-sem-reg .ccv-id { color:var(--gr); }
-  .cart-card-v3 .ccv-status { font-size:11px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; }
+  .cart-card-v3 .ccv-status {
+    font-size:12px; font-weight:900; letter-spacing:2px;
+    text-transform:uppercase;
+  }
   .cart-card-v3.st-logado .ccv-status { color:var(--gn); }
   .cart-card-v3.st-deslogado .ccv-status { color:var(--w2); }
   .cart-card-v3.st-sem-reg .ccv-status { color:var(--gr); }
-  .cart-card-v3 .ccv-mec { font-size:12px; color:var(--w2); margin-top:4px; line-height:1.3; word-break:break-all; }
-  .cart-card-v3 .ccv-time { font-size:10px; color:var(--gr); margin-top:2px; }
+  .cart-card-v3 .ccv-mec { font-size:13px; color:var(--wh); margin-top:6px; line-height:1.3; word-break:break-word; font-weight:600; }
+  .cart-card-v3 .ccv-time { font-size:11px; color:var(--w2); margin-top:3px; }
   .cart-card-v3 .ccv-flag {
-    position:absolute; top:-8px; right:-8px;
+    position:absolute; top:-10px; right:-10px;
     background:var(--rd); color:var(--wh);
     font-family:'Barlow Condensed', sans-serif;
-    font-size:11px; font-weight:900; letter-spacing:1px;
-    padding:4px 9px; border-radius:999px;
-    box-shadow:0 0 0 2px var(--bk);
+    font-size:13px; font-weight:900; letter-spacing:1px;
+    padding:5px 11px; border-radius:999px;
+    box-shadow:0 0 0 3px var(--bk);
     display:flex; align-items:center; gap:4px; z-index:2;
     animation:pulseNC 1.1s ease-in-out infinite;
   }
@@ -109,21 +166,47 @@
   }
   .modal-ov.hidden { display:none; }
   .modal-box {
-    background:var(--c1); border:1px solid var(--bd); border-radius:16px;
-    max-width:640px; width:100%; max-height:92vh; overflow-y:auto;
-    padding:24px;
+    background:var(--c1); border:1px solid var(--bd); border-radius:18px;
+    max-width:780px; width:100%; max-height:94vh; overflow-y:auto;
+    padding:28px;
   }
   .modal-box h2 {
     font-family:'Barlow Condensed', sans-serif;
-    font-size:24px; font-weight:900; letter-spacing:2px;
-    text-transform:uppercase; margin-bottom:16px;
+    font-size:32px; font-weight:900; letter-spacing:2.5px;
+    text-transform:uppercase; margin-bottom:18px;
     display:flex; align-items:center; gap:12px;
   }
   .modal-close {
-    margin-left:auto; background:transparent; border:none;
-    color:var(--w2); font-size:22px; cursor:pointer; padding:0 6px;
+    margin-left:auto; background:transparent; border:1.5px solid var(--bd);
+    color:var(--w2); font-size:24px; cursor:pointer;
+    width:48px; height:48px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
   }
-  .modal-close:hover { color:var(--rd); }
+  .modal-close:hover { color:var(--rd); border-color:var(--rd); }
+
+  /* Mini histórico de operações */
+  .histo-list {
+    background:var(--c2); border-radius:10px; padding:10px;
+    margin-top:6px;
+  }
+  .histo-item {
+    display:grid; grid-template-columns:48px 1fr auto;
+    align-items:center; gap:10px;
+    padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.05);
+    font-size:13px;
+  }
+  .histo-item:last-child { border-bottom:none; }
+  .histo-icon {
+    width:36px; height:36px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px;
+  }
+  .histo-icon.ci { background:rgba(34,197,94,.18); color:var(--gn); }
+  .histo-icon.co { background:rgba(245,158,11,.18); color:var(--yw); }
+  .histo-icon.force { background:rgba(239,68,68,.18); color:var(--rd); }
+  .histo-mec { color:var(--wh); font-weight:600; line-height:1.2; word-break:break-all; font-size:12.5px; }
+  .histo-sub { font-size:11px; color:var(--gr); margin-top:1px; }
+  .histo-time { font-size:11px; color:var(--w2); text-align:right; white-space:nowrap; }
 
   .detail-row {
     display:flex; padding:8px 0; gap:12px;
@@ -239,8 +322,9 @@
     <div class="sep">·</div>
     <div class="title" id="base-title">–</div>
     <div class="spacer"></div>
-    <div class="sync-badge" id="sync-status">–</div>
-    <button class="refresh" onclick="atualizar()">🔄</button>
+    <div class="sync-badge" id="sync-status"><span class="dot"></span><span id="sync-text">–</span></div>
+    <button class="icon-btn" onclick="atualizar()" title="Atualizar agora">🔄</button>
+    <button class="icon-btn" onclick="toggleFullscreen()" title="Tela cheia (modo kiosk)">⛶</button>
   </div>
 
   <div class="page-body">
@@ -331,11 +415,18 @@ function gasGet(params, cb) {
   document.head.appendChild(script);
 }
 
+function setSyncStatus(state, msg) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.className = 'sync-badge' + (state === 'ok' ? ' ok' : state === 'loading' ? ' loading' : '');
+  document.getElementById('sync-text').textContent = msg;
+}
+
 function carregarTudo() {
-  document.getElementById('sync-status').textContent = '⏳ Carregando...';
+  setSyncStatus('loading', 'Atualizando...');
   let pending = 2;
   function done() { pending--; if (pending === 0) {
-    document.getElementById('sync-status').textContent = '🟢 ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    setSyncStatus('ok', 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
     render();
   }}
   gasGet('action=sync', (data) => {
@@ -347,6 +438,28 @@ function carregarTudo() {
     done();
   });
 }
+
+// Tela cheia + wake-lock pra kiosk em tablet
+let _wakeLock = null;
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+  } catch (e) { console.warn('wakeLock falhou:', e); }
+}
+async function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    try { await document.documentElement.requestFullscreen(); } catch (e) {}
+    requestWakeLock();
+  } else {
+    try { await document.exitFullscreen(); } catch (e) {}
+  }
+}
+// Tenta reativar wakeLock após visibilidade voltar
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && document.fullscreenElement) requestWakeLock();
+});
 function atualizar() { carregarTudo(); }
 
 function computeCartState(nome) {
@@ -404,6 +517,30 @@ function render() {
   }).join('') + '</div>';
 }
 
+function renderMiniHistorico(recsDoCart, max) {
+  max = max || 4;
+  if (!recsDoCart || !recsDoCart.length) {
+    return '<div class="detail-section"><h4>🕒 Histórico</h4><div style="color:var(--gr);font-size:13px;">Nenhuma operação registrada.</div></div>';
+  }
+  const items = recsDoCart.slice(0, max).map(r => {
+    const isForce = r.forced || (r.id && String(r.id).startsWith('VMO-FORCE'));
+    const tipoClass = isForce ? 'force' : (r.tipo === 'checkin' ? 'ci' : 'co');
+    const tipoIcon = isForce ? '🔓' : (r.tipo === 'checkin' ? '🟢' : '⚪');
+    const tipoLabel = isForce ? 'Force checkout' : (r.tipo === 'checkin' ? 'Check-in' : 'Check-out');
+    const obs = r.obs ? ` · ${r.obs}` : '';
+    return `<div class="histo-item">
+      <div class="histo-icon ${tipoClass}">${tipoIcon}</div>
+      <div>
+        <div class="histo-mec">${r.mecanico||'-'}</div>
+        <div class="histo-sub">${tipoLabel}${obs}${r.nc_count ? ` · ${r.nc_count} NC` : ''}</div>
+      </div>
+      <div class="histo-time">${fmtDateFull(r.ts)}</div>
+    </div>`;
+  }).join('');
+  const extra = recsDoCart.length > max ? `<div style="text-align:center;font-size:11px;color:var(--gr);margin-top:8px;">+ ${recsDoCart.length - max} operação(ões) mais antigas</div>` : '';
+  return `<div class="detail-section"><h4>🕒 Últimas operações (${recsDoCart.length})</h4><div class="histo-list">${items}</div>${extra}</div>`;
+}
+
 function openDetail(nome) {
   const st = computeCartState(nome);
   document.getElementById('detail-cart-name').textContent = nome;
@@ -423,6 +560,7 @@ function openDetail(nome) {
 
   const fotosHtml = last && last.fotos ? renderFotos(last.fotos) : '';
   const sigHtml = last && last.assinatura ? renderAssinatura(last.assinatura) : '';
+  const historicoHtml = renderMiniHistorico(recsDoCart, 4);
 
   const statusBadge = st.status === 'logado'
     ? '<span class="badge bgn">LOGADO</span>'
@@ -432,12 +570,8 @@ function openDetail(nome) {
 
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-row"><span class="lbl">Status</span><span class="val">${statusBadge}</span></div>
-    ${last ? `
-      <div class="detail-row"><span class="lbl">Último mec.</span><span class="val">${last.mecanico||'-'}</span></div>
-      <div class="detail-row"><span class="lbl">Operação</span><span class="val">${last.tipo === 'checkin' ? '<span class="badge bgn">CHECK-IN</span>' : '<span class="badge byw">CHECK-OUT</span>'}</span></div>
-      <div class="detail-row"><span class="lbl">Quando</span><span class="val">${fmtDateFull(last.ts)}</span></div>
-    ` : ''}
     ${ncsHtml}
+    ${historicoHtml}
     ${fotosHtml}
     ${sigHtml}
   `;
