@@ -638,13 +638,21 @@
     }
     .est-row {
       display: grid;
-      grid-template-columns: 1fr 56px 30px 30px 30px;
-      align-items: center; gap: 8px;
-      padding: 6px 12px;
+      grid-template-columns: 1fr 50px 75px 28px 28px 28px 28px;
+      align-items: center; gap: 6px;
+      padding: 6px 10px;
       border-top: 1px solid rgba(255,255,255,.04);
       background: var(--c1);
       transition: background .12s;
     }
+    .est-row .er-price {
+      font-family: 'Barlow', sans-serif;
+      font-size: 11px; font-weight: 700; color: var(--w2);
+      text-align: right; padding: 4px 6px;
+      border-radius: 4px; cursor: pointer;
+      transition: background .12s;
+    }
+    .est-row .er-price:hover { background: rgba(46,194,255,.12); color: var(--az); }
     .est-row:first-child { border-top: none; }
     .est-row:hover { background: var(--c2); }
     .est-row .er-name {
@@ -1119,6 +1127,52 @@
   </div>
 </div>
 
+<!-- MODAL: Transferência de Estoque entre Bases -->
+<div class="modal-ov hidden" id="modal-transfer">
+  <div class="modal-box" style="max-width:480px;">
+    <h2 style="margin-bottom:8px;"><button class="modal-close" onclick="closeTransferModal()">✕</button> ↔ Transferir Estoque</h2>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:18px;" id="transfer-info">–</div>
+
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:10px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">De *</div>
+        <select id="transfer-from" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;" onchange="atualizaTransferEstoque()">
+          <option value="Mooca">Mooca</option>
+          <option value="Osasco">Osasco</option>
+          <option value="SBC">SBC</option>
+        </select>
+      </div>
+      <div style="text-align:center;font-size:22px;color:var(--az);padding-bottom:8px;">→</div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Para *</div>
+        <select id="transfer-to" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;">
+          <option value="Mooca">Mooca</option>
+          <option value="Osasco">Osasco</option>
+          <option value="SBC">SBC</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Quantidade a transferir *</div>
+      <input type="number" id="transfer-qtd" min="1" value="1" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;">
+      <div style="font-size:11px;color:var(--gr);margin-top:4px;" id="transfer-saldo-info">–</div>
+    </div>
+
+    <div style="margin-bottom:8px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Observação <span style="font-weight:400;text-transform:none;color:var(--gr);">(opcional)</span></div>
+      <input type="text" id="transfer-obs" placeholder="Ex: urgência manhã, motoboy levou..." class="select-filt" style="width:100%;padding:11px 12px;font-size:13px;">
+    </div>
+
+    <div id="transfer-alert" style="margin-top:14px;"></div>
+
+    <div style="display:flex;gap:10px;margin-top:22px;">
+      <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeTransferModal()">Cancelar</button>
+      <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="confirmTransfer()">↔ Confirmar Transferência</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Resolver NC (Reposição ou Ajuste) -->
 <div class="modal-ov hidden" id="modal-repor">
   <div class="modal-box" style="max-width:480px;">
@@ -1360,6 +1414,17 @@ function getEstoque() {
   return raw;
 }
 function saveEstoque(e) { localStorage.setItem('vammo_estoque', JSON.stringify(e)); }
+
+// Preço unitário por ferramenta (global, igual em todas bases)
+function getPrecos() {
+  try { return JSON.parse(localStorage.getItem('vammo_precos')) || {}; } catch { return {}; }
+}
+function savePrecos(p) { localStorage.setItem('vammo_precos', JSON.stringify(p)); }
+function getPreco(ferr) { return Number(getPrecos()[ferr]) || 0; }
+function fmtMoney(n) {
+  const v = Number(n) || 0;
+  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function getBaixas() { try { return JSON.parse(localStorage.getItem('vammo_baixas')) || []; } catch { return []; } }
 function saveBaixas(a) { localStorage.setItem('vammo_baixas', JSON.stringify(a)); }
@@ -2250,20 +2315,27 @@ function renderEstoque() {
   const est = getEstoque();
   const q = (document.getElementById('est-search')?.value || '').toLowerCase();
 
-  // Stats: totais por base
+  // Stats: totais por base + indicador de gasto financeiro
+  const gastos = gastoPorBase();
   const statsEl = document.getElementById('est-stats');
   if (statsEl) {
-    statsEl.innerHTML = BASES.map(b => {
-      const itens = Object.values(est[b] || {});
-      const total = itens.reduce((s,v) => s + Math.max(0,v), 0);
-      const zerados = itens.filter(v => v === 0).length;
-      const baixos  = itens.filter(v => v > 0 && v < 3).length;
+    const baseCards = BASES.map(b => {
+      const itens = Object.entries(est[b] || {});
+      const totalQtd = itens.reduce((s,[,v]) => s + Math.max(0,v), 0);
+      const valorTotal = itens.reduce((s,[t,v]) => s + Math.max(0,v) * getPreco(t), 0);
+      const zerados = itens.filter(([,v]) => v === 0).length;
       return `<div class="stat-card">
         <div class="sc-label">Base ${b}</div>
-        <div class="sc-num sc-az">${total}</div>
-        <div class="sc-sub">${zerados} zerada(s) · ${baixos} em alerta</div>
+        <div class="sc-num sc-az">${totalQtd}</div>
+        <div class="sc-sub">${fmtMoney(valorTotal)} em estoque · ${zerados} zerada(s)</div>
+        <div class="sc-sub" style="margin-top:6px;color:var(--yw);">💸 Gasto reposições: ${fmtMoney(gastos[b]||0)}</div>
       </div>`;
     }).join('');
+    statsEl.innerHTML = baseCards + `<div class="stat-card" style="border-color:var(--yw);">
+      <div class="sc-label">💸 Gasto Total Reposições</div>
+      <div class="sc-num sc-yw">${fmtMoney(gastos._total||0)}</div>
+      <div class="sc-sub">soma de todas as bases</div>
+    </div>`;
   }
 
   const tabsEl = document.getElementById('est-base-tabs');
@@ -2286,9 +2358,11 @@ function renderEstoque() {
         return `<div class="est-row ${cls}">
           <div class="er-name" title="${t}">${t}</div>
           <div class="er-qtd">${qtd}</div>
+          <div class="er-price" onclick="setPrecoFerramenta(${tEsc})" title="Definir preço">${getPreco(t) ? fmtMoney(getPreco(t)) : '<span style="color:var(--gr);">—</span>'}</div>
           <button onclick="ajustarEstoque('${b}', ${tEsc}, -1)" title="-1">−</button>
           <button onclick="ajustarEstoque('${b}', ${tEsc}, +1)" title="+1">+</button>
           <button onclick="ajustarEstoquePrompt('${b}', ${tEsc})" title="Editar quantidade">✎</button>
+          <button onclick="abrirTransferModal('${b}', ${tEsc})" title="Transferir pra outra base">↔</button>
         </div>`;
       }).join('');
       return `<div class="est-cat-block">
@@ -2382,9 +2456,138 @@ function syncEstoqueFromGAS() {
       });
     });
     saveEstoque(est);
-    // re-renderiza se a aba estoque estiver visível
     if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
   });
+  syncPrecosFromGAS();
+}
+
+let _transferCtx = null;
+
+function abrirTransferModal(baseOrigem, ferramenta) {
+  _transferCtx = { ferramenta };
+  document.getElementById('transfer-info').innerHTML =
+    `<strong>${ferramenta}</strong> · Preço: ${getPreco(ferramenta) ? fmtMoney(getPreco(ferramenta)) : 'não definido'}`;
+  document.getElementById('transfer-from').value = baseOrigem;
+  // destino default = primeira que não é a origem
+  const outras = BASES.filter(b => b !== baseOrigem);
+  document.getElementById('transfer-to').value = outras[0];
+  document.getElementById('transfer-qtd').value = '1';
+  document.getElementById('transfer-obs').value = '';
+  document.getElementById('transfer-alert').innerHTML = '';
+  atualizaTransferEstoque();
+  document.getElementById('modal-transfer').classList.remove('hidden');
+}
+
+function closeTransferModal() {
+  document.getElementById('modal-transfer').classList.add('hidden');
+  _transferCtx = null;
+}
+
+function atualizaTransferEstoque() {
+  if (!_transferCtx) return;
+  const from = document.getElementById('transfer-from').value;
+  const to = document.getElementById('transfer-to').value;
+  const est = getEstoque();
+  const qF = (est[from] && est[from][_transferCtx.ferramenta]) || 0;
+  const qT = (est[to] && est[to][_transferCtx.ferramenta]) || 0;
+  document.getElementById('transfer-saldo-info').innerHTML =
+    `${from}: <strong>${qF}</strong> · ${to}: <strong>${qT}</strong>`;
+}
+
+function confirmTransfer() {
+  if (!_transferCtx) return;
+  const from = document.getElementById('transfer-from').value;
+  const to = document.getElementById('transfer-to').value;
+  const qtd = parseInt(document.getElementById('transfer-qtd').value, 10);
+  const obs = document.getElementById('transfer-obs').value.trim();
+  const ferr = _transferCtx.ferramenta;
+
+  if (from === to) { showAlert('transfer-alert','rd','❌ Origem e destino devem ser diferentes.'); return; }
+  if (!qtd || qtd < 1) { showAlert('transfer-alert','rd','❌ Quantidade inválida.'); return; }
+  const est = getEstoque();
+  const saldoFrom = (est[from] && est[from][ferr]) || 0;
+  if (qtd > saldoFrom) { showAlert('transfer-alert','rd',`❌ Saldo insuficiente em ${from}: tem ${saldoFrom}, precisa ${qtd}.`); return; }
+
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { showAlert('transfer-alert','rd','❌ Servidor não configurado.'); return; }
+
+  showAlert('transfer-alert','az','⏳ Transferindo...');
+  gasGet(cfg.webhookUrl,
+    'action=estoqueTransfer' +
+    '&from=' + encodeURIComponent(from) +
+    '&to=' + encodeURIComponent(to) +
+    '&ferramenta=' + encodeURIComponent(ferr) +
+    '&qtd=' + qtd +
+    '&obs=' + encodeURIComponent(obs) +
+    '&por=gestor',
+    (data, err) => {
+      if (err || !data?.ok) {
+        showAlert('transfer-alert','rd','❌ ' + (err || data?.error || 'falha'));
+        return;
+      }
+      // Atualiza local
+      if (!est[from]) est[from] = {};
+      if (!est[to]) est[to] = {};
+      est[from][ferr] = data.novo_from;
+      est[to][ferr] = data.novo_to;
+      saveEstoque(est);
+      closeTransferModal();
+      renderEstoque();
+      showAlert('est-alert-box','gn',
+        `✅ Transferido ${qtd}× ${ferr}: ${from} (${data.novo_from}) → ${to} (${data.novo_to}).`);
+    });
+}
+
+function syncPrecosFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=precosGet', (data, err) => {
+    if (err || !data?.precos) return;
+    savePrecos(data.precos);
+    if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+  });
+}
+
+function setPrecoFerramenta(ferramenta) {
+  const atual = getPreco(ferramenta);
+  const v = prompt(`Preço unitário de "${ferramenta}" (R$):\nDeixa em branco pra remover.`, atual ? String(atual).replace('.', ',') : '');
+  if (v === null) return;
+  const num = parseFloat(String(v).replace(',', '.'));
+  if (isNaN(num) || num < 0) { showAlert('est-alert-box','rd','❌ Valor inválido.'); return; }
+  const p = getPrecos();
+  p[ferramenta] = num;
+  savePrecos(p);
+  renderEstoque();
+  // Sincroniza com GAS
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) {
+    showAlert('est-alert-box','yw',`⚠ ${ferramenta}: ${fmtMoney(num)} (só local — configure URL pra sincronizar).`);
+    return;
+  }
+  showAlert('est-alert-box','az','⏳ Sincronizando preço...');
+  gasGet(cfg.webhookUrl,
+    'action=precoSet&ferramenta=' + encodeURIComponent(ferramenta) + '&preco=' + num,
+    (data, err) => {
+      if (err || !data?.ok) {
+        showAlert('est-alert-box','rd','❌ Falha ao sincronizar preço.');
+      } else {
+        showAlert('est-alert-box','gn',`✅ ${ferramenta}: ${fmtMoney(num)} sincronizado.`);
+      }
+    });
+}
+
+// Calcula gasto total de reposições por base (soma qtd × preço)
+function gastoPorBase() {
+  const baixas = getBaixas();
+  const out = { Mooca: 0, Osasco: 0, SBC: 0, _total: 0 };
+  baixas.forEach(b => {
+    if (b.tipo === 'ajuste') return; // ajuste não conta gasto
+    const preco = getPreco(b.ferramenta);
+    const v = (Number(b.qtd) || 0) * preco;
+    if (out[b.base] != null) out[b.base] += v;
+    out._total += v;
+  });
+  return out;
 }
 
 function renderBaixas() {
