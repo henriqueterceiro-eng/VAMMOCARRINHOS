@@ -20,16 +20,13 @@
     --gn: #22c55e; --rd: #ef4444; --yw: #f59e0b;
   }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { height:100%; overflow:hidden; }
   body {
     font-family:'Barlow', sans-serif;
     background:var(--bk); color:var(--wh);
+    min-height:100vh;
     user-select:none; -webkit-user-select:none;
-    overscroll-behavior:none;
+    -webkit-overflow-scrolling: touch;
   }
-
-  /* Layout fixo: header em cima, conteúdo embaixo ocupando 100% */
-  #app { display:flex; flex-direction:column; height:100vh; }
 
   .top-bar {
     height:64px; flex-shrink:0;
@@ -37,7 +34,7 @@
     border-bottom:2px solid var(--bd);
     display:flex; align-items:center;
     padding:0 22px; gap:18px;
-    z-index:40;
+    position:sticky; top:0; z-index:40;
   }
   .top-bar .logo {
     font-family:'Barlow Condensed', sans-serif;
@@ -72,10 +69,8 @@
   .top-bar .icon-btn:hover, .top-bar .icon-btn:active { background:var(--c2); color:var(--az); border-color:var(--az); }
 
   .page-body {
-    flex:1; min-height:0;
     padding:18px 22px;
     display:flex; flex-direction:column; gap:14px;
-    overflow:hidden;
   }
 
   .stat-grid {
@@ -97,8 +92,8 @@
     50% { box-shadow:0 0 0 8px rgba(245,158,11,0); }
   }
 
-  /* Grid de cards: usa todo o espaço restante, scroll só quando precisa */
-  #cart-grid-wrap { flex:1; min-height:0; overflow-y:auto; padding-right:4px; }
+  /* Grid de cards — flui naturalmente, página scrolla se passar */
+  #cart-grid-wrap { padding-bottom:30px; }
   .cart-grid {
     display:grid;
     grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));
