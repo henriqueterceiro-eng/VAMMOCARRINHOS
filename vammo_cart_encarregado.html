@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAMMO · Encarregado</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --az: #2EC2FF; --azd: #1a9fd4;
+    --bk: #080808; --dk: #111111;
+    --c1: #1a1a1a; --c2: #242424;
+    --bd: #2e2e2e;
+    --wh: #ffffff; --w2: #c8c8c8; --gr: #666;
+    --gn: #22c55e; --rd: #ef4444; --yw: #f59e0b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Barlow', sans-serif; background:var(--bk); color:var(--wh); min-height:100vh; }
+
+  .top-bar {
+    height:60px; background:var(--dk);
+    border-bottom:1px solid var(--bd);
+    display:flex; align-items:center;
+    padding:0 20px; gap:14px;
+    position:sticky; top:0; z-index:40;
+  }
+  .top-bar .logo {
+    font-family:'Barlow Condensed', sans-serif;
+    font-weight:900; font-size:20px;
+    letter-spacing:2.5px; color:var(--az);
+    text-transform:uppercase;
+  }
+  .top-bar .sep { color:var(--bd); font-size:18px; }
+  .top-bar .title {
+    font-family:'Barlow Condensed', sans-serif;
+    font-size:18px; font-weight:800;
+    letter-spacing:2px; text-transform:uppercase;
+  }
+  .top-bar .spacer { flex:1; }
+  .sync-badge { font-size:11px; color:var(--gr); letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; }
+  .top-bar .refresh {
+    padding:6px 12px; background:transparent; border:1px solid var(--bd);
+    border-radius:6px; color:var(--w2); cursor:pointer;
+    font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px;
+  }
+  .top-bar .refresh:hover { background:var(--c2); color:var(--az); border-color:var(--az); }
+
+  .page-body { padding:18px; max-width:1280px; margin:0 auto; }
+
+  .stat-grid {
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+    gap:10px; margin-bottom:20px;
+  }
+  .stat-card { background:var(--c1); border-radius:12px; border:1px solid var(--bd); padding:14px; }
+  .sc-label { font-size:10px; color:var(--gr); letter-spacing:1.5px; text-transform:uppercase; font-weight:600; margin-bottom:6px; }
+  .sc-num { font-family:'Barlow Condensed', sans-serif; font-size:36px; font-weight:900; line-height:1; }
+  .sc-sub { font-size:11px; color:var(--gr); margin-top:3px; }
+  .sc-gn { color:var(--gn); } .sc-rd { color:var(--rd); } .sc-yw { color:var(--yw); } .sc-az { color:var(--az); }
+
+  .cart-grid {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+    gap:10px;
+  }
+  .cart-card-v3 {
+    position:relative; cursor:pointer;
+    background:var(--c1); border-radius:12px;
+    border:2px solid var(--bd); padding:14px 16px;
+    transition:transform .15s, border-color .2s;
+    min-height:110px;
+    display:flex; flex-direction:column; justify-content:space-between;
+  }
+  .cart-card-v3:hover { transform:translateY(-2px); }
+  .cart-card-v3.st-logado { border-color:var(--gn); background:linear-gradient(180deg, rgba(34,197,94,.10), var(--c1)); }
+  .cart-card-v3.st-deslogado { border-color:var(--w2); background:linear-gradient(180deg, rgba(200,200,200,.06), var(--c1)); }
+  .cart-card-v3.st-sem-reg { border-color:var(--bd); opacity:.7; }
+  .cart-card-v3 .ccv-id {
+    font-family:'Barlow Condensed', sans-serif;
+    font-size:26px; font-weight:900;
+    letter-spacing:2px; line-height:1; margin-bottom:4px;
+  }
+  .cart-card-v3.st-logado .ccv-id { color:var(--gn); }
+  .cart-card-v3.st-deslogado .ccv-id { color:var(--w2); }
+  .cart-card-v3.st-sem-reg .ccv-id { color:var(--gr); }
+  .cart-card-v3 .ccv-status { font-size:11px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; }
+  .cart-card-v3.st-logado .ccv-status { color:var(--gn); }
+  .cart-card-v3.st-deslogado .ccv-status { color:var(--w2); }
+  .cart-card-v3.st-sem-reg .ccv-status { color:var(--gr); }
+  .cart-card-v3 .ccv-mec { font-size:12px; color:var(--w2); margin-top:4px; line-height:1.3; word-break:break-all; }
+  .cart-card-v3 .ccv-time { font-size:10px; color:var(--gr); margin-top:2px; }
+  .cart-card-v3 .ccv-flag {
+    position:absolute; top:-8px; right:-8px;
+    background:var(--rd); color:var(--wh);
+    font-family:'Barlow Condensed', sans-serif;
+    font-size:11px; font-weight:900; letter-spacing:1px;
+    padding:4px 9px; border-radius:999px;
+    box-shadow:0 0 0 2px var(--bk);
+    display:flex; align-items:center; gap:4px; z-index:2;
+    animation:pulseNC 1.1s ease-in-out infinite;
+  }
+  @keyframes pulseNC {
+    0%, 100% { box-shadow:0 0 0 0 rgba(239,68,68,.85), 0 0 0 2px var(--bk); }
+    50%      { box-shadow:0 0 0 12px rgba(239,68,68,0),  0 0 0 2px var(--bk); }
+  }
+
+  .modal-ov {
+    position:fixed; inset:0; background:rgba(0,0,0,.85);
+    z-index:100; display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .modal-ov.hidden { display:none; }
+  .modal-box {
+    background:var(--c1); border:1px solid var(--bd); border-radius:16px;
+    max-width:640px; width:100%; max-height:92vh; overflow-y:auto;
+    padding:24px;
+  }
+  .modal-box h2 {
+    font-family:'Barlow Condensed', sans-serif;
+    font-size:24px; font-weight:900; letter-spacing:2px;
+    text-transform:uppercase; margin-bottom:16px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .modal-close {
+    margin-left:auto; background:transparent; border:none;
+    color:var(--w2); font-size:22px; cursor:pointer; padding:0 6px;
+  }
+  .modal-close:hover { color:var(--rd); }
+
+  .detail-row {
+    display:flex; padding:8px 0; gap:12px;
+    border-bottom:1px solid rgba(255,255,255,.06);
+    font-size:13px;
+  }
+  .detail-row .lbl { color:var(--gr); width:100px; flex-shrink:0; font-size:11px; text-transform:uppercase; letter-spacing:1px; padding-top:2px; }
+  .detail-row .val { flex:1; word-break:break-all; }
+
+  .badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
+  .bgn { background:rgba(34,197,94,.18); color:var(--gn); border:1px solid var(--gn); }
+  .brd { background:rgba(239,68,68,.18); color:var(--rd); border:1px solid var(--rd); }
+  .byw { background:rgba(245,158,11,.18); color:var(--yw); border:1px solid var(--yw); }
+
+  .detail-section { margin-top:18px; }
+  .detail-section h4 {
+    font-family:'Barlow Condensed', sans-serif;
+    font-size:13px; font-weight:800; letter-spacing:1.5px;
+    color:var(--az); text-transform:uppercase; margin-bottom:8px;
+  }
+
+  .photo-thumbs { display:flex; gap:10px; flex-wrap:wrap; }
+  .photo-card { position:relative; width:150px; display:flex; flex-direction:column; }
+  .photo-card .ph-img {
+    width:150px; height:150px; border-radius:10px;
+    object-fit:cover; border:1px solid var(--bd);
+    cursor:zoom-in; background:var(--c2);
+    transition:transform .15s, border-color .15s;
+  }
+  .photo-card .ph-img:hover { border-color:var(--az); transform:scale(1.02); }
+  .photo-card .ph-label { font-size:11px; color:var(--gr); margin-top:6px; text-align:center; }
+  .photo-card .ph-empty {
+    width:150px; height:150px; border-radius:10px;
+    border:1.5px dashed var(--bd); background:var(--c2);
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:4px; color:var(--gr); font-size:11px;
+  }
+  .sig-thumb { max-width:100%; border-radius:8px; border:1px solid var(--bd); background:#fff; }
+
+  .lightbox {
+    position:fixed; inset:0; background:rgba(0,0,0,.94);
+    z-index:9999; display:none; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .lightbox.open { display:flex; }
+  .lightbox img { max-width:96vw; max-height:92vh; border-radius:6px; cursor:zoom-out; }
+  .lightbox-close {
+    position:absolute; top:16px; right:20px;
+    width:44px; height:44px; border-radius:50%;
+    background:rgba(255,255,255,.1); color:var(--wh);
+    border:1px solid rgba(255,255,255,.3); cursor:pointer;
+    font-size:22px; display:flex; align-items:center; justify-content:center;
+  }
+  .lightbox-caption {
+    position:absolute; bottom:16px; left:0; right:0;
+    text-align:center; color:var(--w2); font-size:13px;
+    letter-spacing:1px; text-transform:uppercase;
+    font-family:'Barlow Condensed', sans-serif;
+  }
+
+  .empty-state { text-align:center; padding:40px 20px; color:var(--gr); font-size:14px; }
+  .nc-item {
+    display:flex; align-items:center; gap:10px;
+    padding:8px 12px; border-radius:8px;
+    background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.3);
+    margin-bottom:6px; font-size:13px;
+  }
+
+  /* Tela de escolha de base (1ª vez) */
+  .picker-ov {
+    position:fixed; inset:0; background:var(--bk);
+    z-index:200; display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .picker-box { max-width:420px; width:100%; text-align:center; }
+  .picker-title {
+    font-family:'Barlow Condensed', sans-serif;
+    font-size:32px; font-weight:900; color:var(--az);
+    letter-spacing:3px; text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  .picker-sub { color:var(--w2); font-size:14px; margin-bottom:30px; }
+  .picker-btn {
+    display:block; width:100%; padding:18px;
+    margin-bottom:10px; border-radius:12px;
+    background:var(--c1); border:2px solid var(--bd);
+    color:var(--wh); cursor:pointer;
+    font-family:'Barlow Condensed', sans-serif;
+    font-size:22px; font-weight:900;
+    letter-spacing:3px; text-transform:uppercase;
+    transition:all .2s;
+  }
+  .picker-btn:hover { border-color:var(--az); background:rgba(46,194,255,.08); color:var(--az); }
+</style>
+</head>
+<body>
+
+<!-- TELA 1: Picker de base (mostra só se não tem base definida) -->
+<div class="picker-ov" id="picker" style="display:none;">
+  <div class="picker-box">
+    <div class="picker-title">VAMMO</div>
+    <div class="picker-sub">Selecione a sua base — fica salva no celular</div>
+    <button class="picker-btn" onclick="escolherBase('Mooca')">📍 Base Mooca</button>
+    <button class="picker-btn" onclick="escolherBase('Osasco')">📍 Base Osasco</button>
+    <button class="picker-btn" onclick="escolherBase('SBC')">📍 Base SBC</button>
+  </div>
+</div>
+
+<!-- TELA 2: Visão da base -->
+<div id="app" style="display:none;">
+  <div class="top-bar">
+    <div class="logo">VAMMO</div>
+    <div class="sep">·</div>
+    <div class="title" id="base-title">–</div>
+    <div class="spacer"></div>
+    <div class="sync-badge" id="sync-status">–</div>
+    <button class="refresh" onclick="atualizar()">🔄</button>
+  </div>
+
+  <div class="page-body">
+    <div class="stat-grid" id="stat-grid"></div>
+    <div id="cart-grid-wrap"><div class="empty-state">Carregando…</div></div>
+  </div>
+</div>
+
+<div class="modal-ov hidden" id="modal-detail">
+  <div class="modal-box">
+    <h2><span id="detail-cart-name">–</span><button class="modal-close" onclick="closeDetail()">✕</button></h2>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="if(event.target===this) closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="" onclick="closeLightbox()">
+  <div class="lightbox-caption" id="lightbox-caption">–</div>
+</div>
+
+<script>
+const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
+const BASES = ['Mooca', 'Osasco', 'SBC'];
+const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC' };
+const BASE_COUNT  = { Mooca: 35, Osasco: 50, SBC: 6 };
+
+let _registros = [];
+let _ncsAbertas = [];
+let _base = null;
+
+// Uma vez escolhida, a base TRAVA no celular — nem URL pode trocar.
+// Pra mudar: limpar dados do site no navegador.
+function detectarBase() {
+  const fromLs = localStorage.getItem('vammo_enc_base');
+  if (fromLs && BASES.includes(fromLs)) {
+    _base = fromLs;
+    return _base;
+  }
+  // Primeiro acesso: tenta URL ?base=X, senão picker
+  const params = new URLSearchParams(location.search);
+  const fromUrl = params.get('base');
+  if (fromUrl && BASES.includes(fromUrl)) {
+    _base = fromUrl;
+    localStorage.setItem('vammo_enc_base', fromUrl);
+    return _base;
+  }
+  return null;
+}
+
+function escolherBase(b) {
+  _base = b;
+  localStorage.setItem('vammo_enc_base', b);
+  document.getElementById('picker').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  initApp();
+}
+
+// ─── UTILS ─────────────────────────────────────────────────────
+function normalizeCartName(nome) {
+  const raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
+  const m = raw.match(/^(MC|OC|SC)(\d+)$/);
+  if (!m) return String(nome || '').trim().toUpperCase();
+  return m[1] + ' ' + m[2].padStart(2,'0');
+}
+function fmtDateFull(iso) { return new Date(iso).toLocaleString('pt-BR'); }
+function carrinhosDaBase() {
+  const arr = []; const pre = BASE_PREFIX[_base];
+  for (let i = 1; i <= BASE_COUNT[_base]; i++) {
+    arr.push({ nome: pre + ' ' + String(i).padStart(2,'0'), base: _base });
+  }
+  return arr;
+}
+
+// ─── JSONP ─────────────────────────────────────────────────────
+function gasGet(params, cb) {
+  const cbName = '_gas_' + Date.now() + '_' + Math.floor(Math.random()*9999);
+  const script = document.createElement('script');
+  let done = false;
+  const timer = setTimeout(() => { if (!done) { done=true; cleanup(); cb(null, 'timeout'); } }, 25000);
+  window[cbName] = function(data) { if (!done) { done=true; cleanup(); cb(data, null); } };
+  function cleanup() {
+    clearTimeout(timer); delete window[cbName];
+    if (script.parentNode) script.parentNode.removeChild(script);
+  }
+  script.onerror = function() { if (!done) { done=true; cleanup(); cb(null, 'onerror'); } };
+  script.src = WEBHOOK_URL + '?' + params + '&callback=' + cbName;
+  document.head.appendChild(script);
+}
+
+function carregarTudo() {
+  document.getElementById('sync-status').textContent = '⏳ Carregando...';
+  let pending = 2;
+  function done() { pending--; if (pending === 0) {
+    document.getElementById('sync-status').textContent = '🟢 ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    render();
+  }}
+  gasGet('action=sync', (data) => {
+    if (data && Array.isArray(data.records)) _registros = data.records;
+    done();
+  });
+  gasGet('action=allOpenNCs', (data) => {
+    if (data && Array.isArray(data.ncs)) _ncsAbertas = data.ncs;
+    done();
+  });
+}
+function atualizar() { carregarTudo(); }
+
+function computeCartState(nome) {
+  const nameN = normalizeCartName(nome);
+  const recsDoCart = _registros.filter(r => normalizeCartName(r.carrinho) === nameN);
+  recsDoCart.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  const last = recsDoCart[0] || null;
+  let status = 'sem-reg';
+  if (last) status = last.tipo === 'checkin' ? 'logado' : 'deslogado';
+  const abertas = _ncsAbertas.filter(nc => normalizeCartName(nc.carrinho) === nameN);
+  return { status, last, ncAbertas: abertas };
+}
+
+function render() {
+  document.getElementById('base-title').textContent = 'Encarregado · Base ' + _base;
+  document.title = 'VAMMO · ' + _base;
+
+  const carts = carrinhosDaBase();
+  let totLog=0, totDeslog=0, totSem=0, totNC=0;
+  carts.forEach(c => {
+    const st = computeCartState(c.nome);
+    if (st.status === 'logado') totLog++;
+    else if (st.status === 'deslogado') totDeslog++;
+    else totSem++;
+    if (st.ncAbertas.length > 0) totNC++;
+  });
+
+  document.getElementById('stat-grid').innerHTML = `
+    <div class="stat-card"><div class="sc-label">Logados</div><div class="sc-num sc-gn">${totLog}</div><div class="sc-sub">mecânico em uso</div></div>
+    <div class="stat-card"><div class="sc-label">Deslogados</div><div class="sc-num">${totDeslog}</div><div class="sc-sub">parados</div></div>
+    <div class="stat-card"><div class="sc-label">Com NC aberta</div><div class="sc-num sc-yw">${totNC}</div><div class="sc-sub">requer atenção</div></div>
+    <div class="stat-card"><div class="sc-label">Sem registro</div><div class="sc-num">${totSem}</div><div class="sc-sub">nunca operado</div></div>
+  `;
+
+  const wrap = document.getElementById('cart-grid-wrap');
+  wrap.innerHTML = '<div class="cart-grid">' + carts.map(c => {
+    const st = computeCartState(c.nome);
+    const cls = 'st-' + (st.status === 'logado' ? 'logado' : st.status === 'deslogado' ? 'deslogado' : 'sem-reg');
+    const hasNC = st.ncAbertas.length > 0;
+    const label = st.status === 'logado' ? 'Logado' : st.status === 'deslogado' ? 'Deslogado' : 'Sem registro';
+    const mec = st.last ? st.last.mecanico : '';
+    const hora = st.last ? new Date(st.last.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+    const data = st.last ? new Date(st.last.ts).toLocaleDateString('pt-BR') : '';
+    return `<div class="cart-card-v3 ${cls}" onclick="openDetail('${c.nome}')">
+      ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
+      <div>
+        <div class="ccv-id">${c.nome}</div>
+        <div class="ccv-status">${label}</div>
+      </div>
+      <div>
+        ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
+        ${hora ? `<div class="ccv-time">${data} · ${hora}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function openDetail(nome) {
+  const st = computeCartState(nome);
+  document.getElementById('detail-cart-name').textContent = nome;
+
+  const recsDoCart = _registros.filter(r => normalizeCartName(r.carrinho) === normalizeCartName(nome));
+  recsDoCart.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  const last = recsDoCart[0];
+
+  const ncsHtml = st.ncAbertas.length
+    ? `<div class="detail-section"><h4>⚠ NCs Abertas (${st.ncAbertas.length})</h4>${st.ncAbertas.map(nc => `
+        <div class="nc-item">
+          <span class="badge ${nc.motivo === 'faltando' ? 'byw' : 'brd'}">${nc.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
+          <strong>${nc.ferramenta}</strong>
+          <span style="color:var(--gr);font-size:11px;margin-left:auto;">${nc.mecanico||''}</span>
+        </div>`).join('')}</div>`
+    : '<div class="detail-section"><div style="color:var(--gn);font-size:13px;">✅ Sem NCs em aberto</div></div>';
+
+  const fotosHtml = last && last.fotos ? renderFotos(last.fotos) : '';
+  const sigHtml = last && last.assinatura ? renderAssinatura(last.assinatura) : '';
+
+  const statusBadge = st.status === 'logado'
+    ? '<span class="badge bgn">LOGADO</span>'
+    : st.status === 'deslogado'
+      ? '<span class="badge">DESLOGADO</span>'
+      : '<span class="badge" style="background:var(--c2);color:var(--gr);border:1px solid var(--gr);">SEM REGISTRO</span>';
+
+  document.getElementById('detail-body').innerHTML = `
+    <div class="detail-row"><span class="lbl">Status</span><span class="val">${statusBadge}</span></div>
+    ${last ? `
+      <div class="detail-row"><span class="lbl">Último mec.</span><span class="val">${last.mecanico||'-'}</span></div>
+      <div class="detail-row"><span class="lbl">Operação</span><span class="val">${last.tipo === 'checkin' ? '<span class="badge bgn">CHECK-IN</span>' : '<span class="badge byw">CHECK-OUT</span>'}</span></div>
+      <div class="detail-row"><span class="lbl">Quando</span><span class="val">${fmtDateFull(last.ts)}</span></div>
+    ` : ''}
+    ${ncsHtml}
+    ${fotosHtml}
+    ${sigHtml}
+  `;
+  document.getElementById('modal-detail').classList.remove('hidden');
+}
+function closeDetail() { document.getElementById('modal-detail').classList.add('hidden'); }
+
+function driveFileId(url) {
+  const m1 = /[?&]id=([a-zA-Z0-9_-]{20,})/.exec(url || '');
+  if (m1) return m1[1];
+  const m2 = /\/file\/d\/([a-zA-Z0-9_-]{20,})/.exec(url || '');
+  if (m2) return m2[1];
+  return null;
+}
+function fotoSrc(val, size) {
+  if (!val || typeof val !== 'string') return null;
+  if (val.startsWith('data:')) return val;
+  const fid = driveFileId(val);
+  if (fid) return 'https://drive.google.com/thumbnail?id=' + fid + '&sz=' + (size || 'w400');
+  return val;
+}
+function fotoFullSrc(val) {
+  if (!val || typeof val !== 'string') return null;
+  if (val.startsWith('data:')) return val;
+  const fid = driveFileId(val);
+  if (fid) return 'https://drive.google.com/thumbnail?id=' + fid + '&sz=w2000';
+  return val;
+}
+
+function renderFotos(fotos) {
+  const items = [['sup', 'Gav. Superior'], ['inf', 'Gav. Inferior'], ['elv', '5S Elevador']];
+  return `<div class="detail-section">
+    <h4>📷 Fotos do último registro <span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;margin-left:6px;">clique pra ampliar</span></h4>
+    <div class="photo-thumbs">
+      ${items.map(([k, lbl]) => {
+        const val = fotos[k];
+        const thumb = fotoSrc(val, 'w400');
+        if (!thumb) {
+          if (val === true) {
+            return `<div class="photo-card"><div class="ph-empty" style="border-color:var(--gn);color:var(--gn);">✅<br>capturada<br><span style="color:var(--gr);font-size:10px;">sem preview</span></div><div class="ph-label">${lbl}</div></div>`;
+          }
+          return `<div class="photo-card"><div class="ph-empty">📷<br>sem imagem</div><div class="ph-label">${lbl}</div></div>`;
+        }
+        const fullEscaped = encodeURIComponent(JSON.stringify(val));
+        return `<div class="photo-card">
+          <img class="ph-img" src="${thumb}" alt="${lbl}" loading="lazy"
+            onclick="openLightbox(decodeURIComponent('${fullEscaped}'), '${lbl}')"
+            onerror="this.outerHTML='<div class=&quot;ph-empty&quot; style=&quot;border-color:var(--yw);color:var(--yw);&quot;>⚠️<br>preview falhou</div>'">
+          <div class="ph-label">${lbl}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function renderAssinatura(sig) {
+  if (typeof sig === 'string' && sig.startsWith('data:')) {
+    return `<div class="detail-section"><h4>✍ Assinatura</h4><img class="sig-thumb" src="${sig}" style="max-height:120px;"></div>`;
+  }
+  return `<div class="detail-section"><h4>✍ Assinatura</h4><div style="color:var(--gn);font-size:13px;">✅ Assinatura coletada no celular</div></div>`;
+}
+
+function openLightbox(rawVal, label) {
+  const val = JSON.parse(rawVal);
+  const big = fotoFullSrc(val);
+  if (!big) return;
+  document.getElementById('lightbox-img').src = big;
+  document.getElementById('lightbox-caption').textContent = label || '';
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lightbox-img').src = '';
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('lightbox').classList.contains('open')) closeLightbox();
+  else if (!document.getElementById('modal-detail').classList.contains('hidden')) closeDetail();
+});
+
+function initApp() {
+  render();
+  carregarTudo();
+  setInterval(carregarTudo, 30000);
+}
+
+// ─── INIT ────────────────────────────────────────────────────
+(function bootstrap() {
+  const b = detectarBase();
+  if (!b) {
+    document.getElementById('picker').style.display = 'flex';
+  } else {
+    document.getElementById('app').style.display = 'block';
+    initApp();
+  }
+})();
+</script>
+
+</body>
+</html>
