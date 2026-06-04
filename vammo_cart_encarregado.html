@@ -356,20 +356,20 @@ let _registros = [];
 let _ncsAbertas = [];
 let _base = null;
 
-// Uma vez escolhida, a base TRAVA no celular — nem URL pode trocar.
-// Pra mudar: limpar dados do site no navegador.
+// Prioridade: URL ?base=X (sempre vence) → localStorage → picker.
+// Se ?base= vier explícito, ATUALIZA o localStorage (permite trocar via link).
+// Se abrir sem param, mantém o que tinha salvo (encarregado não muda sozinho).
 function detectarBase() {
-  const fromLs = localStorage.getItem('vammo_enc_base');
-  if (fromLs && BASES.includes(fromLs)) {
-    _base = fromLs;
-    return _base;
-  }
-  // Primeiro acesso: tenta URL ?base=X, senão picker
   const params = new URLSearchParams(location.search);
   const fromUrl = params.get('base');
   if (fromUrl && BASES.includes(fromUrl)) {
     _base = fromUrl;
     localStorage.setItem('vammo_enc_base', fromUrl);
+    return _base;
+  }
+  const fromLs = localStorage.getItem('vammo_enc_base');
+  if (fromLs && BASES.includes(fromLs)) {
+    _base = fromLs;
     return _base;
   }
   return null;
