@@ -376,6 +376,8 @@
       font-weight: 700; margin-bottom: 10px;
       font-family: 'Barlow Condensed', sans-serif;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* Dashboard: período toggle */
     .dash-period-bar {
       grid-column: 1 / -1;
@@ -2589,6 +2591,20 @@ let _currentEstBaseTab = 'Mooca';
 function setEstBaseTab(base) { _currentEstBaseTab = base; renderEstoque(); }
 
 function renderEstoque() {
+  // Loading inicial: enquanto não veio do servidor, mostra placeholder.
+  // Evita que o user veja zeros default e depois pulem pros valores reais.
+  if (!_estoqueSynced) {
+    const statsEl = document.getElementById('est-stats');
+    if (statsEl) statsEl.innerHTML = `<div class="stat-card" style="grid-column:1/-1;text-align:center;padding:24px;">
+      <div style="font-size:14px;color:var(--gr);">⏳ Sincronizando estoque com servidor...</div>
+    </div>`;
+    const sectEl = document.getElementById('est-base-sections');
+    if (sectEl) sectEl.innerHTML = `<div style="padding:40px;text-align:center;color:var(--gr);font-size:14px;">
+      <div class="spinner" style="display:inline-block;width:28px;height:28px;border:3px solid var(--bd);border-top-color:var(--az);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:10px;"></div>
+      <div>Carregando estoque do servidor...</div>
+    </div>`;
+    return;
+  }
   const est = getEstoque();
   const q = (document.getElementById('est-search')?.value || '').toLowerCase();
 
@@ -2715,13 +2731,25 @@ function ajustarEstoquePrompt(base, ferramenta) {
     });
 }
 
-// Puxa estoque do servidor e atualiza cache local
+// Flags de sync — render espera o servidor confirmar antes de mostrar números
+let _estoqueSynced = false;
+let _estoqueSyncing = false;
+
 function syncEstoqueFromGAS() {
   const cfg = getConfig();
-  if (!cfg.webhookUrl) return;
+  if (!cfg.webhookUrl) { _estoqueSynced = true; return; } // sem servidor, libera render do cache
+  _estoqueSyncing = true;
+  // Re-renderiza pra mostrar loading state se a aba estoque estiver aberta
+  if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
   gasGet(cfg.webhookUrl, 'action=estoqueGet', (data, err) => {
-    if (err || !data?.estoque) return;
-    // mescla: GAS é fonte da verdade
+    _estoqueSyncing = false;
+    if (err || !data?.estoque) {
+      // Falha — libera render do cache local (melhor do que travar)
+      _estoqueSynced = true;
+      if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+      return;
+    }
+    // GAS é fonte da verdade — mescla
     const est = defaultEstoque();
     Object.keys(data.estoque).forEach(b => {
       Object.keys(data.estoque[b]).forEach(f => {
@@ -2730,6 +2758,7 @@ function syncEstoqueFromGAS() {
       });
     });
     saveEstoque(est);
+    _estoqueSynced = true;
     if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
   });
   syncPrecosFromGAS();
