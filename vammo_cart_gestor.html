@@ -981,6 +981,7 @@
             <h2>Estoque de Reposição</h2>
             <div class="spacer"></div>
             <input type="text" class="search-inp" id="est-search" placeholder="Filtrar ferramenta..." oninput="renderEstoque()">
+            <button class="btn-sm btn-outline" onclick="zerarContadorGasto()" title="Zerar contador de gasto (game start)">🎮 Zerar gasto</button>
             <button class="btn-sm btn-outline" onclick="exportEstoqueCSV()" title="Exportar estoque em CSV">⬇ CSV</button>
           </div>
           <div style="padding:16px;">
@@ -1468,7 +1469,7 @@ function showPanel(id) {
   if (id === 'registros') renderRegistros();
   if (id === 'nc') renderNC();
   if (id === 'carrinhos') renderCarrinhos();
-  if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); }
+  if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); syncGameStartFromGAS(); }
   if (id === 'nc') syncNCsComServidor(true); // silent: alinha local com servidor ao abrir
   if (id === 'colab') renderColab();
   if (id === 'config') renderConfig();
@@ -2633,18 +2634,60 @@ function setPrecoFerramenta(ferramenta) {
     });
 }
 
-// Calcula gasto total de reposições por base (soma qtd × preço)
+// Timestamp do "game começou" — gasto só conta baixas depois disso
+function getGameStartTs() { return localStorage.getItem('vammo_game_start_ts') || ''; }
+function saveGameStartTs(ts) { localStorage.setItem('vammo_game_start_ts', ts); }
+
+function syncGameStartFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=gameStartGet', (data, err) => {
+    if (err || !data || data.gameStartTs == null) return;
+    const remote = data.gameStartTs;
+    const local = getGameStartTs();
+    if (remote && remote !== local) {
+      saveGameStartTs(remote);
+      if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+    }
+  });
+}
+
+// Calcula gasto total de reposições por base (soma qtd × preço), respeitando game start
 function gastoPorBase() {
   const baixas = getBaixas();
+  const startTs = getGameStartTs();
   const out = { Mooca: 0, Osasco: 0, SBC: 0, _total: 0 };
   baixas.forEach(b => {
     if (b.tipo === 'ajuste') return; // ajuste não conta gasto
+    if (startTs && b.ts < startTs) return; // antes do "game start"
     const preco = getPreco(b.ferramenta);
     const v = (Number(b.qtd) || 0) * preco;
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
   });
   return out;
+}
+
+function zerarContadorGasto() {
+  if (!confirm('🎮 Zerar contador de gasto?\n\nVai marcar AGORA como início do contador.\nBaixas anteriores ficam no histórico mas não contam mais no "Gasto Reposições".\n\nProsseguir?')) return;
+  const ts = new Date().toISOString();
+  saveGameStartTs(ts);
+  renderEstoque();
+  // Tenta gravar no servidor pra sincronizar com outros gestores
+  const cfg = getConfig();
+  if (cfg.webhookUrl) {
+    gasGet(cfg.webhookUrl, 'action=gameReset', (data, err) => {
+      if (err || !data?.ok) {
+        showAlert('est-alert-box', 'yw',
+          `🎮 Contador zerado LOCAL (${new Date(ts).toLocaleString('pt-BR')}). Servidor ainda não confirmou — outros gestores ainda verão valores antigos até o GAS atualizar.`);
+      } else {
+        showAlert('est-alert-box', 'gn',
+          `🎮 Contador zerado pra TODOS! Início: ${new Date(ts).toLocaleString('pt-BR')}.`);
+      }
+    });
+  } else {
+    showAlert('est-alert-box', 'gn', `🎮 Contador zerado local. Início: ${new Date(ts).toLocaleString('pt-BR')}.`);
+  }
 }
 
 function renderBaixas() {
@@ -3332,6 +3375,7 @@ renderDashboard();
 iniciarAutoSync(); // sync automático a cada 30s se URL configurada
 syncEstoqueFromGAS(); // puxa estoque do servidor ao abrir
 syncNCsComServidor(true); // alinha NCs com servidor ao abrir (silencioso)
+syncGameStartFromGAS(); // pega o "início do game" pra contagem de gasto
 
 // Seed data para demonstração se não houver registros
 if (!getRecords().length) {
