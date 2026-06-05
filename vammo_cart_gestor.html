@@ -671,10 +671,8 @@
       font-family: 'Barlow', sans-serif;
       font-size: 11px; font-weight: 700; color: var(--w2);
       text-align: right; padding: 4px 6px;
-      border-radius: 4px; cursor: pointer;
-      transition: background .12s;
+      cursor: default;
     }
-    .est-row .er-price:hover { background: rgba(46,194,255,.12); color: var(--az); }
     .est-row:first-child { border-top: none; }
     .est-row:hover { background: var(--c2); }
     .est-row .er-name {
@@ -2417,7 +2415,7 @@ function renderEstoque() {
         return `<div class="est-row ${cls}">
           <div class="er-name" title="${t}">${t}</div>
           <div class="er-qtd">${qtd}</div>
-          <div class="er-price" onclick="setPrecoFerramenta(${tEsc})" title="Definir preço">${getPreco(t) ? fmtMoney(getPreco(t)) : '<span style="color:var(--gr);">—</span>'}</div>
+          <div class="er-price" title="Preço unitário (fixo — alterações na lista oficial)">${getPreco(t) ? fmtMoney(getPreco(t)) : '<span style="color:var(--gr);">—</span>'}</div>
           <button onclick="ajustarEstoque('${b}', ${tEsc}, -1)" title="-1">−</button>
           <button onclick="ajustarEstoque('${b}', ${tEsc}, +1)" title="+1">+</button>
           <button onclick="ajustarEstoquePrompt('${b}', ${tEsc})" title="Editar quantidade">✎</button>
