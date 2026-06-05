@@ -2858,6 +2858,8 @@ function abrirPedidoModal() {
   document.getElementById('pedido-alert').innerHTML = '';
   renderPedidoItems();
   document.getElementById('modal-pedido').classList.remove('hidden');
+  // garante preços frescos do servidor (re-renderiza ao chegar)
+  syncPrecosFromGAS();
 }
 function closePedidoModal() { document.getElementById('modal-pedido').classList.add('hidden'); }
 
@@ -2893,7 +2895,10 @@ function atualizarPedidoTotal() {
   if (t) t.textContent = `Total: ${fmtMoney(totV)} · ${totQ} unidade${totQ!==1?'s':''}`;
 }
 
+let _pedidoEnviando = false;
 function confirmarPedido() {
+  if (_pedidoEnviando) return;
+  const btn = document.querySelector('#modal-pedido button.btn-az');
   const base = document.getElementById('pedido-base').value;
   const comprovante = document.getElementById('pedido-comprovante').value.trim();
   const por = document.getElementById('pedido-por').value.trim();
@@ -2908,15 +2913,22 @@ function confirmarPedido() {
   if (!itens.length) { showAlert('pedido-alert','yw','⚠ Nenhuma quantidade informada.'); return; }
   const cfg = getConfig();
   if (!cfg.webhookUrl) { showAlert('pedido-alert','rd','❌ Servidor não configurado.'); return; }
-  showAlert('pedido-alert','az','⏳ Registrando...');
+  _pedidoEnviando = true;
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'wait'; btn.textContent = '⏳ Registrando...'; }
+  const idemp = 'p_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+  showAlert('pedido-alert','az','⏳ Registrando... (não clique de novo, GAS pode demorar até 15s)');
   gasGet(cfg.webhookUrl,
     'action=pedidoAdd&base=' + encodeURIComponent(base) +
     '&itens=' + encodeURIComponent(JSON.stringify(itens)) +
     '&comprovante=' + encodeURIComponent(comprovante) +
     '&por=' + encodeURIComponent(por || 'gestor') +
-    '&obs=' + encodeURIComponent(obs),
+    '&obs=' + encodeURIComponent(obs) +
+    '&idemp=' + encodeURIComponent(idemp),
     (data, err) => {
+      _pedidoEnviando = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; btn.textContent = '📦 Registrar Pedido'; }
       if (err || !data?.ok) { showAlert('pedido-alert','rd','❌ ' + (err || data?.error || 'falha')); return; }
+      if (data.dedup) { showAlert('pedido-alert','yw','⚠ Pedido idêntico já registrado nos últimos 60s — ignorado.'); setTimeout(closePedidoModal, 2500); syncEstoqueFromGAS(); return; }
       closePedidoModal();
       showAlert('est-alert-box','gn',`✅ Pedido registrado: ${data.registrados} item(ns) adicionado(s) ao estoque ${base}.`);
       syncEstoqueFromGAS();
@@ -3105,13 +3117,14 @@ function confirmTransfer() {
     });
 }
 
-function syncPrecosFromGAS() {
+function syncPrecosFromGAS(cb) {
   const cfg = getConfig();
-  if (!cfg.webhookUrl) return;
+  if (!cfg.webhookUrl) { if (cb) cb(); return; }
   gasGet(cfg.webhookUrl, 'action=precosGet', (data, err) => {
-    if (err || !data?.precos) return;
-    savePrecos(data.precos);
+    if (!err && data?.precos) savePrecos(data.precos);
     if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+    if (document.getElementById('modal-pedido') && !document.getElementById('modal-pedido').classList.contains('hidden')) renderPedidoItems();
+    if (cb) cb();
   });
 }
 
