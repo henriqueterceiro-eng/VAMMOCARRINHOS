@@ -1633,20 +1633,10 @@ function computeCartState(nome, recs) {
   let status = 'sem-reg';
   if (last) status = last.tipo === 'checkin' ? 'logado' : 'deslogado';
 
-  // NCs abertas: agrega NCs de TODOS os registros desse carrinho e exclui as já repostas
-  const repostas = getNCRepostas();
-  const seen = new Set();
-  const abertas = [];
-  for (const r of recs) {
-    if (normalizeCartName(r.carrinho) !== nameN) continue;
-    ncListFromRec(r).forEach(nc => {
-      // chave por ferramenta — só conta NC mais recente por ferramenta, e ignora se já reposta
-      if (seen.has(nc.ferramenta)) return;
-      seen.add(nc.ferramenta);
-      if (repostas[ncKey(r.id, nc.ferramenta)]) return;
-      abertas.push({ ...nc, recId: r.id, ts: r.ts, mecanico: r.mecanico });
-    });
-  }
+  // NCs abertas vêm do _serverOpenNCs (fonte da verdade) — gestor e encarregado veem o mesmo
+  const abertas = _serverOpenNCs
+    .filter(nc => normalizeCartName(nc.carrinho) === nameN)
+    .map(nc => ({ ferramenta: nc.ferramenta, motivo: nc.motivo, mecanico: nc.mecanico, ts: nc.ts }));
   return { status, last, ncAbertas: abertas };
 }
 
@@ -2149,27 +2139,23 @@ function renderDashboard() {
   `).join('') || '<tr class="empty-row"><td colspan="4">Nenhum registro</td></tr>';
   document.getElementById('dash-recent').innerHTML = recentHtml;
 
-  const ncRecs = recs.filter(r => r.nc_count > 0).slice(0, 6);
-  if (!ncRecs.length) {
-    document.getElementById('dash-nc').innerHTML = '<div style="padding:24px;text-align:center;color:var(--gr);font-size:14px;">✅ Sem não conformidades recentes</div>';
+  // NCs do dashboard puxam do servidor (fonte da verdade)
+  const ncsServer = _serverOpenNCs.slice().sort((a,b) => new Date(b.ts) - new Date(a.ts)).slice(0, 8);
+  if (!ncsServer.length) {
+    document.getElementById('dash-nc').innerHTML = '<div style="padding:24px;text-align:center;color:var(--gr);font-size:14px;">✅ Sem não conformidades abertas</div>';
     return;
   }
-  document.getElementById('dash-nc').innerHTML = ncRecs.flatMap(r =>
-    Object.entries(r.ferramentas || {})
-      .filter(([,v]) => v.status === 'nao_ok')
-      .slice(0, 2)
-      .map(([k,v]) => `
-        <div class="nc-card">
-          <div class="nc-icon">${v.motivo === 'faltando' ? '❓' : '💔'}</div>
-          <div>
-            <div class="nc-cart">Carrinho ${normalizeCartName(r.carrinho)}</div>
-            <div class="nc-tool">${k}</div>
-            <div class="nc-meta">${r.mecanico} · ${fmtDate(r.ts)}</div>
-          </div>
-          <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}" style="margin-left:auto;flex-shrink:0">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
-        </div>
-      `)
-  ).join('');
+  document.getElementById('dash-nc').innerHTML = ncsServer.map(nc => `
+    <div class="nc-card">
+      <div class="nc-icon">${nc.motivo === 'faltando' ? '❓' : '💔'}</div>
+      <div>
+        <div class="nc-cart">Carrinho ${normalizeCartName(nc.carrinho)}</div>
+        <div class="nc-tool">${nc.ferramenta}</div>
+        <div class="nc-meta">${nc.mecanico||'-'} · ${fmtDate(nc.ts)}</div>
+      </div>
+      <span class="badge ${nc.motivo === 'faltando' ? 'byw' : 'brd'}" style="margin-left:auto;flex-shrink:0">${nc.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
+    </div>
+  `).join('');
 
   // footer sync info
   const cfg = getConfig();
@@ -2220,6 +2206,9 @@ function renderRegistros() {
 // todas as NCs (em todos os registros) que NÃO estão mais abertas no server.
 // Útil quando o local diverge do server (ex: mecânico resolveu via app dele,
 // ou houve falha de sincronia anterior).
+// Cache global das NCs abertas no servidor — fonte da verdade pra gestor e encarregado
+let _serverOpenNCs = [];
+
 function syncNCsComServidor(silent) {
   const cfg = getConfig();
   if (!cfg.webhookUrl) {
@@ -2232,6 +2221,7 @@ function syncNCsComServidor(silent) {
       if (!silent) showAlert('nc-alert-box','rd','❌ ' + (err || 'sem resposta'));
       return;
     }
+    _serverOpenNCs = data.ncs; // cache
     const abertas = new Set(data.ncs.map(nc => normalizeCartName(nc.carrinho) + '|' + nc.ferramenta));
     const recs = getRecords();
     const rep = getNCRepostas();
@@ -2249,7 +2239,6 @@ function syncNCsComServidor(silent) {
       });
     });
     saveNCRepostas(rep);
-    // Re-renderiza painéis abertos
     const activePanel = document.querySelector('.panel.active')?.id;
     if (activePanel === 'panel-nc') renderNC();
     if (activePanel === 'panel-carrinhos') renderCarrinhos();
@@ -2354,53 +2343,42 @@ function confirmarResolverMassa() {
 }
 
 function renderNC() {
-  const recs = getRecords();
   const filtMotivo = document.getElementById('nc-filt-motivo')?.value || '';
-  const repostas = getNCRepostas();
 
-  // Expande NCs e DEDUPLICA por (carrinho, ferramenta).
-  // Mesma ferramenta aparece em vários registros → mostra só 1 linha (a mais
-  // recente que ainda está aberta; se TODAS as ocorrências estão repostas,
-  // mostra como "✓ Reposta").
-  const byKey = new Map(); // "cart|ferramenta" → entry
-  recs.forEach(r => {
-    Object.entries(r.ferramentas || {}).forEach(([ferr, v]) => {
-      if (!v || v.status !== 'nao_ok') return;
-      const cartN = normalizeCartName(r.carrinho);
-      const key = cartN + '|' + ferr;
-      const reposta = !!repostas[ncKey(r.id, ferr)];
-      const entry = {
-        recId: r.id, ts: r.ts, carrinho: r.carrinho, mecanico: r.mecanico,
-        turno: r.turno, ferramenta: ferr, motivo: v.motivo || 'nc',
-        reposta, ocorrencias: 1
-      };
-      const ex = byKey.get(key);
-      if (!ex) { byKey.set(key, entry); return; }
-      ex.ocorrencias++;
-      // Se a NOVA é aberta, ela ganha (representa o "estado atual" do problema)
-      // Se ambas iguais, fica a mais recente
-      const novaMaisRecente = new Date(r.ts) > new Date(ex.ts);
-      if ((!reposta && ex.reposta) || (reposta === ex.reposta && novaMaisRecente)) {
-        ex.recId = entry.recId; ex.ts = entry.ts;
-        ex.mecanico = entry.mecanico; ex.turno = entry.turno;
-        ex.motivo = entry.motivo; ex.reposta = reposta;
-      }
-    });
-  });
+  // FONTE DA VERDADE: _serverOpenNCs (allOpenNCs do GAS). Gestor e encarregado
+  // veem exatamente a mesma coisa porque ambos puxam do mesmo lugar.
+  // Locais são usados só pra enriquecer (mecânico original, info de motivo).
+  const localRecs = getRecords();
+  const ncs = _serverOpenNCs.map(nc => {
+    const cartN = normalizeCartName(nc.carrinho);
+    // Procura registros locais que tem essa ferramenta marcada nao_ok pra esse carrinho
+    const matches = localRecs
+      .filter(r => normalizeCartName(r.carrinho) === cartN
+                  && r.ferramentas?.[nc.ferramenta]?.status === 'nao_ok')
+      .sort((a,b) => new Date(b.ts) - new Date(a.ts));
+    const last = matches[0];
+    return {
+      carrinho: nc.carrinho,
+      ferramenta: nc.ferramenta,
+      motivo: nc.motivo || (last && last.ferramentas?.[nc.ferramenta]?.motivo) || 'nc',
+      mecanico: nc.mecanico || (last && last.mecanico) || '',
+      ts: nc.ts || (last && last.ts) || '',
+      recId: last ? last.id : '',
+      ocorrencias: matches.length || 1,
+      reposta: false // tudo do _serverOpenNCs é, por definição, aberto
+    };
+  }).sort((a,b) => new Date(b.ts) - new Date(a.ts));
 
-  const ncs = Array.from(byKey.values()).sort((a,b) => new Date(b.ts) - new Date(a.ts));
   const filtered = ncs.filter(nc => !filtMotivo || nc.motivo === filtMotivo);
 
-  // Stats (já deduplicado!)
-  const abertas = ncs.filter(n => !n.reposta);
+  const abertas = ncs;
   const faltando = abertas.filter(n => n.motivo === 'faltando').length;
   const quebrado = abertas.filter(n => n.motivo === 'quebrado').length;
-  const repostasN = ncs.filter(n => n.reposta).length;
   document.getElementById('nc-stats').innerHTML = `
     <div class="stat-card"><div class="sc-label">NCs abertas</div><div class="sc-num sc-rd">${abertas.length}</div><div class="sc-sub">aguardam reposição</div></div>
     <div class="stat-card"><div class="sc-label">Faltando</div><div class="sc-num sc-yw">${faltando}</div><div class="sc-sub">ocorrências abertas</div></div>
     <div class="stat-card"><div class="sc-label">Quebrado</div><div class="sc-num sc-rd">${quebrado}</div><div class="sc-sub">ocorrências abertas</div></div>
-    <div class="stat-card"><div class="sc-label">Repostas</div><div class="sc-num sc-gn">${repostasN}</div><div class="sc-sub">total histórico</div></div>
+    <div class="stat-card"><div class="sc-label">Sincronia</div><div class="sc-num sc-az" style="font-size:18px;">🟢 Live</div><div class="sc-sub">do servidor</div></div>
   `;
 
   const tbody = document.getElementById('nc-tbody');
@@ -2408,16 +2386,14 @@ function renderNC() {
   tbody.innerHTML = filtered.length
     ? filtered.map(nc => {
         const base = getCartBase(nc.carrinho);
-        const btn = nc.reposta
-          ? `<button class="btn-repor" disabled>✓ Reposta</button>`
-          : `<button class="btn-repor" onclick="reporFerramenta('${nc.recId}', ${JSON.stringify(nc.ferramenta).replace(/"/g,'&quot;')}, '${nc.carrinho}', '${nc.motivo}')">↻ Repor</button>`;
+        const btn = `<button class="btn-repor" onclick="reporFerramenta('${nc.recId||''}', ${JSON.stringify(nc.ferramenta).replace(/"/g,'&quot;')}, '${nc.carrinho}', '${nc.motivo}')">↻ Repor</button>`;
         const motivoBadge = nc.motivo === 'faltando'
           ? '<span class="badge byw">Faltando</span>'
           : nc.motivo === 'quebrado'
             ? '<span class="badge brd">Quebrado</span>'
             : `<span class="badge">${nc.motivo}</span>`;
         const ocBadge = nc.ocorrencias > 1
-          ? `<span class="badge" style="background:var(--c2);color:var(--w2);border:1px solid var(--bd);margin-left:6px;" title="Aparece em ${nc.ocorrencias} registros">×${nc.ocorrencias}</span>`
+          ? `<span class="badge" style="background:var(--c2);color:var(--w2);border:1px solid var(--bd);margin-left:6px;" title="Aparece em ${nc.ocorrencias} registros locais">×${nc.ocorrencias}</span>`
           : '';
         return `<tr>
           <td>${nc.ferramenta}${ocBadge}</td>
@@ -2430,7 +2406,7 @@ function renderNC() {
       }).join('')
     : `<tr class="empty-row"><td colspan="6">Nenhuma não-conformidade encontrada.</td></tr>`;
 
-  document.getElementById('nc-footer').textContent = `${filtered.length} NC(s) única(s) · ${abertas.length} aberta(s) · ${repostasN} reposta(s)`;
+  document.getElementById('nc-footer').textContent = `${filtered.length} NC(s) abertas no servidor`;
 }
 
 // Sobrescreve thead da NC pra incluir coluna Ações
