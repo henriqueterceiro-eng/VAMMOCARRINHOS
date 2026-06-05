@@ -1224,6 +1224,7 @@
         <option value="Mooca">Mooca</option>
         <option value="Osasco">Osasco</option>
         <option value="SBC">SBC</option>
+        <option value="Estoque Mooca">📦 Estoque Mooca (reserva)</option>
       </select>
 
       <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Comprovante *</div>
@@ -1263,6 +1264,7 @@
         <option value="Mooca">Mooca</option>
         <option value="Osasco">Osasco</option>
         <option value="SBC">SBC</option>
+        <option value="Estoque Mooca">📦 Estoque Mooca (reserva)</option>
       </select>
 
       <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Conferente</div>
@@ -1297,15 +1299,17 @@
           <option value="Mooca">Mooca</option>
           <option value="Osasco">Osasco</option>
           <option value="SBC">SBC</option>
+          <option value="Estoque Mooca">📦 Estoque Mooca</option>
         </select>
       </div>
       <div style="text-align:center;font-size:22px;color:var(--az);padding-bottom:8px;">→</div>
       <div>
         <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Para *</div>
-        <select id="transfer-to" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;">
+        <select id="transfer-to" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;" onchange="atualizaTransferEstoque()">
           <option value="Mooca">Mooca</option>
           <option value="Osasco">Osasco</option>
           <option value="SBC">SBC</option>
+          <option value="Estoque Mooca">📦 Estoque Mooca</option>
         </select>
       </div>
     </div>
@@ -1472,6 +1476,8 @@ function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c))
 
 // ─── BASES ────────────────────────────────────────────────────────────────────
 const BASES = ['Mooca', 'Osasco', 'SBC'];
+// Bases que recebem estoque (inclui overflow do armário Mooca). Carrinhos só usam BASES.
+const ESTOQUE_BASES = ['Mooca', 'Osasco', 'SBC', 'Estoque Mooca'];
 const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC' };
 const BASE_COUNT  = { Mooca: 35,   Osasco: 50,   SBC: 6   };
 
@@ -1574,7 +1580,7 @@ function flatTools() { return TOOLS_CATALOG.flatMap(c => c.items); }
 
 function defaultEstoque() {
   const e = {};
-  BASES.forEach(b => {
+  ESTOQUE_BASES.forEach(b => {
     e[b] = {};
     flatTools().forEach(t => { e[b][t] = 0; });
   });
@@ -1588,7 +1594,7 @@ function getEstoque() {
     localStorage.setItem('vammo_estoque', JSON.stringify(def));
     return def;
   }
-  BASES.forEach(b => {
+  ESTOQUE_BASES.forEach(b => {
     if (!raw[b]) raw[b] = {};
     flatTools().forEach(t => { if (typeof raw[b][t] !== 'number') raw[b][t] = 0; });
   });
@@ -2706,16 +2712,19 @@ function renderEstoque() {
   const gastos = gastoPorBase();
   const statsEl = document.getElementById('est-stats');
   if (statsEl) {
-    const baseCards = BASES.map(b => {
+    const baseCards = ESTOQUE_BASES.map(b => {
       const itens = Object.entries(est[b] || {});
       const totalQtd = itens.reduce((s,[,v]) => s + Math.max(0,v), 0);
       const valorTotal = itens.reduce((s,[t,v]) => s + Math.max(0,v) * getPreco(t), 0);
       const zerados = itens.filter(([,v]) => v === 0).length;
-      return `<div class="stat-card">
-        <div class="sc-label">Base ${b}</div>
-        <div class="sc-num sc-az">${totalQtd}</div>
+      const isReserva = (b === 'Estoque Mooca');
+      const label = isReserva ? '📦 Reserva Mooca' : ('Base ' + b);
+      const gastoLine = isReserva ? '' : `<div class="sc-sub" style="margin-top:6px;color:var(--yw);">💸 Gasto reposições: ${fmtMoney(gastos[b]||0)}</div>`;
+      return `<div class="stat-card" ${isReserva?'style="border-color:var(--w2);"':''}>
+        <div class="sc-label">${label}</div>
+        <div class="sc-num ${isReserva?'sc-w2':'sc-az'}">${totalQtd}</div>
         <div class="sc-sub">${fmtMoney(valorTotal)} em estoque · ${zerados} zerada(s)</div>
-        <div class="sc-sub" style="margin-top:6px;color:var(--yw);">💸 Gasto reposições: ${fmtMoney(gastos[b]||0)}</div>
+        ${gastoLine}
       </div>`;
     }).join('');
     statsEl.innerHTML = baseCards + `<div class="stat-card" style="border-color:var(--yw);">
@@ -2729,11 +2738,12 @@ function renderEstoque() {
   const sectEl = document.getElementById('est-base-sections');
   if (!tabsEl || !sectEl) return;
 
-  tabsEl.innerHTML = BASES.map(b =>
-    `<button class="base-tab ${b===_currentEstBaseTab?'active':''}" onclick="setEstBaseTab('${b}')">${b}</button>`
-  ).join('');
+  tabsEl.innerHTML = ESTOQUE_BASES.map(b => {
+    const label = (b === 'Estoque Mooca') ? '📦 Estoque Mooca' : b;
+    return `<button class="base-tab ${b===_currentEstBaseTab?'active':''}" onclick="setEstBaseTab('${b}')">${label}</button>`;
+  }).join('');
 
-  sectEl.innerHTML = BASES.map(b => {
+  sectEl.innerHTML = ESTOQUE_BASES.map(b => {
     const baseEst = est[b] || {};
     const catsHtml = TOOLS_CATALOG.map(cat => {
       const items = cat.items.filter(t => !q || t.toLowerCase().includes(q));
@@ -3066,9 +3076,12 @@ function abrirTransferModal(baseOrigem, ferramenta) {
   document.getElementById('transfer-info').innerHTML =
     `<strong>${ferramenta}</strong> · Preço: ${getPreco(ferramenta) ? fmtMoney(getPreco(ferramenta)) : 'não definido'}`;
   document.getElementById('transfer-from').value = baseOrigem;
-  // destino default = primeira que não é a origem
-  const outras = BASES.filter(b => b !== baseOrigem);
-  document.getElementById('transfer-to').value = outras[0];
+  // destino default: se origem for Mooca, sugere Estoque Mooca (e vice-versa); senão a primeira diferente
+  let destDefault;
+  if (baseOrigem === 'Mooca') destDefault = 'Estoque Mooca';
+  else if (baseOrigem === 'Estoque Mooca') destDefault = 'Mooca';
+  else destDefault = ESTOQUE_BASES.filter(b => b !== baseOrigem)[0];
+  document.getElementById('transfer-to').value = destDefault;
   document.getElementById('transfer-qtd').value = '1';
   document.getElementById('transfer-obs').value = '';
   document.getElementById('transfer-alert').innerHTML = '';
