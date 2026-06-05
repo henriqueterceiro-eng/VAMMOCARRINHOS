@@ -958,6 +958,7 @@
             <div class="spacer"></div>
             <button class="btn-sm btn-outline" onclick="syncNCsComServidor()" title="Alinhar com o servidor (resolve discrepâncias)">🩺 Sincronizar com servidor</button>
             <button class="btn-sm btn-outline" onclick="resolverNCsEmMassa()" title="Marcar várias NCs como repostas de uma vez">✔ Resolver em massa</button>
+            <button class="btn-sm btn-outline" onclick="abrirHistoricoNCs()" title="Log de NCs resolvidas — quem fechou, quando">📋 Histórico</button>
             <select class="select-filt" id="nc-filt-motivo" onchange="renderNC()">
               <option value="">Todos</option>
               <option value="faltando">Faltando</option>
@@ -1352,6 +1353,11 @@
       <div style="font-size:11px;color:var(--gr);margin-top:4px;" id="repor-estoque-info">–</div>
     </div>
 
+    <div style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Resolvido por *</div>
+      <input type="text" id="repor-por" placeholder="Seu nome" class="select-filt" style="width:100%;padding:11px 12px;font-size:13px;">
+    </div>
+
     <div style="margin-bottom:8px;">
       <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Observação <span style="font-weight:400;text-transform:none;color:var(--gr);">(opcional)</span></div>
       <input type="text" id="repor-obs" placeholder="Ex: ferramenta nova de SBC, ou mecânico achou..." class="select-filt" style="width:100%;padding:11px 12px;font-size:13px;">
@@ -1363,6 +1369,25 @@
       <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeReporModal()">Cancelar</button>
       <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="confirmRepor()">↻ Confirmar</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL: Histórico de NCs Resolvidas -->
+<div class="modal-ov hidden" id="modal-historico-ncs">
+  <div class="modal-box" style="max-width:820px;">
+    <h2 style="margin-bottom:8px;"><button class="modal-close" onclick="closeHistoricoNCs()">✕</button> 📋 Histórico de NCs Resolvidas</h2>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:14px;">Log de auditoria — quem fechou cada NC, quando e por que.</div>
+
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+      <input type="text" id="histo-search" placeholder="Filtrar (carrinho, ferramenta, quem...)" oninput="renderHistoricoNCs()" class="select-filt" style="flex:1;min-width:200px;padding:8px 12px;font-size:13px;">
+      <button class="btn-sm btn-outline" onclick="exportHistoricoNCsCSV()">⬇ CSV</button>
+    </div>
+
+    <div id="histo-alert" style="margin-bottom:10px;"></div>
+    <div id="histo-body" style="max-height:60vh;overflow-y:auto;">
+      <div style="padding:30px;text-align:center;color:var(--gr);">⏳ Carregando...</div>
+    </div>
+    <div style="font-size:11px;color:var(--gr);text-align:right;margin-top:8px;" id="histo-footer">–</div>
   </div>
 </div>
 
@@ -2208,6 +2233,81 @@ function renderRegistros() {
 // ou houve falha de sincronia anterior).
 // Cache global das NCs abertas no servidor — fonte da verdade pra gestor e encarregado
 let _serverOpenNCs = [];
+// Cache do histórico de NCs resolvidas
+let _historicoNCs = [];
+
+function abrirHistoricoNCs() {
+  document.getElementById('histo-search').value = '';
+  document.getElementById('histo-alert').innerHTML = '';
+  document.getElementById('histo-body').innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);">⏳ Carregando...</div>';
+  document.getElementById('modal-historico-ncs').classList.remove('hidden');
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { showAlert('histo-alert','rd','❌ URL do servidor não configurada.'); return; }
+  gasGet(cfg.webhookUrl, 'action=ncsResolvidasGet', (data, err) => {
+    if (err || !data?.ncs) {
+      document.getElementById('histo-body').innerHTML = '<div style="padding:30px;text-align:center;color:var(--rd);">❌ ' + (err || 'erro ao carregar') + '</div>';
+      return;
+    }
+    _historicoNCs = data.ncs;
+    renderHistoricoNCs();
+  });
+}
+
+function closeHistoricoNCs() {
+  document.getElementById('modal-historico-ncs').classList.add('hidden');
+}
+
+function renderHistoricoNCs() {
+  const q = (document.getElementById('histo-search')?.value || '').toLowerCase().trim();
+  const filtered = _historicoNCs.filter(nc => {
+    if (!q) return true;
+    return (nc.carrinho + ' ' + nc.ferramenta + ' ' + nc.motivo + ' ' + nc.mecanico + ' ' + nc.reposta_por).toLowerCase().includes(q);
+  });
+  const body = document.getElementById('histo-body');
+  if (!filtered.length) {
+    body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);">Nenhuma NC resolvida' + (q?' encontrada':'') + '.</div>';
+  } else {
+    body.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="text-align:left;color:var(--gr);font-size:10px;text-transform:uppercase;letter-spacing:1px;">
+        <th style="padding:6px;border-bottom:1px solid var(--bd);">Quando</th>
+        <th style="padding:6px;border-bottom:1px solid var(--bd);">Carrinho</th>
+        <th style="padding:6px;border-bottom:1px solid var(--bd);">Ferramenta</th>
+        <th style="padding:6px;border-bottom:1px solid var(--bd);">Problema</th>
+        <th style="padding:6px;border-bottom:1px solid var(--bd);">Reg. por</th>
+        <th style="padding:6px;border-bottom:1px solid var(--bd);">Resolvida por</th>
+      </tr></thead>
+      <tbody>
+      ${filtered.map(nc => {
+        const motCls = nc.motivo === 'faltando' ? 'byw' : 'brd';
+        const motTxt = nc.motivo === 'faltando' ? 'Faltando' : nc.motivo === 'quebrado' ? 'Quebrado' : nc.motivo;
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,.04);">
+          <td style="padding:8px 6px;color:var(--w2);white-space:nowrap;">${fmtDateFull(nc.reposta_ts)}</td>
+          <td style="padding:8px 6px;"><strong>${normalizeCartName(nc.carrinho)}</strong></td>
+          <td style="padding:8px 6px;">${nc.ferramenta}</td>
+          <td style="padding:8px 6px;"><span class="badge ${motCls}">${motTxt}</span></td>
+          <td style="padding:8px 6px;color:var(--gr);font-size:12px;">${nc.mecanico||'-'}</td>
+          <td style="padding:8px 6px;color:var(--gn);font-weight:700;">${nc.reposta_por||'gestor'}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>`;
+  }
+  document.getElementById('histo-footer').textContent = `${filtered.length} de ${_historicoNCs.length} resolução(ões)`;
+}
+
+function exportHistoricoNCsCSV() {
+  const rows = [['Resolvida_TS','Carrinho','Ferramenta','Motivo','Registrada_por','Registrada_TS','Resolvida_por']];
+  _historicoNCs.forEach(nc => rows.push([
+    nc.reposta_ts, nc.carrinho, nc.ferramenta, nc.motivo,
+    nc.mecanico, nc.ts, nc.reposta_por
+  ]));
+  const csv = rows.map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `vammo_ncs_resolvidas_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
 
 function syncNCsComServidor(silent) {
   const cfg = getConfig();
@@ -2307,6 +2407,10 @@ function confirmarResolverMassa() {
     .map(c => ncs[parseInt(c.dataset.idx, 10)])
     .filter(Boolean);
   if (!checked.length) { showAlert('nc-alert-box','yw','⚠️ Nada selecionado.'); return; }
+  const nomeAtual = localStorage.getItem('vammo_gestor_nome') || '';
+  const por = prompt(`Quem está resolvendo ${checked.length} NC(s) em massa?`, nomeAtual);
+  if (!por || !por.trim()) { showAlert('nc-alert-box','yw','⚠️ Cancelado — nome obrigatório.'); return; }
+  localStorage.setItem('vammo_gestor_nome', por.trim());
   closeDetail();
   const cfg = getConfig();
   showAlert('nc-alert-box','az',`⏳ Resolvendo ${checked.length} NC(s)...`);
@@ -2315,7 +2419,7 @@ function confirmarResolverMassa() {
     gasGet(cfg.webhookUrl,
       'action=reporNC&cart=' + encodeURIComponent(nc.carrinho) +
       '&ferramenta=' + encodeURIComponent(nc.ferramenta) +
-      '&supervisor=gestor-massa',
+      '&supervisor=' + encodeURIComponent(por.trim() + ' (Em massa)'),
       (data, err) => {
         done++;
         if (!err && data?.ok) ok++; else fail++;
@@ -2428,7 +2532,6 @@ function reporFerramenta(recId, ferramenta, carrinho, motivo) {
   const est = getEstoque();
   const disp = (est[base] && typeof est[base][ferramenta] === 'number') ? est[base][ferramenta] : 0;
   _reporCtx = { recId, ferramenta, carrinho, motivo, base, disp };
-  // Reset modal state
   document.getElementById('repor-cart-info').innerHTML =
     `<strong>${ferramenta}</strong> · Carrinho <strong>${carrinho}</strong> · Base ${base}`;
   document.querySelectorAll('input[name="repor-tipo"]').forEach(r => { r.checked = false; });
@@ -2436,6 +2539,7 @@ function reporFerramenta(recId, ferramenta, carrinho, motivo) {
   document.getElementById('repor-qtd').value = '1';
   document.getElementById('repor-estoque-info').textContent = `Estoque atual nessa base: ${disp}`;
   document.getElementById('repor-obs').value = '';
+  document.getElementById('repor-por').value = localStorage.getItem('vammo_gestor_nome') || '';
   document.getElementById('repor-alert').innerHTML = '';
   document.getElementById('modal-repor').classList.remove('hidden');
 }
@@ -2455,7 +2559,11 @@ function confirmRepor() {
   if (!ctx) return;
   const tipo = document.querySelector('input[name="repor-tipo"]:checked')?.value;
   if (!tipo) { showAlert('repor-alert', 'rd', '❌ Selecione o tipo de resolução.'); return; }
+  const por = document.getElementById('repor-por').value.trim();
+  if (!por) { showAlert('repor-alert', 'rd', '❌ Informe o seu nome em "Resolvido por".'); return; }
+  localStorage.setItem('vammo_gestor_nome', por); // lembra pra próxima
   const obs = document.getElementById('repor-obs').value.trim();
+  ctx.por = por;
 
   if (tipo === 'reposicao') {
     const qtd = parseInt(document.getElementById('repor-qtd').value, 10);
@@ -2529,7 +2637,8 @@ function executaRepor(ctx, tipo, qtd, obs) {
     return;
   }
   showAlert('repor-alert', 'az', '⏳ Sincronizando com servidor...');
-  reporNCnoGASComRetry(cfg.webhookUrl, carrinho, ferramenta, 0, (sucesso, err) => {
+  const porQuem = ctx.por || localStorage.getItem('vammo_gestor_nome') || 'gestor';
+  reporNCnoGASComRetry(cfg.webhookUrl, carrinho, ferramenta, porQuem, tipo, 0, (sucesso, err) => {
     closeReporModal();
     if (sucesso) {
       const msg = tipo === 'reposicao'
@@ -2546,16 +2655,16 @@ function executaRepor(ctx, tipo, qtd, obs) {
 }
 
 // Retry até 3× se o GAS não confirmar. Backoff curto entre tentativas.
-function reporNCnoGASComRetry(url, carrinho, ferramenta, tentativa, done) {
+function reporNCnoGASComRetry(url, carrinho, ferramenta, por, tipo, tentativa, done) {
+  const tipoTag = tipo === 'ajuste' ? ' (Ajuste)' : ' (Reposição)';
   gasGet(url,
     'action=reporNC&cart=' + encodeURIComponent(carrinho) +
     '&ferramenta=' + encodeURIComponent(ferramenta) +
-    '&supervisor=gestor',
+    '&supervisor=' + encodeURIComponent(por + tipoTag),
     (data, err) => {
       if (!err && data?.ok) { done(true); return; }
       if (tentativa < 2) {
-        // tenta de novo após 1s
-        setTimeout(() => reporNCnoGASComRetry(url, carrinho, ferramenta, tentativa + 1, done), 1000);
+        setTimeout(() => reporNCnoGASComRetry(url, carrinho, ferramenta, por, tipo, tentativa + 1, done), 1000);
       } else {
         done(false, err || data?.error || 'sem resposta após 3 tentativas');
       }
