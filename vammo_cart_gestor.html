@@ -1471,6 +1471,7 @@ function showPanel(id) {
   if (id === 'nc') renderNC();
   if (id === 'carrinhos') renderCarrinhos();
   if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); }
+  if (id === 'nc') syncNCsComServidor(true); // silent: alinha local com servidor ao abrir
   if (id === 'colab') renderColab();
   if (id === 'config') renderConfig();
 }
@@ -1999,16 +2000,19 @@ function renderRegistros() {
 // todas as NCs (em todos os registros) que NÃO estão mais abertas no server.
 // Útil quando o local diverge do server (ex: mecânico resolveu via app dele,
 // ou houve falha de sincronia anterior).
-function syncNCsComServidor() {
+function syncNCsComServidor(silent) {
   const cfg = getConfig();
-  if (!cfg.webhookUrl) { showAlert('nc-alert-box','rd','❌ URL do servidor não configurada.'); return; }
-  showAlert('nc-alert-box','az','⏳ Consultando servidor...');
+  if (!cfg.webhookUrl) {
+    if (!silent) showAlert('nc-alert-box','rd','❌ URL do servidor não configurada.');
+    return;
+  }
+  if (!silent) showAlert('nc-alert-box','az','⏳ Consultando servidor...');
   gasGet(cfg.webhookUrl, 'action=allOpenNCs', (data, err) => {
-    if (err || !data?.ncs) { showAlert('nc-alert-box','rd','❌ ' + (err || 'sem resposta')); return; }
-    // Conjunto "ainda aberta" no servidor: chave = "CART|FERRAMENTA"
+    if (err || !data?.ncs) {
+      if (!silent) showAlert('nc-alert-box','rd','❌ ' + (err || 'sem resposta'));
+      return;
+    }
     const abertas = new Set(data.ncs.map(nc => normalizeCartName(nc.carrinho) + '|' + nc.ferramenta));
-    // Varre os registros locais e marca como reposta no nc_repostas tudo que
-    // não está mais aberto no servidor.
     const recs = getRecords();
     const rep = getNCRepostas();
     let marcadas = 0;
@@ -2025,10 +2029,15 @@ function syncNCsComServidor() {
       });
     });
     saveNCRepostas(rep);
-    renderNC();
-    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
-    showAlert('nc-alert-box','gn',
-      `✅ Sincronizado: ${data.ncs.length} NC(s) abertas no servidor · ${marcadas} NC(s) local(is) marcadas como repostas.`);
+    // Re-renderiza painéis abertos
+    const activePanel = document.querySelector('.panel.active')?.id;
+    if (activePanel === 'panel-nc') renderNC();
+    if (activePanel === 'panel-carrinhos') renderCarrinhos();
+    if (activePanel === 'panel-dashboard') renderDashboard();
+    if (!silent) {
+      showAlert('nc-alert-box','gn',
+        `✅ Sincronizado: ${data.ncs.length} NC(s) abertas no servidor · ${marcadas} NC(s) local(is) marcadas como repostas.`);
+    }
   });
 }
 
@@ -2931,7 +2940,6 @@ function syncAgora() {
     log('✅ ' + hora + ' — ' + (adicionados>0?'+'+adicionados+' novo(s)':'sem novidades') + ' · ' + records.length + ' total');
     if (statusEl) statusEl.textContent = adicionados>0 ? '🟢 +'+adicionados : '🟢';
     if (adicionados > 0) {
-      // Recarrega o painel ativo sem chamar syncAgora de novo
       const active = document.querySelector('.panel.active')?.id?.replace('panel-', '');
       if (active) showPanel(active);
       const toast = document.createElement('div');
@@ -2940,6 +2948,8 @@ function syncAgora() {
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 4000);
     }
+    // SEMPRE sincroniza NCs também (silenciosamente) — gestor sempre vê estado real
+    syncNCsComServidor(true);
   });
 }
 
@@ -3295,6 +3305,7 @@ function importarRegistros(input) {
 renderDashboard();
 iniciarAutoSync(); // sync automático a cada 30s se URL configurada
 syncEstoqueFromGAS(); // puxa estoque do servidor ao abrir
+syncNCsComServidor(true); // alinha NCs com servidor ao abrir (silencioso)
 
 // Seed data para demonstração se não houver registros
 if (!getRecords().length) {
