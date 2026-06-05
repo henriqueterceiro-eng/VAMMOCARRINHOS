@@ -376,6 +376,56 @@
       font-weight: 700; margin-bottom: 10px;
       font-family: 'Barlow Condensed', sans-serif;
     }
+    /* Dashboard: período toggle */
+    .dash-period-bar {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 12px;
+      background: var(--c1); border: 1px solid var(--bd);
+      border-radius: 12px; padding: 12px 16px;
+      margin-bottom: -4px;
+    }
+    .dpb-lbl { font-size:11px; color:var(--gr); letter-spacing:1.5px; text-transform:uppercase; font-weight:700; }
+    .dash-tab {
+      padding: 7px 16px; border-radius: 8px;
+      background: transparent; border: 1.5px solid var(--bd);
+      color: var(--w2); cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px; font-weight: 800; letter-spacing: 1.5px;
+      text-transform: uppercase; transition: all .15s;
+    }
+    .dash-tab:hover { background: var(--c2); color: var(--az); border-color: var(--az); }
+    .dash-tab.active { background: var(--az); border-color: var(--az); color: var(--bk); }
+    .dpb-info { margin-left: auto; font-size: 11px; color: var(--gr); }
+
+    .dash-metrics {
+      grid-column: 1 / -1;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .metric-card {
+      background: var(--c1); border: 1px solid var(--bd);
+      border-radius: 12px; padding: 16px 18px;
+    }
+    .metric-card.metric-total { border-color: var(--az); background: linear-gradient(180deg, rgba(46,194,255,.10), var(--c1)); }
+    .mc-lbl { font-size:11px; color:var(--gr); letter-spacing:1.5px; text-transform:uppercase; font-weight:700; margin-bottom: 6px; }
+    .metric-total .mc-lbl { color: var(--az); }
+    .mc-money { font-family:'Barlow Condensed', sans-serif; font-size:30px; font-weight:900; color:var(--gn); line-height:1; }
+    .mc-sub { font-size:10px; color:var(--gr); margin-top:3px; letter-spacing:.5px; }
+    .mc-nc { font-size:12px; color:var(--w2); margin-top:8px; padding-top:8px; border-top:1px solid var(--bd); }
+    .mc-nc strong { color:var(--yw); font-size:14px; }
+
+    .chart-wrap {
+      grid-column: 1 / -1;
+      background: var(--c1); border: 1px solid var(--bd);
+      border-radius: 12px; padding: 16px;
+      margin-top: 8px;
+    }
+    .chart-title {
+      font-family:'Barlow Condensed', sans-serif;
+      font-size: 14px; font-weight: 800; letter-spacing: 1.5px;
+      color: var(--w2); text-transform: uppercase; margin-bottom: 10px;
+    }
+
     /* Mini histórico de operações */
     .histo-list { background: var(--c2); border-radius: 10px; padding: 10px; margin-top: 6px; }
     .histo-item {
@@ -1901,22 +1951,117 @@ function resetColabDefault() {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
+let _dashPeriodo = 'mes'; // 'hoje' | 'semana' | 'mes'
+function setDashPeriodo(p) { _dashPeriodo = p; renderDashboard(); }
+
+function renderChartSemanal() {
+  const canvas = document.getElementById('chart-semanal');
+  if (!canvas) return;
+  const series = metricasSemanasUltimas(12);
+  const cssW = canvas.parentElement.clientWidth - 4;
+  const cssH = 200;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const PAD = { t:20, b:34, l:60, r:14 };
+  const innerW = cssW - PAD.l - PAD.r;
+  const innerH = cssH - PAD.t - PAD.b;
+  const maxCost = Math.max(1, ...series.map(s => s.gasto));
+  const barW = innerW / series.length;
+
+  // Grid horizontal + labels eixo Y
+  ctx.strokeStyle = 'rgba(255,255,255,.06)';
+  ctx.fillStyle = '#666';
+  ctx.font = '10px Barlow, sans-serif';
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD.t + innerH * (i/4);
+    const v = maxCost * (1 - i/4);
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(PAD.l+innerW, y); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('R$ ' + v.toFixed(0), PAD.l-6, y);
+  }
+
+  // Barras + valor em cima + label X
+  series.forEach((s, i) => {
+    const x = PAD.l + barW * i + barW*0.15;
+    const w = barW * 0.7;
+    const h = (s.gasto / maxCost) * innerH;
+    const y = PAD.t + innerH - h;
+    // gradient
+    const grad = ctx.createLinearGradient(0, y, 0, y+h);
+    grad.addColorStop(0, '#2EC2FF');
+    grad.addColorStop(1, '#0A8AB8');
+    ctx.fillStyle = s.gasto > 0 ? grad : 'rgba(46,194,255,.15)';
+    ctx.fillRect(x, y, w, h);
+    // valor (só se > 0)
+    if (s.gasto > 0) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px Barlow, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('R$ ' + s.gasto.toFixed(0), x + w/2, y - 2);
+    }
+    // NC count em badge embaixo do gasto (linha)
+    if (s.ncs > 0) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '9px Barlow, sans-serif';
+      ctx.fillText('⚠' + s.ncs, x + w/2, y + h - 4);
+    }
+    // label X (data)
+    ctx.fillStyle = '#888';
+    ctx.font = '10px Barlow, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(s.label, x + w/2, PAD.t + innerH + 6);
+  });
+}
+
 function renderDashboard() {
   const recs = getRecords();
-  const today = new Date().toDateString();
-  const todayRecs = recs.filter(r => new Date(r.ts).toDateString() === today);
-  const checkins = recs.filter(r => r.tipo === 'checkin').length;
-  const checkouts = recs.filter(r => r.tipo === 'checkout').length;
-  const allNCs = recs.flatMap(r => Object.entries(r.ferramentas || {}).filter(([,v]) => v.status === 'nao_ok'));
-  const faltando = allNCs.filter(([,v]) => v.motivo === 'faltando').length;
-  const quebrado = allNCs.filter(([,v]) => v.motivo === 'quebrado').length;
+  const now = new Date();
+  let pStart;
+  if (_dashPeriodo === 'hoje') pStart = startOfDay(now);
+  else if (_dashPeriodo === 'semana') pStart = startOfWeek(now);
+  else pStart = startOfMonth(now);
+
+  const gastos = gastoPorBaseNoPeriodo(pStart);
+  const ncs = ncsPorBaseNoPeriodo(pStart);
+  const pLabel = _dashPeriodo === 'hoje' ? 'Hoje' : _dashPeriodo === 'semana' ? 'Esta semana' : 'Este mês';
+
+  const tabs = ['hoje','semana','mes'].map(p => {
+    const label = p === 'hoje' ? 'Hoje' : p === 'semana' ? 'Semana' : 'Mês';
+    return `<button class="dash-tab ${p===_dashPeriodo?'active':''}" onclick="setDashPeriodo('${p}')">${label}</button>`;
+  }).join('');
 
   document.getElementById('stat-grid').innerHTML = `
-    <div class="stat-card"><div class="sc-label">Registros Hoje</div><div class="sc-num sc-az">${todayRecs.length}</div><div class="sc-sub">Total: ${recs.length}</div></div>
-    <div class="stat-card"><div class="sc-label">Check-ins</div><div class="sc-num sc-gn">${checkins}</div><div class="sc-sub">Check-outs: ${checkouts}</div></div>
-    <div class="stat-card"><div class="sc-label">Faltando</div><div class="sc-num sc-yw">${faltando}</div><div class="sc-sub">Ocorrências</div></div>
-    <div class="stat-card"><div class="sc-label">Quebrado</div><div class="sc-num sc-rd">${quebrado}</div><div class="sc-sub">Ocorrências</div></div>
+    <div class="dash-period-bar">
+      <span class="dpb-lbl">Período</span>
+      ${tabs}
+      <span class="dpb-info">${pLabel} · desde ${pStart.toLocaleDateString('pt-BR')}</span>
+    </div>
+    <div class="dash-metrics">
+      ${[
+        { key:'VAMMO', label:'🏢 VAMMO Total', cls:'metric-total' },
+        { key:'Mooca', label:'📍 Mooca', cls:'' },
+        { key:'Osasco', label:'📍 Osasco', cls:'' },
+        { key:'SBC', label:'📍 SBC', cls:'' }
+      ].map(m => `
+        <div class="metric-card ${m.cls}">
+          <div class="mc-lbl">${m.label}</div>
+          <div class="mc-money">${fmtMoney(gastos[m.key]||0)}</div>
+          <div class="mc-sub">gasto em reposições</div>
+          <div class="mc-nc">⚠ <strong>${ncs[m.key]||0}</strong> NC${(ncs[m.key]||0)!==1?'s':''} criada${(ncs[m.key]||0)!==1?'s':''}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-title">📊 Gasto semanal — últimas 12 semanas (VAMMO total)</div>
+      <canvas id="chart-semanal" height="160"></canvas>
+    </div>
   `;
+  setTimeout(renderChartSemanal, 50);
 
   const recentHtml = recs.slice(0, 8).map(r => `
     <tr onclick="openDetail('${r.id}')" style="cursor:pointer;">
@@ -2652,19 +2797,127 @@ function syncGameStartFromGAS() {
   });
 }
 
-// Calcula gasto total de reposições por base (soma qtd × preço), respeitando game start
+// ─── Períodos (auto-reset diário/semanal/mensal) ─────────────────────────
+function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function startOfWeek(d) {
+  const x = startOfDay(d);
+  const day = x.getDay(); // 0=dom, 1=seg, ..., 6=sáb
+  const diff = day === 0 ? -6 : 1 - day; // segunda-feira como início
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+function startOfMonth(d) { const x = startOfDay(d); x.setDate(1); return x; }
+
+// Gasto em qualquer intervalo [start, end). Sempre respeita gameStartTs como floor.
+function gastoNoPeriodo(startTs, endTs) {
+  const baixas = getBaixas();
+  const game = getGameStartTs();
+  const startMs = startTs ? new Date(startTs).getTime() : 0;
+  const endMs = endTs ? new Date(endTs).getTime() : Infinity;
+  const gameMs = game ? new Date(game).getTime() : 0;
+  let total = 0;
+  baixas.forEach(b => {
+    if (b.tipo === 'ajuste') return;
+    const ts = new Date(b.ts).getTime();
+    if (ts < gameMs) return;
+    if (ts < startMs) return;
+    if (ts >= endMs) return;
+    const preco = getPreco(b.ferramenta);
+    total += (Number(b.qtd) || 0) * preco;
+  });
+  return total;
+}
+
+// Calcula gasto total de reposições por base (compat com código antigo)
 function gastoPorBase() {
   const baixas = getBaixas();
-  const startTs = getGameStartTs();
+  const game = getGameStartTs();
+  const gameMs = game ? new Date(game).getTime() : 0;
   const out = { Mooca: 0, Osasco: 0, SBC: 0, _total: 0 };
   baixas.forEach(b => {
-    if (b.tipo === 'ajuste') return; // ajuste não conta gasto
-    if (startTs && b.ts < startTs) return; // antes do "game start"
+    if (b.tipo === 'ajuste') return;
+    if (new Date(b.ts).getTime() < gameMs) return;
     const preco = getPreco(b.ferramenta);
     const v = (Number(b.qtd) || 0) * preco;
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
   });
+  return out;
+}
+
+// Resumo dos 3 períodos
+function gastosResumo() {
+  const now = new Date();
+  return {
+    hoje: gastoNoPeriodo(startOfDay(now)),
+    semana: gastoNoPeriodo(startOfWeek(now)),
+    mes: gastoNoPeriodo(startOfMonth(now)),
+  };
+}
+
+// Gasto por base num período (baixas tipo=reposicao no intervalo)
+function gastoPorBaseNoPeriodo(startTs, endTs) {
+  const baixas = getBaixas();
+  const game = getGameStartTs();
+  const startMs = startTs ? new Date(startTs).getTime() : 0;
+  const endMs = endTs ? new Date(endTs).getTime() : Infinity;
+  const gameMs = game ? new Date(game).getTime() : 0;
+  const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0 };
+  baixas.forEach(b => {
+    if (b.tipo === 'ajuste') return;
+    const ts = new Date(b.ts).getTime();
+    if (ts < gameMs || ts < startMs || ts >= endMs) return;
+    const v = (Number(b.qtd) || 0) * getPreco(b.ferramenta);
+    if (out[b.base] != null) out[b.base] += v;
+    out.VAMMO += v;
+  });
+  return out;
+}
+
+// NCs CRIADAS no período (distintas por cart+ferramenta, primeira aparição)
+function ncsPorBaseNoPeriodo(startTs, endTs) {
+  const recs = getRecords();
+  const game = getGameStartTs();
+  const startMs = startTs ? new Date(startTs).getTime() : 0;
+  const endMs = endTs ? new Date(endTs).getTime() : Infinity;
+  const gameMs = game ? new Date(game).getTime() : 0;
+  // Pra cada (cart, ferramenta), pega o MENOR ts onde foi marcada nao_ok
+  const primeiraOcorrencia = new Map();
+  recs.forEach(r => {
+    const cartN = normalizeCartName(r.carrinho);
+    Object.entries(r.ferramentas || {}).forEach(([ferr, v]) => {
+      if (!v || v.status !== 'nao_ok') return;
+      const k = cartN + '|' + ferr;
+      const ts = new Date(r.ts).getTime();
+      const ex = primeiraOcorrencia.get(k);
+      if (!ex || ts < ex.ts) primeiraOcorrencia.set(k, { ts, base: getCartBase(cartN) });
+    });
+  });
+  const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0 };
+  primeiraOcorrencia.forEach(({ts, base}) => {
+    if (ts < gameMs || ts < startMs || ts >= endMs) return;
+    if (out[base] != null) out[base]++;
+    out.VAMMO++;
+  });
+  return out;
+}
+
+// Series semanal pra o gráfico (últimas N semanas)
+function metricasSemanasUltimas(n) {
+  const now = new Date();
+  const thisWeekStart = startOfWeek(now);
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const start = new Date(thisWeekStart);
+    start.setDate(start.getDate() - i * 7);
+    const end = new Date(start); end.setDate(end.getDate() + 7);
+    out.push({
+      start, end,
+      label: start.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }),
+      gasto: gastoNoPeriodo(start, end),
+      ncs: ncsPorBaseNoPeriodo(start, end).VAMMO
+    });
+  }
   return out;
 }
 
