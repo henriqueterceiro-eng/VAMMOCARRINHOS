@@ -710,9 +710,9 @@
     }
     .est-row {
       display: grid;
-      grid-template-columns: 1fr 50px 75px 28px 28px 28px 28px;
-      align-items: center; gap: 6px;
-      padding: 6px 10px;
+      grid-template-columns: 1fr 50px 75px 30px;
+      align-items: center; gap: 8px;
+      padding: 7px 12px;
       border-top: 1px solid rgba(255,255,255,.04);
       background: var(--c1);
       transition: background .12s;
@@ -1031,6 +1031,8 @@
             <h2>Estoque de Reposição</h2>
             <div class="spacer"></div>
             <input type="text" class="search-inp" id="est-search" placeholder="Filtrar ferramenta..." oninput="renderEstoque()">
+            <button class="btn-sm btn-az" onclick="abrirPedidoModal()" title="Registrar entrada de estoque com comprovante">📦 Adicionar Pedido</button>
+            <button class="btn-sm btn-outline" onclick="abrirInventarioModal()" title="Conferência física × sistema (mensal)">📋 Inventário</button>
             <button class="btn-sm btn-outline" onclick="zerarContadorGasto()" title="Zerar contador de gasto (game start)">🎮 Zerar gasto</button>
             <button class="btn-sm btn-outline" onclick="exportEstoqueCSV()" title="Exportar estoque em CSV">⬇ CSV</button>
           </div>
@@ -1194,6 +1196,78 @@
     <div style="display:flex;gap:10px;margin-top:22px;">
       <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeForceModal()">Cancelar</button>
       <button class="btn-sm" style="flex:2;padding:12px;background:var(--yw);color:var(--bk);border:none;font-weight:900;" onclick="confirmForceCheckout()">🔓 Confirmar Checkout Forçado</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Adicionar Pedido (entrada de estoque) -->
+<div class="modal-ov hidden" id="modal-pedido">
+  <div class="modal-box" style="max-width:760px;">
+    <h2 style="margin-bottom:8px;"><button class="modal-close" onclick="closePedidoModal()">✕</button> 📦 Adicionar Pedido</h2>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:14px;">Registra entrada de ferramentas com comprovante. As quantidades são <strong>somadas</strong> ao estoque.</div>
+
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Base destino *</div>
+      <select id="pedido-base" class="select-filt" style="padding:11px 12px;font-size:14px;">
+        <option value="Mooca">Mooca</option>
+        <option value="Osasco">Osasco</option>
+        <option value="SBC">SBC</option>
+      </select>
+
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Comprovante *</div>
+      <input type="text" id="pedido-comprovante" placeholder="Nota fiscal, número do pedido, ou link da foto..." class="select-filt" style="padding:11px 12px;font-size:13px;">
+
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Solicitado por</div>
+      <input type="text" id="pedido-por" placeholder="Seu nome" class="select-filt" style="padding:11px 12px;font-size:13px;">
+
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Obs</div>
+      <input type="text" id="pedido-obs" placeholder="Opcional" class="select-filt" style="padding:11px 12px;font-size:13px;">
+    </div>
+
+    <div style="background:var(--c2);border:1px solid var(--bd);border-radius:10px;padding:10px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">Quantidades a adicionar (deixe 0 pra não pedir)</div>
+      <div id="pedido-items" style="max-height:45vh;overflow-y:auto;"></div>
+      <div style="font-size:11px;color:var(--gr);text-align:right;margin-top:6px;" id="pedido-total">Total: R$ 0,00 · 0 unidades</div>
+    </div>
+
+    <div id="pedido-alert" style="margin-bottom:10px;"></div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closePedidoModal()">Cancelar</button>
+      <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="confirmarPedido()">📦 Registrar Pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Inventário (conferência mensal) -->
+<div class="modal-ov hidden" id="modal-inventario">
+  <div class="modal-box" style="max-width:760px;">
+    <h2 style="margin-bottom:8px;"><button class="modal-close" onclick="closeInventarioModal()">✕</button> 📋 Inventário Mensal</h2>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:14px;">Confira a quantidade <strong>física</strong> de cada ferramenta. Se diferente do sistema, informe o motivo do ajuste — o sistema corrige o estoque automaticamente.</div>
+
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Base *</div>
+      <select id="invent-base" class="select-filt" style="padding:11px 12px;font-size:14px;" onchange="renderInventarioItems()">
+        <option value="Mooca">Mooca</option>
+        <option value="Osasco">Osasco</option>
+        <option value="SBC">SBC</option>
+      </select>
+
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Conferente</div>
+      <input type="text" id="invent-por" placeholder="Seu nome" class="select-filt" style="padding:11px 12px;font-size:13px;">
+    </div>
+
+    <div style="background:var(--c2);border:1px solid var(--bd);border-radius:10px;padding:10px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">Físico × Sistema</div>
+      <div id="invent-items" style="max-height:50vh;overflow-y:auto;"></div>
+      <div style="font-size:11px;color:var(--gr);text-align:right;margin-top:6px;" id="invent-resumo">–</div>
+    </div>
+
+    <div id="invent-alert" style="margin-bottom:10px;"></div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeInventarioModal()">Cancelar</button>
+      <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="confirmarInventario()">📋 Registrar Inventário</button>
     </div>
   </div>
 </div>
@@ -2562,9 +2636,6 @@ function renderEstoque() {
           <div class="er-name" title="${t}">${t}</div>
           <div class="er-qtd">${qtd}</div>
           <div class="er-price" title="Preço unitário (fixo — alterações na lista oficial)">${getPreco(t) ? fmtMoney(getPreco(t)) : '<span style="color:var(--gr);">—</span>'}</div>
-          <button onclick="ajustarEstoque('${b}', ${tEsc}, -1)" title="-1">−</button>
-          <button onclick="ajustarEstoque('${b}', ${tEsc}, +1)" title="+1">+</button>
-          <button onclick="ajustarEstoquePrompt('${b}', ${tEsc})" title="Editar quantidade">✎</button>
           <button onclick="abrirTransferModal('${b}', ${tEsc})" title="Transferir pra outra base">↔</button>
         </div>`;
       }).join('');
@@ -2662,6 +2733,185 @@ function syncEstoqueFromGAS() {
     if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
   });
   syncPrecosFromGAS();
+}
+
+// ─── PEDIDO (entrada de estoque) ─────────────────────────────────────────
+function abrirPedidoModal() {
+  document.getElementById('pedido-base').value = _currentEstBaseTab || 'Mooca';
+  document.getElementById('pedido-comprovante').value = '';
+  document.getElementById('pedido-por').value = '';
+  document.getElementById('pedido-obs').value = '';
+  document.getElementById('pedido-alert').innerHTML = '';
+  renderPedidoItems();
+  document.getElementById('modal-pedido').classList.remove('hidden');
+}
+function closePedidoModal() { document.getElementById('modal-pedido').classList.add('hidden'); }
+
+function renderPedidoItems() {
+  const wrap = document.getElementById('pedido-items');
+  if (!wrap) return;
+  wrap.innerHTML = TOOLS_CATALOG.map(cat => `
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;color:var(--gr);letter-spacing:2px;text-transform:uppercase;margin:10px 0 4px;">${cat.cat}</div>
+    ${cat.items.map(t => {
+      const preco = getPreco(t);
+      const tEsc = t.replace(/"/g,'&quot;');
+      return `<div style="display:grid;grid-template-columns:1fr 70px 80px;gap:8px;align-items:center;padding:5px 8px;border-radius:5px;">
+        <div style="font-size:12.5px;">${t}<span style="color:var(--gr);font-size:11px;margin-left:6px;">${preco?fmtMoney(preco):'—'}</span></div>
+        <input type="number" min="0" value="0" data-ferr="${tEsc}" oninput="atualizarPedidoTotal()" style="padding:5px 8px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;">
+        <span class="pedido-line-total" data-ferr="${tEsc}" style="font-size:11px;color:var(--gr);text-align:right;">—</span>
+      </div>`;
+    }).join('')}
+  `).join('');
+  atualizarPedidoTotal();
+}
+
+function atualizarPedidoTotal() {
+  let totQ = 0, totV = 0;
+  document.querySelectorAll('#pedido-items input[type="number"]').forEach(i => {
+    const qtd = parseInt(i.value) || 0;
+    const ferr = i.dataset.ferr;
+    const v = qtd * getPreco(ferr);
+    totQ += qtd; totV += v;
+    const lineEl = document.querySelector(`.pedido-line-total[data-ferr="${ferr.replace(/"/g,'\\"')}"]`);
+    if (lineEl) lineEl.textContent = qtd > 0 ? fmtMoney(v) : '—';
+  });
+  const t = document.getElementById('pedido-total');
+  if (t) t.textContent = `Total: ${fmtMoney(totV)} · ${totQ} unidade${totQ!==1?'s':''}`;
+}
+
+function confirmarPedido() {
+  const base = document.getElementById('pedido-base').value;
+  const comprovante = document.getElementById('pedido-comprovante').value.trim();
+  const por = document.getElementById('pedido-por').value.trim();
+  const obs = document.getElementById('pedido-obs').value.trim();
+  if (!base) { showAlert('pedido-alert','rd','❌ Selecione a base.'); return; }
+  if (!comprovante) { showAlert('pedido-alert','rd','❌ Informe o comprovante (nota fiscal, número, etc).'); return; }
+  const itens = [];
+  document.querySelectorAll('#pedido-items input[type="number"]').forEach(i => {
+    const qtd = parseInt(i.value) || 0;
+    if (qtd > 0) itens.push({ ferramenta: i.dataset.ferr, qtd });
+  });
+  if (!itens.length) { showAlert('pedido-alert','yw','⚠ Nenhuma quantidade informada.'); return; }
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { showAlert('pedido-alert','rd','❌ Servidor não configurado.'); return; }
+  showAlert('pedido-alert','az','⏳ Registrando...');
+  gasGet(cfg.webhookUrl,
+    'action=pedidoAdd&base=' + encodeURIComponent(base) +
+    '&itens=' + encodeURIComponent(JSON.stringify(itens)) +
+    '&comprovante=' + encodeURIComponent(comprovante) +
+    '&por=' + encodeURIComponent(por || 'gestor') +
+    '&obs=' + encodeURIComponent(obs),
+    (data, err) => {
+      if (err || !data?.ok) { showAlert('pedido-alert','rd','❌ ' + (err || data?.error || 'falha')); return; }
+      closePedidoModal();
+      showAlert('est-alert-box','gn',`✅ Pedido registrado: ${data.registrados} item(ns) adicionado(s) ao estoque ${base}.`);
+      syncEstoqueFromGAS();
+    });
+}
+
+// ─── INVENTÁRIO ──────────────────────────────────────────────────────────
+function abrirInventarioModal() {
+  document.getElementById('invent-base').value = _currentEstBaseTab || 'Mooca';
+  document.getElementById('invent-por').value = '';
+  document.getElementById('invent-alert').innerHTML = '';
+  renderInventarioItems();
+  document.getElementById('modal-inventario').classList.remove('hidden');
+}
+function closeInventarioModal() { document.getElementById('modal-inventario').classList.add('hidden'); }
+
+function renderInventarioItems() {
+  const base = document.getElementById('invent-base').value;
+  const est = getEstoque();
+  const baseEst = est[base] || {};
+  const wrap = document.getElementById('invent-items');
+  if (!wrap) return;
+  wrap.innerHTML = TOOLS_CATALOG.map(cat => `
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;color:var(--gr);letter-spacing:2px;text-transform:uppercase;margin:10px 0 4px;">${cat.cat}</div>
+    ${cat.items.map(t => {
+      const sistema = baseEst[t] || 0;
+      const tEsc = t.replace(/"/g,'&quot;');
+      return `<div style="display:grid;grid-template-columns:1fr 50px 70px 1fr;gap:8px;align-items:center;padding:5px 8px;">
+        <div style="font-size:12.5px;">${t}</div>
+        <span style="font-size:12px;color:var(--w2);text-align:center;background:var(--c1);padding:4px;border-radius:5px;" title="Quantidade no sistema">${sistema}</span>
+        <input type="number" min="0" value="${sistema}" data-ferr="${tEsc}" data-sistema="${sistema}" oninput="atualizarInventarioRow(this)" placeholder="Físico" style="padding:5px 8px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-align:center;outline:none;">
+        <input type="text" placeholder="Motivo (só se diferente)" data-motivo-ferr="${tEsc}" disabled style="padding:5px 8px;background:var(--c2);border:1px solid var(--bd);border-radius:5px;color:var(--w2);font-size:12px;outline:none;">
+      </div>`;
+    }).join('')}
+  `).join('');
+  atualizarInventarioResumo();
+}
+
+function atualizarInventarioRow(input) {
+  const ferr = input.dataset.ferr;
+  const sistema = parseInt(input.dataset.sistema) || 0;
+  const fisico = parseInt(input.value) || 0;
+  const diff = fisico - sistema;
+  const motivoEl = document.querySelector(`input[data-motivo-ferr="${ferr.replace(/"/g,'\\"')}"]`);
+  if (motivoEl) {
+    if (diff !== 0) {
+      motivoEl.disabled = false;
+      motivoEl.style.background = 'var(--c1)';
+      motivoEl.style.color = 'var(--wh)';
+      motivoEl.placeholder = diff > 0 ? `+${diff} a mais — motivo?` : `${diff} a menos — motivo?`;
+    } else {
+      motivoEl.disabled = true;
+      motivoEl.value = '';
+      motivoEl.style.background = 'var(--c2)';
+      motivoEl.style.color = 'var(--w2)';
+    }
+  }
+  atualizarInventarioResumo();
+}
+
+function atualizarInventarioResumo() {
+  let conferidos = 0, divergentes = 0, ajustePositivo = 0, ajusteNegativo = 0;
+  document.querySelectorAll('#invent-items input[type="number"]').forEach(i => {
+    conferidos++;
+    const sis = parseInt(i.dataset.sistema) || 0;
+    const fis = parseInt(i.value) || 0;
+    const d = fis - sis;
+    if (d !== 0) {
+      divergentes++;
+      if (d > 0) ajustePositivo += d;
+      else ajusteNegativo += d;
+    }
+  });
+  const r = document.getElementById('invent-resumo');
+  if (r) r.innerHTML = `${conferidos} item(ns) conferido(s) · <strong style="color:${divergentes?'var(--yw)':'var(--gn)'}">${divergentes} divergente(s)</strong>${divergentes ? ` · ${ajustePositivo>0?'+'+ajustePositivo:''}${ajusteNegativo<0?' '+ajusteNegativo:''} no total` : ''}`;
+}
+
+function confirmarInventario() {
+  const base = document.getElementById('invent-base').value;
+  const por = document.getElementById('invent-por').value.trim() || 'gestor';
+  const itens = [];
+  let semMotivo = 0;
+  document.querySelectorAll('#invent-items input[type="number"]').forEach(i => {
+    const ferr = i.dataset.ferr;
+    const sistema = parseInt(i.dataset.sistema) || 0;
+    const fisica = parseInt(i.value) || 0;
+    const motivoEl = document.querySelector(`input[data-motivo-ferr="${ferr.replace(/"/g,'\\"')}"]`);
+    const motivo = motivoEl ? motivoEl.value.trim() : '';
+    if (fisica !== sistema && !motivo) semMotivo++;
+    itens.push({ ferramenta: ferr, qtd_fisica: fisica, motivo });
+  });
+  if (semMotivo > 0) {
+    showAlert('invent-alert','rd', `❌ ${semMotivo} divergência(s) sem motivo. Preencha todos.`);
+    return;
+  }
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { showAlert('invent-alert','rd','❌ Servidor não configurado.'); return; }
+  showAlert('invent-alert','az','⏳ Registrando inventário...');
+  gasGet(cfg.webhookUrl,
+    'action=inventarioRegistrar&base=' + encodeURIComponent(base) +
+    '&itens=' + encodeURIComponent(JSON.stringify(itens)) +
+    '&por=' + encodeURIComponent(por),
+    (data, err) => {
+      if (err || !data?.ok) { showAlert('invent-alert','rd','❌ ' + (err || data?.error || 'falha')); return; }
+      closeInventarioModal();
+      showAlert('est-alert-box','gn',
+        `✅ Inventário registrado: ${data.registrados} item(ns) conferido(s), ${data.ajustados} ajuste(s) aplicado(s) ao estoque.`);
+      syncEstoqueFromGAS();
+    });
 }
 
 let _transferCtx = null;
