@@ -918,7 +918,7 @@
           <table>
             <thead><tr>
               <th>Ferramenta</th><th>Problema</th><th>Carrinho</th>
-              <th>Mecânico</th><th>Turno</th><th>Data</th><th style="text-align:right;">Ação</th>
+              <th>Mecânico</th><th>Data (mais recente)</th><th style="text-align:right;">Ação</th>
             </tr></thead>
             <tbody id="nc-tbody"></tbody>
           </table>
@@ -2138,22 +2138,40 @@ function renderNC() {
   const filtMotivo = document.getElementById('nc-filt-motivo')?.value || '';
   const repostas = getNCRepostas();
 
-  // expande NCs a partir dos registros
-  const ncs = [];
+  // Expande NCs e DEDUPLICA por (carrinho, ferramenta).
+  // Mesma ferramenta aparece em vários registros → mostra só 1 linha (a mais
+  // recente que ainda está aberta; se TODAS as ocorrências estão repostas,
+  // mostra como "✓ Reposta").
+  const byKey = new Map(); // "cart|ferramenta" → entry
   recs.forEach(r => {
     Object.entries(r.ferramentas || {}).forEach(([ferr, v]) => {
       if (!v || v.status !== 'nao_ok') return;
-      ncs.push({
+      const cartN = normalizeCartName(r.carrinho);
+      const key = cartN + '|' + ferr;
+      const reposta = !!repostas[ncKey(r.id, ferr)];
+      const entry = {
         recId: r.id, ts: r.ts, carrinho: r.carrinho, mecanico: r.mecanico,
         turno: r.turno, ferramenta: ferr, motivo: v.motivo || 'nc',
-        reposta: !!repostas[ncKey(r.id, ferr)]
-      });
+        reposta, ocorrencias: 1
+      };
+      const ex = byKey.get(key);
+      if (!ex) { byKey.set(key, entry); return; }
+      ex.ocorrencias++;
+      // Se a NOVA é aberta, ela ganha (representa o "estado atual" do problema)
+      // Se ambas iguais, fica a mais recente
+      const novaMaisRecente = new Date(r.ts) > new Date(ex.ts);
+      if ((!reposta && ex.reposta) || (reposta === ex.reposta && novaMaisRecente)) {
+        ex.recId = entry.recId; ex.ts = entry.ts;
+        ex.mecanico = entry.mecanico; ex.turno = entry.turno;
+        ex.motivo = entry.motivo; ex.reposta = reposta;
+      }
     });
   });
 
+  const ncs = Array.from(byKey.values()).sort((a,b) => new Date(b.ts) - new Date(a.ts));
   const filtered = ncs.filter(nc => !filtMotivo || nc.motivo === filtMotivo);
 
-  // Stats
+  // Stats (já deduplicado!)
   const abertas = ncs.filter(n => !n.reposta);
   const faltando = abertas.filter(n => n.motivo === 'faltando').length;
   const quebrado = abertas.filter(n => n.motivo === 'quebrado').length;
@@ -2178,20 +2196,21 @@ function renderNC() {
           : nc.motivo === 'quebrado'
             ? '<span class="badge brd">Quebrado</span>'
             : `<span class="badge">${nc.motivo}</span>`;
+        const ocBadge = nc.ocorrencias > 1
+          ? `<span class="badge" style="background:var(--c2);color:var(--w2);border:1px solid var(--bd);margin-left:6px;" title="Aparece em ${nc.ocorrencias} registros">×${nc.ocorrencias}</span>`
+          : '';
         return `<tr>
-          <td>${nc.ferramenta}</td>
+          <td>${nc.ferramenta}${ocBadge}</td>
           <td>${motivoBadge}</td>
           <td><strong>${normalizeCartName(nc.carrinho)}</strong> <span style="color:var(--gr);font-size:11px;">· ${base}</span></td>
           <td>${nc.mecanico||'-'}</td>
-          <td style="font-size:12px;">${nc.turno||'-'}</td>
           <td style="color:var(--gr);white-space:nowrap;">${fmtDateFull(nc.ts)}</td>
           <td style="text-align:right;">${btn}</td>
         </tr>`;
       }).join('')
-    : `<tr class="empty-row"><td colspan="7">Nenhuma não-conformidade encontrada.</td></tr>`;
+    : `<tr class="empty-row"><td colspan="6">Nenhuma não-conformidade encontrada.</td></tr>`;
 
-  // ajusta colunas (a tabela original tem 6 ths, vou regenerar pelo header)
-  document.getElementById('nc-footer').textContent = `${filtered.length} NC(s) · ${abertas.length} aberta(s) · ${repostasN} reposta(s)`;
+  document.getElementById('nc-footer').textContent = `${filtered.length} NC(s) única(s) · ${abertas.length} aberta(s) · ${repostasN} reposta(s)`;
 }
 
 // Sobrescreve thead da NC pra incluir coluna Ações
@@ -2276,9 +2295,18 @@ function executaRepor(ctx, tipo, qtd, obs) {
     }
   }
 
-  // 2) marca NC como reposta no local
+  // 2) marca NC como reposta no local — TODOS os recIds que tem cart+ferramenta
+  //    (uma única NC pode aparecer em N registros; resolver = fechar todas as ocorrências)
   const rep = getNCRepostas();
-  rep[ncKey(recId, ferramenta)] = { ts: new Date().toISOString(), qtd, obs, tipo };
+  const cartNorm = normalizeCartName(carrinho);
+  const ts = new Date().toISOString();
+  getRecords().forEach(r => {
+    if (normalizeCartName(r.carrinho) !== cartNorm) return;
+    const v = r.ferramentas?.[ferramenta];
+    if (v && v.status === 'nao_ok') {
+      rep[ncKey(r.id, ferramenta)] = { ts, qtd, obs, tipo };
+    }
+  });
   saveNCRepostas(rep);
 
   // 3) registra histórico (ajuste fica registrado com qtd=0)
