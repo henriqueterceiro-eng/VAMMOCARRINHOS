@@ -677,6 +677,8 @@
       color: #ef4444;
       animation: phoneAlert 1s ease-in-out infinite;
     }
+    /* Logado mas sem celular cadastrado no Headwind: cinza riscado (não pisca) */
+    .cart-card-v3 .ccv-phone.nodev svg { color: #9aa0a6; opacity: .85; }
     @keyframes phoneAlert {
       0%, 100% { opacity: .55; transform: scale(1);    filter: drop-shadow(0 0 2px rgba(239,68,68,.55)); }
       50%      { opacity: 1;   transform: scale(1.18); filter: drop-shadow(0 0 9px rgba(239,68,68,1)) drop-shadow(0 0 17px rgba(239,68,68,.7)); }
@@ -1812,12 +1814,17 @@ function renderCarrinhos() {
       const forceBtn = st.status === 'logado'
         ? `<button class="cart-force-btn" onclick="event.stopPropagation(); forcarCheckout('${c.nome}', '${mec.replace(/'/g,'')}')" title="Forçar checkout">🔓 Forçar checkout</button>`
         : '';
-      // Presença: só faz sentido p/ quem está logado agora.
-      // online=verde brilhando · offline(logado)=vermelho piscando (anomalia) · deslogado/sem-match=sem ícone
-      const phoneSt = st.status === 'logado' ? mecPhoneStatus(mec) : null;
-      const phoneSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/></svg>';
-      const phoneIcon = phoneSt === null ? ''
-        : `<span class="ccv-phone ${phoneSt?'on':'alert'}" title="${phoneSt?'Celular online no Headwind':'⚠ Logado SEM celular online'}">${phoneSvg}</span>`;
+      // Presença (só p/ logado). Estados: online=verde · offline=vermelho piscando ·
+      // sem celular no Headwind=cinza riscado. Deslogado ou ainda carregando=sem ícone.
+      const PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/></svg>';
+      const PHONE_SVG_SLASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/><line x1="3.5" y1="2.5" x2="20.5" y2="21.5"/></svg>';
+      let phoneIcon = '';
+      if (st.status === 'logado' && _presLoaded) {
+        const p = mecPhoneStatus(mec); // true=online · false=offline · null=sem celular no Headwind
+        if (p === true)       phoneIcon = `<span class="ccv-phone on"    title="Celular online no Headwind">${PHONE_SVG}</span>`;
+        else if (p === false) phoneIcon = `<span class="ccv-phone alert" title="⚠ Logado, celular OFFLINE">${PHONE_SVG}</span>`;
+        else                  phoneIcon = `<span class="ccv-phone nodev" title="Logado, sem celular cadastrado no Headwind">${PHONE_SVG_SLASH}</span>`;
+      }
       return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
         ${phoneIcon}
