@@ -3750,7 +3750,7 @@ function syncAgora() {
 function iniciarAutoSync() {
   if (_syncTimer) clearInterval(_syncTimer);
   // presença (celular online) — independe do webhook de registros
-  if (!_presTimer) { setTimeout(refreshPresence, 1500); _presTimer = setInterval(refreshPresence, 60000); }
+  if (!_presTimer) { setTimeout(refreshPresence, 1500); _presTimer = setInterval(refreshPresence, 30000); }
   const cfg = getConfig();
   if (!cfg.webhookUrl) return;
   setTimeout(syncAgora, 3000);
