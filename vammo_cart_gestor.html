@@ -660,17 +660,26 @@
     .cart-card-v3 .ccv-mec { font-size: 12px; color: var(--w2); margin-top: 4px; line-height: 1.3; }
     .cart-card-v3 .ccv-time { font-size: 10px; color: var(--gr); margin-top: 2px; }
 
-    /* Ícone de celular (presença Headwind): aceso = online, apagado = offline */
+    /* Ícone de celular (presença Headwind) */
     .cart-card-v3 .ccv-phone {
-      display: inline-block; margin-left: 4px; font-size: 13px; vertical-align: middle;
-      filter: grayscale(1) brightness(.55); opacity: .4;
-      transition: filter .25s, opacity .25s, text-shadow .25s;
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-left: 6px; vertical-align: middle;
     }
+    .cart-card-v3 .ccv-phone svg { width: 22px; height: 22px; display: block; }
+    /* Online (mecânico logado, celular conectado): verde brilhando */
     .cart-card-v3 .ccv-phone.on {
-      filter: none; opacity: 1;
-      text-shadow: 0 0 6px rgba(34,197,94,.9), 0 0 13px rgba(34,197,94,.55);
+      color: #22c55e;
+      filter: drop-shadow(0 0 5px rgba(34,197,94,.95)) drop-shadow(0 0 11px rgba(34,197,94,.55));
     }
-    .cart-card-v3 .ccv-phone.off { filter: grayscale(1) brightness(.5); opacity: .32; }
+    /* Logado SEM celular online: vermelho piscando (anomalia, igual NC) */
+    .cart-card-v3 .ccv-phone.alert {
+      color: #ef4444;
+      animation: phoneAlert 1s ease-in-out infinite;
+    }
+    @keyframes phoneAlert {
+      0%, 100% { opacity: .5;  transform: scale(1);    filter: drop-shadow(0 0 2px rgba(239,68,68,.55)); }
+      50%      { opacity: 1;   transform: scale(1.15); filter: drop-shadow(0 0 9px rgba(239,68,68,1)) drop-shadow(0 0 17px rgba(239,68,68,.7)); }
+    }
 
     /* Bandeira/flag de NC */
     .cart-card-v3 .ccv-flag {
@@ -1802,10 +1811,12 @@ function renderCarrinhos() {
       const forceBtn = st.status === 'logado'
         ? `<button class="cart-force-btn" onclick="event.stopPropagation(); forcarCheckout('${c.nome}', '${mec.replace(/'/g,'')}')" title="Forçar checkout">🔓 Forçar checkout</button>`
         : '';
-      // Presença: só faz sentido p/ quem está logado agora
+      // Presença: só faz sentido p/ quem está logado agora.
+      // online=verde brilhando · offline(logado)=vermelho piscando (anomalia) · deslogado/sem-match=sem ícone
       const phoneSt = st.status === 'logado' ? mecPhoneStatus(mec) : null;
+      const phoneSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/></svg>';
       const phoneIcon = phoneSt === null ? ''
-        : `<span class="ccv-phone ${phoneSt?'on':'off'}" title="${phoneSt?'Celular online no Headwind':'Celular offline no Headwind'}">📱</span>`;
+        : `<span class="ccv-phone ${phoneSt?'on':'alert'}" title="${phoneSt?'Celular online no Headwind':'⚠ Logado SEM celular online'}">${phoneSvg}</span>`;
       return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
         <div>
