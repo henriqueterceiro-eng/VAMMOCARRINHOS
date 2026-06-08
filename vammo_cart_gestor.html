@@ -660,6 +660,18 @@
     .cart-card-v3 .ccv-mec { font-size: 12px; color: var(--w2); margin-top: 4px; line-height: 1.3; }
     .cart-card-v3 .ccv-time { font-size: 10px; color: var(--gr); margin-top: 2px; }
 
+    /* Ícone de celular (presença Headwind): aceso = online, apagado = offline */
+    .cart-card-v3 .ccv-phone {
+      display: inline-block; margin-left: 4px; font-size: 13px; vertical-align: middle;
+      filter: grayscale(1) brightness(.55); opacity: .4;
+      transition: filter .25s, opacity .25s, text-shadow .25s;
+    }
+    .cart-card-v3 .ccv-phone.on {
+      filter: none; opacity: 1;
+      text-shadow: 0 0 6px rgba(34,197,94,.9), 0 0 13px rgba(34,197,94,.55);
+    }
+    .cart-card-v3 .ccv-phone.off { filter: grayscale(1) brightness(.5); opacity: .32; }
+
     /* Bandeira/flag de NC */
     .cart-card-v3 .ccv-flag {
       position: absolute; top: -8px; right: -8px;
@@ -1466,10 +1478,13 @@ function getColab() {
 function saveColab(arr) { localStorage.setItem('vammo_colab_emails', JSON.stringify(arr)); }
 // URL padrão do Apps Script — gestor e checkin já abrem configurados.
 const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
+// Serviço de presença (celular online no Headwind MDM) — web app separado
+const DEFAULT_PRESENCE_URL = 'https://script.google.com/macros/s/AKfycbz-yRCeTwX-zxgUVSTAdaRe6ILlnkYgasqBK_lrTMoDFrRnatFQl7YLSYoHZ774ekmIlA/exec';
 function getConfig() {
   let cfg = {};
   try { cfg = JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch {}
   if (!cfg.webhookUrl) cfg.webhookUrl = DEFAULT_WEBHOOK_URL;
+  if (!cfg.presenceUrl) cfg.presenceUrl = DEFAULT_PRESENCE_URL;
   return cfg;
 }
 function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c)); }
@@ -1680,6 +1695,39 @@ function computeCartState(nome, recs) {
   return { status, last, ncAbertas: abertas };
 }
 
+// ─── PRESENÇA (celular online no Headwind) ──────────────────────────────────
+let _presDevices = [];   // [{tokens:[...nome...], online:bool}]
+let _presLoaded  = false;
+let _presTimer   = null;
+
+function _deburr(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,''); }
+// "nome.sobrenome@vammo.com" ou nome livre -> ['nome','sobrenome',...]
+function _nameTokens(s){
+  let v = String(s||'');
+  if (v.indexOf('@') >= 0) v = v.split('@')[0].replace(/[._]+/g,' ');
+  return _deburr(v).toLowerCase().replace(/[^a-z\s]/g,' ').trim().split(/\s+/).filter(Boolean);
+}
+// Status do celular do mecânico: true=online, false=offline, null=sem match
+function mecPhoneStatus(mec){
+  const mt = _nameTokens(mec);
+  if (!_presLoaded || !mt.length) return null;
+  const first = mt[0], last = mt[mt.length-1];
+  for (const d of _presDevices){
+    if (d.tokens.includes(first) && d.tokens.includes(last)) return !!d.online;
+  }
+  return null;
+}
+function refreshPresence(){
+  const cfg = getConfig();
+  if (!cfg.presenceUrl) return;
+  gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
+    if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
+    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), online: !!d.online }));
+    _presLoaded = true;
+    try { renderCarrinhos(); } catch(e){}
+  });
+}
+
 function renderCarrinhos() {
   const carts = getCarts();
   const recs  = getRecords();
@@ -1754,6 +1802,10 @@ function renderCarrinhos() {
       const forceBtn = st.status === 'logado'
         ? `<button class="cart-force-btn" onclick="event.stopPropagation(); forcarCheckout('${c.nome}', '${mec.replace(/'/g,'')}')" title="Forçar checkout">🔓 Forçar checkout</button>`
         : '';
+      // Presença: só faz sentido p/ quem está logado agora
+      const phoneSt = st.status === 'logado' ? mecPhoneStatus(mec) : null;
+      const phoneIcon = phoneSt === null ? ''
+        : `<span class="ccv-phone ${phoneSt?'on':'off'}" title="${phoneSt?'Celular online no Headwind':'Celular offline no Headwind'}">📱</span>`;
       return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
         <div>
@@ -1761,7 +1813,7 @@ function renderCarrinhos() {
           <div class="ccv-status">${label}</div>
         </div>
         <div>
-          ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
+          ${mec ? `<div class="ccv-mec">👤 ${mec} ${phoneIcon}</div>` : ''}
           ${hora ? `<div class="ccv-time">${data} · ${hora}</div>` : ''}
           ${forceBtn}
         </div>
@@ -3686,6 +3738,8 @@ function syncAgora() {
 
 function iniciarAutoSync() {
   if (_syncTimer) clearInterval(_syncTimer);
+  // presença (celular online) — independe do webhook de registros
+  if (!_presTimer) { setTimeout(refreshPresence, 1500); _presTimer = setInterval(refreshPresence, 60000); }
   const cfg = getConfig();
   if (!cfg.webhookUrl) return;
   setTimeout(syncAgora, 3000);
