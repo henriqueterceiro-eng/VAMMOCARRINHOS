@@ -660,25 +660,26 @@
     .cart-card-v3 .ccv-mec { font-size: 12px; color: var(--w2); margin-top: 4px; line-height: 1.3; }
     .cart-card-v3 .ccv-time { font-size: 10px; color: var(--gr); margin-top: 2px; }
 
-    /* Ícone de celular (presença Headwind) */
+    /* Ícone de celular (presença Headwind) — topo, centralizado no card */
     .cart-card-v3 .ccv-phone {
-      display: inline-flex; align-items: center; justify-content: center;
-      margin-left: 6px; vertical-align: middle;
+      position: absolute; top: 8px; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none; z-index: 1;
     }
-    .cart-card-v3 .ccv-phone svg { width: 22px; height: 22px; display: block; }
+    .cart-card-v3 .ccv-phone svg { width: 24px; height: 24px; display: block; }
     /* Online (mecânico logado, celular conectado): verde brilhando */
-    .cart-card-v3 .ccv-phone.on {
+    .cart-card-v3 .ccv-phone.on svg {
       color: #22c55e;
       filter: drop-shadow(0 0 5px rgba(34,197,94,.95)) drop-shadow(0 0 11px rgba(34,197,94,.55));
     }
     /* Logado SEM celular online: vermelho piscando (anomalia, igual NC) */
-    .cart-card-v3 .ccv-phone.alert {
+    .cart-card-v3 .ccv-phone.alert svg {
       color: #ef4444;
       animation: phoneAlert 1s ease-in-out infinite;
     }
     @keyframes phoneAlert {
-      0%, 100% { opacity: .5;  transform: scale(1);    filter: drop-shadow(0 0 2px rgba(239,68,68,.55)); }
-      50%      { opacity: 1;   transform: scale(1.15); filter: drop-shadow(0 0 9px rgba(239,68,68,1)) drop-shadow(0 0 17px rgba(239,68,68,.7)); }
+      0%, 100% { opacity: .55; transform: scale(1);    filter: drop-shadow(0 0 2px rgba(239,68,68,.55)); }
+      50%      { opacity: 1;   transform: scale(1.18); filter: drop-shadow(0 0 9px rgba(239,68,68,1)) drop-shadow(0 0 17px rgba(239,68,68,.7)); }
     }
 
     /* Bandeira/flag de NC */
@@ -1819,12 +1820,13 @@ function renderCarrinhos() {
         : `<span class="ccv-phone ${phoneSt?'on':'alert'}" title="${phoneSt?'Celular online no Headwind':'⚠ Logado SEM celular online'}">${phoneSvg}</span>`;
       return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
+        ${phoneIcon}
         <div>
           <div class="ccv-id">${c.nome}</div>
           <div class="ccv-status">${label}</div>
         </div>
         <div>
-          ${mec ? `<div class="ccv-mec">👤 ${mec} ${phoneIcon}</div>` : ''}
+          ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
           ${hora ? `<div class="ccv-time">${data} · ${hora}</div>` : ''}
           ${forceBtn}
         </div>
