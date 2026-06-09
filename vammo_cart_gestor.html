@@ -1289,6 +1289,7 @@
         <option value="Mecânico esqueceu">Mecânico esqueceu</option>
         <option value="Erro no app">Erro no app</option>
         <option value="Erro no QR Code">Erro no QR Code</option>
+        <option value="Imprevisto com colaborador">Imprevisto com colaborador</option>
       </select>
     </div>
 
@@ -4493,6 +4494,11 @@ function openDetail(id) {
   const ok = Object.values(rec.ferramentas || {}).filter(v => v.status === 'ok').length;
   const historicoHtml = renderMiniHistoricoGestor(rec.carrinho, 4);
 
+  // NCs ainda ABERTAS no servidor (pra esse carrinho) — fonte da verdade
+  const cartN = normalizeCartName(rec.carrinho);
+  const ncsAbertas = (_serverOpenNCs || []).filter(nc => normalizeCartName(nc.carrinho) === cartN);
+  const abertasSet = new Set(ncsAbertas.map(nc => nc.ferramenta));
+
   const fotosHtml = rec.fotos ? (() => {
     return `<div class="detail-section">
       <h4>Fotos <span style="color:var(--gr);font-weight:400;font-size:11px;margin-left:6px;">clique pra ampliar</span></h4>
@@ -4516,13 +4522,22 @@ function openDetail(id) {
 
   const ncHtml = ncs.length ? `
     <div class="detail-section">
-      <h4>Não Conformidades (${ncs.length})</h4>
-      ${ncs.map(([k,v]) => `
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;">
+      <h4>Não Conformidades (${ncs.length})${ncsAbertas.length ? ` <span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;margin-left:6px;">${ncsAbertas.length} ainda abertas</span>` : ''}</h4>
+      ${ncs.map(([k,v]) => {
+        const aindaAberta = abertasSet.has(k);
+        const ferrEsc = JSON.stringify(k).replace(/"/g,'&quot;');
+        const recIdEsc = (rec.id || '').replace(/'/g,'');
+        const cartEsc = (rec.carrinho || '').replace(/'/g,'');
+        const motivoEsc = (v.motivo || 'nc').replace(/'/g,'');
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;flex-wrap:wrap;">
           <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
-          ${k}
-        </div>
-      `).join('')}
+          <span style="flex:1;min-width:120px;">${k}</span>
+          ${aindaAberta
+            ? `<button class="btn-repor" style="padding:6px 14px;font-size:11.5px;font-weight:800;" onclick="closeDetail(); reporFerramenta('${recIdEsc}', ${ferrEsc}, '${cartEsc}', '${motivoEsc}')">↻ Resolver</button>`
+            : `<span style="color:var(--gn);font-size:11px;font-weight:700;">✅ Resolvida</span>`
+          }
+        </div>`;
+      }).join('')}
     </div>
   ` : '';
 
