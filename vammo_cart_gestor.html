@@ -2639,7 +2639,7 @@ function renderChartDiario() {
   if (!canvas) return;
   const series = gastoDiarioBase(_SUPERVISOR_BASE, 14);
   const cssW = canvas.parentElement.clientWidth - 4;
-  const cssH = 220;
+  const cssH = 240;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = cssW * dpr; canvas.height = cssH * dpr;
   canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
@@ -2647,7 +2647,8 @@ function renderChartDiario() {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0,0,cssW,cssH);
 
-  const PAD = { t: 24, b: 36, l: 56, r: 14 };
+  // Padding maior à direita pro último valor (R$ X) não estourar
+  const PAD = { t: 28, b: 42, l: 60, r: 56 };
   const innerW = cssW - PAD.l - PAD.r;
   const innerH = cssH - PAD.t - PAD.b;
   const maxV = Math.max(1, ...series.map(s => s.gasto));
@@ -2690,30 +2691,46 @@ function renderChartDiario() {
     points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
     ctx.stroke();
     // Pontos + valor
+    const lastIdx = series.length - 1;
     points.forEach((p, i) => {
       const s = series[i];
+      const isHoje = i === lastIdx;
       // ponto
-      ctx.fillStyle = s.gasto > 0 ? '#2EC2FF' : '#444';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
-      // valor acima do ponto
-      if (s.gasto > 0) {
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 10px Barlow, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('R$ ' + s.gasto.toFixed(0), p.x, p.y - 9);
+      ctx.fillStyle = s.gasto > 0 ? (isHoje ? '#22c55e' : '#2EC2FF') : '#444';
+      ctx.beginPath(); ctx.arc(p.x, p.y, isHoje ? 5 : 4, 0, Math.PI*2); ctx.fill();
+      if (isHoje && s.gasto > 0) {
+        ctx.strokeStyle = 'rgba(34,197,94,.4)';
+        ctx.lineWidth = 8;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI*2); ctx.stroke();
       }
-      // label data (rotacionada se muitos)
-      ctx.fillStyle = '#888';
-      ctx.font = '9.5px Barlow, sans-serif';
-      ctx.textAlign = 'center';
-      const isHoje = i === series.length - 1;
-      ctx.fillStyle = isHoje ? '#2EC2FF' : '#888';
+      // valor acima do ponto (alinhamento ajusta conforme borda)
+      if (s.gasto > 0) {
+        const valTxt = 'R$ ' + s.gasto.toFixed(0);
+        ctx.fillStyle = isHoje ? '#22c55e' : '#fff';
+        ctx.font = 'bold ' + (isHoje ? '11' : '10') + 'px Barlow, sans-serif';
+        // se estiver no último ponto e perto da borda direita, alinha à direita
+        if (isHoje && p.x > cssW - PAD.r - 20) {
+          ctx.textAlign = 'right';
+          ctx.fillText(valTxt, p.x - 8, p.y - 4);
+        } else if (i === 0 && p.x < PAD.l + 20) {
+          ctx.textAlign = 'left';
+          ctx.fillText(valTxt, p.x + 8, p.y - 4);
+        } else {
+          ctx.textAlign = 'center';
+          ctx.fillText(valTxt, p.x, p.y - 10);
+        }
+      }
+      // label data
+      ctx.fillStyle = isHoje ? '#22c55e' : '#888';
       ctx.font = (isHoje ? 'bold ' : '') + '10px Barlow, sans-serif';
-      ctx.fillText(s.label, p.x, PAD.t + innerH + 14);
+      // último: alinha à direita pra não cortar
+      if (isHoje) { ctx.textAlign = 'right'; ctx.fillText(s.label, Math.min(p.x + 8, cssW - 4), PAD.t + innerH + 16); }
+      else if (i === 0) { ctx.textAlign = 'left'; ctx.fillText(s.label, Math.max(p.x - 4, PAD.l), PAD.t + innerH + 16); }
+      else { ctx.textAlign = 'center'; ctx.fillText(s.label, p.x, PAD.t + innerH + 16); }
       if (s.ncs > 0) {
         ctx.fillStyle = '#f59e0b';
         ctx.font = '9px Barlow, sans-serif';
-        ctx.fillText('⚠' + s.ncs, p.x, PAD.t + innerH + 26);
+        ctx.fillText('⚠' + s.ncs, isHoje ? Math.min(p.x + 8, cssW - 4) : p.x, PAD.t + innerH + 30);
       }
     });
   }
@@ -2830,19 +2847,28 @@ function renderDashboard() {
 
   const estBasesPraMostrar = sup ? viewableEstoqueBases() : ESTOQUE_BASES;
 
-  // Patrimônio compacto pro supervisor (1 card pequeno); detalhado pro gestor
-  const patrimonioHtml = sup
-    ? `<div style="grid-column:1 / -1;display:flex;justify-content:flex-end;margin-top:6px;">
+  // Pro supervisor: cards de gasto + patrimônio LADO A LADO na linha de métricas
+  // (em vez de patrimônio em linha separada com espaço vazio)
+  const metricasSupHtml = sup ? metricas.map(m => `
+        <div class="metric-card ${m.cls}">
+          <div class="mc-lbl">${m.label}</div>
+          <div class="mc-money">${fmtMoney(gastos[m.key]||0)}</div>
+          <div class="mc-sub">gasto em reposições</div>
+          <div class="mc-nc">⚠ <strong>${ncs[m.key]||0}</strong> NC${(ncs[m.key]||0)!==1?'s':''} criada${(ncs[m.key]||0)!==1?'s':''}</div>
+        </div>
         ${estBasesPraMostrar.map(b => {
           const s = estStats[b] || { qtd:0, valor:0 };
           const isReserva = b === 'Estoque Mooca';
-          return `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-left:8px;min-width:170px;">
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;">💰 Patrimônio${isReserva?' Reserva':''}</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gn);line-height:1;margin-top:3px;">${fmtMoney(s.valor)}</div>
-            <div style="font-size:10.5px;color:var(--gr);margin-top:2px;">${s.qtd} ferramenta(s)</div>
+          return `<div class="metric-card" style="border-color:var(--gn);background:linear-gradient(180deg, rgba(34,197,94,.06), var(--c1));">
+            <div class="mc-lbl" style="color:var(--gn);">💰 Patrimônio${isReserva?' Reserva':''}</div>
+            <div class="mc-money" style="color:var(--gn);">${fmtMoney(s.valor)}</div>
+            <div class="mc-sub">${s.qtd} ferramenta(s) em estoque</div>
           </div>`;
-        }).join('')}
-      </div>`
+        }).join('')}`).join('') : '';
+
+  // Patrimônio detalhado SÓ pro gestor (supervisor já vê no card lado-a-lado acima)
+  const patrimonioHtml = sup
+    ? ''
     : `<div style="grid-column:1 / -1;margin-top:6px;padding:16px 18px;background:linear-gradient(180deg, rgba(34,197,94,.08), var(--c1));border:1px solid var(--gn);border-radius:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <div>
@@ -2881,7 +2907,7 @@ function renderDashboard() {
       <span class="dpb-info">${pLabel} · desde ${pStart.toLocaleDateString('pt-BR')}</span>
     </div>
     <div class="dash-metrics">
-      ${metricas.map(m => `
+      ${sup ? metricasSupHtml : metricas.map(m => `
         <div class="metric-card ${m.cls}">
           <div class="mc-lbl">${m.label}</div>
           <div class="mc-money">${fmtMoney(gastos[m.key]||0)}</div>
