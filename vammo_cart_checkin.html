@@ -1286,7 +1286,9 @@ function selectTipo(tipo) {
 
 // Normaliza nome do carrinho: "mc01", "MC-1", "MC 1", "MC01" → "MC 01"
 function normalizeCartName(nome) {
-  const raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
+  // Aceita "0C" (zero+C) como alias de "OC" — QR codes impressos com zero em vez de letra O
+  let raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
+  if (/^0C\d+$/.test(raw)) raw = 'OC' + raw.slice(2);
   const m = raw.match(/^(MC|OC|SC)(\d+)$/);
   if (!m) return String(nome || '').trim().toUpperCase();
   return m[1] + ' ' + m[2].padStart(2,'0');
