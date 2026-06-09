@@ -1,0 +1,45 @@
+[build]
+  publish = "."
+
+# Redirects para URLs curtas (sem .html)
+[[redirects]]
+  from = "/"
+  to = "/vammo_cart_gestor.html"
+  status = 200
+
+[[redirects]]
+  from = "/gestor"
+  to = "/vammo_cart_gestor.html"
+  status = 200
+
+[[redirects]]
+  from = "/supervisor"
+  to = "/vammo_cart_gestor.html?role=supervisor"
+  status = 200
+
+[[redirects]]
+  from = "/encarregado"
+  to = "/vammo_cart_encarregado.html"
+  status = 200
+
+[[redirects]]
+  from = "/mecanico"
+  to = "/vammo_cart_checkin.html"
+  status = 200
+
+[[redirects]]
+  from = "/checkin"
+  to = "/vammo_cart_checkin.html"
+  status = 200
+
+# Cache: HTML sempre revalida (network-first), assets podem cachear
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
