@@ -4958,13 +4958,22 @@ function handleCredentialResponse(resp) {
     document.getElementById('login-status').innerHTML = '❌ Não consegui ler seu e-mail.';
     return;
   }
+  // 1ª validação com lista local
   const v = isEmailAutorizado(p.email);
-  if (!v.ok) {
-    document.getElementById('login-status').innerHTML = `❌ ${v.motivo}<br><span style="font-size:11px;color:#666;">(entrou como ${p.email})</span>`;
+  if (v.ok) { finalizaLogin(p); return; }
+  // Não autorizou: pode ser que a lista de supervisores ainda não tinha sincronizado.
+  // Busca do servidor e tenta de novo.
+  document.getElementById('login-status').innerHTML = '⏳ Verificando autorização no servidor...';
+  document.getElementById('login-status').style.color = '#aaa';
+  syncAcessosFromGAS(() => {
+    const v2 = isEmailAutorizado(p.email);
+    if (v2.ok) { finalizaLogin(p); return; }
+    document.getElementById('login-status').innerHTML = `❌ ${v2.motivo}<br><span style="font-size:11px;color:#666;">(entrou como ${p.email})</span>`;
     document.getElementById('login-status').style.color = '#ef4444';
     clearAuth();
-    return;
-  }
+  });
+}
+function finalizaLogin(p) {
   saveAuth({ email: p.email, name: p.name || p.email, role: isSupervisor() ? 'supervisor' : 'gestor', base: _SUPERVISOR_BASE || 'all', ts: new Date().toISOString() });
   document.getElementById('login-gate').style.display = 'none';
   bootApp();
@@ -5003,25 +5012,28 @@ function logout() {
 }
 
 function checkAuthAndBoot() {
-  // Sincroniza lista de supervisores autorizados ANTES de validar login
-  syncAcessosFromGAS(() => {
-    const stored = getStoredAuth();
-    if (stored?.email) {
-      const v = isEmailAutorizado(stored.email);
-      if (v.ok) {
-        const expectedRole = isSupervisor() ? 'supervisor' : 'gestor';
-        const expectedBase = isSupervisor() ? _SUPERVISOR_BASE : 'all';
-        if (stored.role === expectedRole && stored.base === expectedBase) {
-          document.getElementById('login-gate').style.display = 'none';
-          bootApp();
-          return;
-        }
+  // 1) Tenta sessão local existente IMEDIATAMENTE (sem esperar GAS)
+  const stored = getStoredAuth();
+  if (stored?.email) {
+    const v = isEmailAutorizado(stored.email);
+    if (v.ok) {
+      const expectedRole = isSupervisor() ? 'supervisor' : 'gestor';
+      const expectedBase = isSupervisor() ? _SUPERVISOR_BASE : 'all';
+      if (stored.role === expectedRole && stored.base === expectedBase) {
+        document.getElementById('login-gate').style.display = 'none';
+        bootApp();
+        // Atualiza acessos em background (não bloqueia)
+        syncAcessosFromGAS(() => {});
+        return;
       }
-      clearAuth();
     }
-    showLoginInfo();
-    initGoogleAuthGate();
-  });
+    clearAuth();
+  }
+  // 2) Não logado: mostra tela de login NA HORA
+  showLoginInfo();
+  initGoogleAuthGate();
+  // 3) Em paralelo, busca lista atualizada de acessos pra validar email do supervisor
+  syncAcessosFromGAS(() => {});
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
