@@ -1131,6 +1131,31 @@ function getColab() {
   try { localStorage.setItem('vammo_colab_emails', JSON.stringify(DEFAULT_EMAILS)); } catch {}
   return DEFAULT_EMAILS.slice();
 }
+// Puxa lista atualizada de colaboradores do GAS — sempre faz merge com a local,
+// nunca remove (servidor é a fonte da verdade pra novos adds; remove é via app gestor)
+function syncColabFromGAS(cb) {
+  try {
+    const cfg = (function(){ try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } })();
+    const url = cfg.webhookUrl || 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
+    const cbn = '_colab_cb_' + Date.now();
+    const sc = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); if (cb) cb(false); }, 10000);
+    function cleanup(){ clearTimeout(timer); delete window[cbn]; if (sc.parentNode) sc.parentNode.removeChild(sc); }
+    window[cbn] = (d) => {
+      cleanup();
+      if (d?.ok && Array.isArray(d.emails) && d.emails.length) {
+        const set = new Set((getColab() || []).map(s => String(s).toLowerCase()));
+        d.emails.forEach(e => { const em = String(e.email||'').toLowerCase(); if (em) set.add(em); });
+        const merged = Array.from(set).sort();
+        try { localStorage.setItem('vammo_colab_emails', JSON.stringify(merged)); } catch {}
+        if (cb) cb(true, merged.length);
+      } else { if (cb) cb(false); }
+    };
+    sc.onerror = () => { cleanup(); if (cb) cb(false); };
+    sc.src = url + '?action=colabGet&callback=' + cbn;
+    document.head.appendChild(sc);
+  } catch (_) { if (cb) cb(false); }
+}
 // URL padrão do Apps Script — todo celular já abre configurado, sem precisar
 // escanear QR. Pode ser sobrescrita via ⚙️ > "URL do servidor".
 const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
@@ -1546,7 +1571,16 @@ function handleCredentialResponse(resp) {
   if (!resp || !resp.credential) return;
   const p = decodeJwtPayload(resp.credential);
   if (!p) return;
-  authedAs(p.email, p.name);
+  const email = String(p.email||'').toLowerCase();
+  // 1ª tentativa: valida com lista local; se rejeitar, busca lista atualizada do servidor e tenta de novo
+  if (isEmailAllowed(email)) { authedAs(email, p.name); return; }
+  const st = document.getElementById('login-status');
+  if (st) { st.innerHTML = '⏳ Verificando autorização no servidor...'; st.style.color = 'var(--gr)'; }
+  syncColabFromGAS((ok) => {
+    if (ok && isEmailAllowed(email)) { authedAs(email, p.name); return; }
+    // ainda não tem acesso — mostra erro
+    authedAs(email, p.name); // chama de novo só pra mostrar o "❌ não está na lista" canônico
+  });
 }
 
 function initGoogleAuth(retryCount) {
@@ -2406,6 +2440,8 @@ function decodeQRConfigFallback(file, st) {
     goTo(SCREENS.indexOf('screen-login'));
     initGoogleAuth();
   }
+  // Sempre busca lista atualizada do servidor em background — pra próximos logins/check-ins
+  syncColabFromGAS();
   updateBar();
   updateNextBtn();
 })();

@@ -1143,10 +1143,14 @@
         </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn-sm btn-az" onclick="sincronizarColabsAgora()" style="font-weight:800;">🔄 Sincronizar com Servidor</button>
           <button class="btn-sm btn-outline" onclick="exportColab()">⬇ Exportar JSON</button>
           <button class="btn-sm btn-outline" onclick="importColabPrompt()">⬆ Importar JSON</button>
           <button class="btn-sm btn-outline" onclick="resetColabDefault()">↺ Restaurar padrão</button>
           <button class="btn-sm btn-rd" onclick="resetColab()">🗑 Limpar Lista</button>
+        </div>
+        <div style="margin-top:10px;font-size:11.5px;color:var(--gr);">
+          💡 Ao adicionar/remover, o servidor é atualizado automaticamente. O botão acima é pra subir a lista inteira (útil na primeira vez ou se algum colaborador foi adicionado offline).
         </div>
       </div>
 
@@ -1554,6 +1558,42 @@ function getColab() {
   return raw;
 }
 function saveColab(arr) { localStorage.setItem('vammo_colab_emails', JSON.stringify(arr)); }
+function syncColabFromGAS(cb) {
+  const cfg = (function(){ try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } })();
+  const url = cfg.webhookUrl || 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
+  gasGet(url, 'action=colabGet', (d, err) => {
+    if (err || !d?.ok || !Array.isArray(d.emails)) { if (cb) cb(false); return; }
+    if (!d.emails.length) { if (cb) cb(true, 0); return; } // servidor vazio — mantém local
+    const fromServer = d.emails.map(e => String(e.email || '').toLowerCase()).filter(Boolean);
+    const local = new Set((getColab() || []).map(s => String(s).toLowerCase()));
+    fromServer.forEach(e => local.add(e));
+    const merged = Array.from(local).sort();
+    saveColab(merged);
+    if (cb) cb(true, fromServer.length);
+  });
+}
+function sincronizarColabsAgora() {
+  const emails = getColab();
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { showAlert('colab-alert','rd','❌ Servidor não configurado.'); return; }
+  if (!emails.length) { showAlert('colab-alert','yw','⚠ Lista local vazia — nada pra subir.'); return; }
+  if (!confirm(`Subir ${emails.length} email(s) locais pro servidor? (já existentes serão ignorados, dedup automático)`)) return;
+  showAlert('colab-alert','az',`⏳ Sincronizando ${emails.length} emails...`);
+  let ok = 0, err = 0, dup = 0;
+  emails.forEach((em, idx) => {
+    setTimeout(() => {
+      gasGet(cfg.webhookUrl, 'action=colabAdd&email=' + encodeURIComponent(em) + '&por=' + encodeURIComponent((getStoredAuth()||{}).email||'gestor'), (d, e) => {
+        if (e || !d?.ok) err++;
+        else if (d.dedup) dup++;
+        else ok++;
+        if (ok + err + dup === emails.length) {
+          showAlert('colab-alert','gn', `✅ Sincronização concluída: ${ok} novos · ${dup} já existiam · ${err} falharam`);
+          logAcao('colab_bulk_sync', `${ok} novos, ${dup} dup`, '');
+        }
+      });
+    }, idx * 200);
+  });
+}
 // URL padrão do Apps Script — gestor e checkin já abrem configurados.
 const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
 // Serviço de presença (celular online no Headwind MDM) — web app separado
@@ -2343,7 +2383,15 @@ function addColab() {
   saveColab(emails);
   inp.value = '';
   renderColab();
-  showAlert('colab-alert', 'gn', '✅ ' + val + ' adicionado!');
+  showAlert('colab-alert', 'gn', '✅ ' + val + ' adicionado! Sincronizando com servidor...');
+  // Sync com GAS pra todos os celulares de mecânico pegarem
+  const cfg = getConfig();
+  if (cfg.webhookUrl) {
+    gasGet(cfg.webhookUrl, 'action=colabAdd&email=' + encodeURIComponent(val) + '&por=' + encodeURIComponent((getStoredAuth()||{}).email||'gestor'), (d, err) => {
+      if (err || !d?.ok) showAlert('colab-alert','rd','⚠ Adicionado local mas falha no servidor: ' + (err || d?.error));
+      else { showAlert('colab-alert','gn','✅ ' + val + ' sincronizado — celulares dos mecânicos vão pegar no próximo login.'); logAcao('colab_add', val, ''); }
+    });
+  }
 }
 
 function addColabLote() {
@@ -2352,17 +2400,36 @@ function addColabLote() {
   const candidatos = raw.split(/[\s,;]+/).map(normEmail).filter(Boolean);
   const emails = getColab();
   const existentes = new Set(emails);
+  const novos = [];
   let ok = 0, dup = 0, invalido = 0;
   candidatos.forEach(e => {
     if (!EMAIL_RE.test(e)) { invalido++; return; }
     if (existentes.has(e)) { dup++; return; }
-    emails.push(e); existentes.add(e); ok++;
+    emails.push(e); existentes.add(e); novos.push(e); ok++;
   });
   emails.sort();
   saveColab(emails);
   renderColab();
   showAlert('colab-alert', ok ? 'gn' : 'yw',
-    `✅ ${ok} adicionado(s)${dup?` · ${dup} duplicado(s)`:''}${invalido?` · ${invalido} inválido(s)`:''}`);
+    `✅ ${ok} adicionado(s)${dup?` · ${dup} duplicado(s)`:''}${invalido?` · ${invalido} inválido(s)`:''} · sincronizando...`);
+  // Sync com GAS — 1 chamada por novo
+  const cfg = getConfig();
+  if (cfg.webhookUrl && novos.length) {
+    let sincOk = 0, sincErr = 0;
+    novos.forEach((em, idx) => {
+      // pequeno stagger pra não estourar lock
+      setTimeout(() => {
+        gasGet(cfg.webhookUrl, 'action=colabAdd&email=' + encodeURIComponent(em) + '&por=' + encodeURIComponent((getStoredAuth()||{}).email||'gestor'), (d, err) => {
+          if (err || !d?.ok) sincErr++; else sincOk++;
+          if (sincOk + sincErr === novos.length) {
+            showAlert('colab-alert', sincErr ? 'yw' : 'gn',
+              `✅ ${sincOk} sincronizado(s)${sincErr?` · ${sincErr} falharam`:''} no servidor — celulares dos mecânicos vão pegar no próximo login.`);
+            logAcao('colab_bulk_add', `${sincOk} emails: ${novos.slice(0,5).join(', ')}${novos.length>5?' ...':''}`, '');
+          }
+        });
+      }, idx * 250);
+    });
+  }
 }
 
 function removeColab(email) {
@@ -2370,6 +2437,13 @@ function removeColab(email) {
   const emails = getColab().filter(e => e !== email);
   saveColab(emails);
   renderColab();
+  const cfg = getConfig();
+  if (cfg.webhookUrl) {
+    gasGet(cfg.webhookUrl, 'action=colabRemove&email=' + encodeURIComponent(email), (d, err) => {
+      if (err) showAlert('colab-alert','rd','⚠ Removido local mas falha no servidor: ' + err);
+      else logAcao('colab_remove', email, '');
+    });
+  }
 }
 
 function exportColab() {
