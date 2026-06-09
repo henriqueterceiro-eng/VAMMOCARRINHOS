@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VAMMO · Gestor de Carrinhos</title>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
     :root {
@@ -850,6 +851,17 @@
 </head>
 <body>
 
+<!-- ─── LOGIN GATE ──────────────────────────────────────────────────────────── -->
+<div id="login-gate" style="position:fixed;inset:0;background:#0a0a0a;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;">
+  <div style="max-width:420px;width:100%;background:#141414;border:1px solid #2a2a2a;border-radius:14px;padding:34px 28px;text-align:center;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:6px;color:#00B4E5;margin-bottom:6px;">VAMMO</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:3px;color:#aaa;text-transform:uppercase;margin-bottom:28px;">Gestão de Carrinhos</div>
+    <div id="login-role-info" style="background:rgba(46,194,255,.08);border:1px solid rgba(46,194,255,.2);border-radius:8px;padding:12px;margin-bottom:18px;font-size:13px;color:#e0e0e0;"></div>
+    <div id="gsi-button-wrap" style="display:flex;justify-content:center;margin-bottom:16px;"></div>
+    <div id="login-status" style="font-size:12.5px;color:#aaa;margin-top:14px;min-height:18px;line-height:1.5;"></div>
+  </div>
+</div>
+
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
 <div class="layout">
@@ -1148,6 +1160,15 @@
             Cada celular de mecânico precisa escanear este QR Code uma única vez para configurar o envio automático. Mostre na tela ou imprima.
           </p>
           <div id="cfg-qr" style="display:flex;align-items:center;justify-content:center;padding:12px 0;"></div>
+        </div>
+
+        <!-- ACESSOS DE SUPERVISORES -->
+        <div class="config-card">
+          <h3>🔐 Acessos de Supervisor por Base</h3>
+          <p class="config-desc">
+            Quem pode entrar como Supervisor de cada base. Use e-mail @vammo.com. O Supervisor faz login com Google na URL <code style="font-size:11px;background:#222;padding:2px 5px;border-radius:3px;">?role=supervisor&base=X</code> e o app valida se o e-mail está autorizado.
+          </p>
+          <div id="cfg-supervisores"></div>
         </div>
 
         <!-- PASSO 3: Código GAS -->
@@ -1489,6 +1510,18 @@ function getConfig() {
 function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c)); }
 
 // ─── BASES ────────────────────────────────────────────────────────────────────
+// ─── AUTH (Google Sign-In) ─────────────────────────────────────────────────
+const GOOGLE_CLIENT_ID = '662702497307-qom2jv0sboe0n4686jsaisftov6bqrep.apps.googleusercontent.com';
+const GESTOR_EMAILS = ['henrique.terceiro@vammo.com','marcelo@vammo.com','joao.chalela@vammo.com'];
+function getSupervisorEmails() {
+  try { return JSON.parse(localStorage.getItem('vammo_supervisor_emails')) || {}; } catch { return {}; }
+}
+function setSupervisorEmails(o) { localStorage.setItem('vammo_supervisor_emails', JSON.stringify(o)); }
+function decodeJwt(t) { try { const b = t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'); return JSON.parse(decodeURIComponent(atob(b).split('').map(c => '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''))); } catch { return null; } }
+function getStoredAuth() { try { return JSON.parse(localStorage.getItem('vammo_auth')) || null; } catch { return null; } }
+function saveAuth(o) { localStorage.setItem('vammo_auth', JSON.stringify(o)); }
+function clearAuth() { localStorage.removeItem('vammo_auth'); }
+
 const BASES = ['Mooca', 'Osasco', 'SBC'];
 // Bases que recebem estoque (inclui overflow do armário Mooca). Carrinhos só usam BASES.
 const ESTOQUE_BASES = ['Mooca', 'Osasco', 'SBC', 'Estoque Mooca'];
@@ -3542,10 +3575,49 @@ function exportEstoqueCSV() {
   a.click();
 }
 
+function renderSupervisoresConfig() {
+  const wrap = document.getElementById('cfg-supervisores');
+  if (!wrap) return;
+  const emails = getSupervisorEmails();
+  wrap.innerHTML = BASES.map(b => {
+    const list = emails[b] || [];
+    return `<div style="background:var(--c2);border:1px solid var(--bd);border-radius:6px;padding:12px;margin-bottom:10px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:900;letter-spacing:1.5px;color:var(--az);margin-bottom:8px;">📍 BASE ${b.toUpperCase()}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:24px;">
+        ${list.length ? list.map(e => `<span style="background:rgba(34,197,94,.12);border:1px solid var(--gn);color:var(--gn);padding:4px 8px;border-radius:5px;font-size:11.5px;font-family:monospace;">${e} <button onclick="removerSupervisor('${b}','${e.replace(/'/g,"\\'")}')" style="background:none;border:0;color:var(--rd);cursor:pointer;margin-left:4px;font-weight:900;">×</button></span>`).join('') : '<span style="color:var(--gr);font-size:11.5px;font-style:italic;">Nenhum supervisor cadastrado.</span>'}
+      </div>
+      <div style="display:flex;gap:6px;">
+        <input type="email" id="sup-email-${b}" placeholder="nome.sobrenome@vammo.com" style="flex:1;padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
+        <button class="btn-sm btn-az" onclick="adicionarSupervisor('${b}')" style="padding:8px 14px;font-size:11px;">+ Adicionar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function adicionarSupervisor(base) {
+  const inp = document.getElementById('sup-email-' + base);
+  const email = (inp.value || '').trim().toLowerCase();
+  if (!email.endsWith('@vammo.com')) { alert('❌ Apenas e-mails @vammo.com.'); return; }
+  const emails = getSupervisorEmails();
+  if (!emails[base]) emails[base] = [];
+  if (emails[base].includes(email)) { alert('Já cadastrado.'); return; }
+  emails[base].push(email);
+  setSupervisorEmails(emails);
+  inp.value = '';
+  renderSupervisoresConfig();
+}
+function removerSupervisor(base, email) {
+  if (!confirm(`Remover ${email} da base ${base}?`)) return;
+  const emails = getSupervisorEmails();
+  if (emails[base]) emails[base] = emails[base].filter(e => e !== email);
+  setSupervisorEmails(emails);
+  renderSupervisoresConfig();
+}
+
 function renderConfig() {
   const cfg = getConfig();
   const urlEl = document.getElementById('cfg-webhook');
   if (urlEl) urlEl.value = cfg.webhookUrl || '';
+  renderSupervisoresConfig();
 
   // QR Code da URL para os celulares dos mecânicos
   const qrDiv = document.getElementById('cfg-qr');
@@ -4175,6 +4247,104 @@ function importarRegistros(input) {
   reader.readAsText(file);
 }
 
+// ─── AUTH GATE ─────────────────────────────────────────────────────────────
+function isEmailAutorizado(email) {
+  email = (email || '').toLowerCase();
+  if (!email) return { ok: false, motivo: 'Email vazio' };
+  if (!email.endsWith('@vammo.com')) return { ok: false, motivo: 'Apenas contas @vammo.com são permitidas.' };
+  if (isSupervisor()) {
+    const supEmails = getSupervisorEmails();
+    const emailsBase = supEmails[_SUPERVISOR_BASE] || [];
+    // Gestores também podem entrar como supervisor (pra testar/auditoria)
+    if (GESTOR_EMAILS.includes(email)) return { ok: true };
+    if (emailsBase.map(e => e.toLowerCase()).includes(email)) return { ok: true };
+    return { ok: false, motivo: `Seu e-mail não tem acesso de Supervisor da base ${_SUPERVISOR_BASE}. Peça pro gestor central liberar.` };
+  }
+  // Gestor central
+  if (GESTOR_EMAILS.includes(email)) return { ok: true };
+  return { ok: false, motivo: 'Seu e-mail não está liberado pro Gestor central. Peça pro Henrique, Marcelo ou João liberar.' };
+}
+
+function showLoginInfo() {
+  const el = document.getElementById('login-role-info');
+  if (!el) return;
+  if (isSupervisor()) {
+    el.innerHTML = `<strong style="color:#22c55e;">Supervisor · ${_SUPERVISOR_BASE}</strong><br><span style="font-size:11.5px;color:#aaa;">Faça login com seu e-mail @vammo.com autorizado pra esta base.</span>`;
+  } else {
+    el.innerHTML = `<strong style="color:#00B4E5;">Gestor Central</strong><br><span style="font-size:11.5px;color:#aaa;">Acesso restrito: Henrique, Marcelo e João.</span>`;
+  }
+}
+
+function handleCredentialResponse(resp) {
+  if (!resp?.credential) return;
+  const p = decodeJwt(resp.credential);
+  if (!p?.email) {
+    document.getElementById('login-status').innerHTML = '❌ Não consegui ler seu e-mail.';
+    return;
+  }
+  const v = isEmailAutorizado(p.email);
+  if (!v.ok) {
+    document.getElementById('login-status').innerHTML = `❌ ${v.motivo}<br><span style="font-size:11px;color:#666;">(entrou como ${p.email})</span>`;
+    document.getElementById('login-status').style.color = '#ef4444';
+    clearAuth();
+    return;
+  }
+  saveAuth({ email: p.email, name: p.name || p.email, role: isSupervisor() ? 'supervisor' : 'gestor', base: _SUPERVISOR_BASE || 'all', ts: new Date().toISOString() });
+  document.getElementById('login-gate').style.display = 'none';
+  bootApp();
+}
+
+function initGoogleAuthGate(retry) {
+  retry = retry || 0;
+  if (!window.google?.accounts?.id) {
+    if (retry > 30) {
+      document.getElementById('login-status').innerHTML = '⚠️ Google Sign-In não carregou. Verifique sua conexão e recarregue.';
+      return;
+    }
+    return setTimeout(() => initGoogleAuthGate(retry + 1), 200);
+  }
+  try {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      ux_mode: 'popup',
+      auto_select: false,
+      hd: 'vammo.com'
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('gsi-button-wrap'),
+      { theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 300 }
+    );
+  } catch (e) {
+    document.getElementById('login-status').innerHTML = '⚠️ Falha ao iniciar Google Sign-In.';
+  }
+}
+
+function logout() {
+  clearAuth();
+  try { google.accounts.id.disableAutoSelect(); } catch(_) {}
+  location.reload();
+}
+
+function checkAuthAndBoot() {
+  const stored = getStoredAuth();
+  if (stored?.email) {
+    const v = isEmailAutorizado(stored.email);
+    if (v.ok) {
+      const expectedRole = isSupervisor() ? 'supervisor' : 'gestor';
+      const expectedBase = isSupervisor() ? _SUPERVISOR_BASE : 'all';
+      if (stored.role === expectedRole && stored.base === expectedBase) {
+        document.getElementById('login-gate').style.display = 'none';
+        bootApp();
+        return;
+      }
+    }
+    clearAuth();
+  }
+  showLoginInfo();
+  initGoogleAuthGate();
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 function aplicarRoleSupervisor() {
   if (!isSupervisor()) return;
@@ -4214,13 +4384,28 @@ function aplicarRoleSupervisor() {
     return originalShowPanel.call(this, id);
   };
 }
-aplicarRoleSupervisor();
+function bootApp() {
+  aplicarRoleSupervisor();
+  renderDashboard();
+  iniciarAutoSync();
+  syncEstoqueFromGAS();
+  syncNCsComServidor(true);
+  syncGameStartFromGAS();
+  // Mostra chip de usuário logado no topbar
+  const u = getStoredAuth();
+  if (u?.email) {
+    const top = document.querySelector('.top-bar');
+    if (top && !document.getElementById('user-chip-top')) {
+      const chip = document.createElement('div');
+      chip.id = 'user-chip-top';
+      chip.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,.05);border:1px solid var(--bd);border-radius:8px;font-size:11.5px;color:var(--w2);';
+      chip.innerHTML = `<span style="color:var(--gn);">●</span> ${u.email} <button onclick="logout()" style="background:none;border:0;color:var(--gr);cursor:pointer;font-size:11px;margin-left:6px;text-decoration:underline;">sair</button>`;
+      top.appendChild(chip);
+    }
+  }
+}
 
-renderDashboard();
-iniciarAutoSync(); // sync automático a cada 30s se URL configurada
-syncEstoqueFromGAS(); // puxa estoque do servidor ao abrir
-syncNCsComServidor(true); // alinha NCs com servidor ao abrir (silencioso)
-syncGameStartFromGAS(); // pega o "início do game" pra contagem de gasto
+checkAuthAndBoot();
 
 // Seed data para demonstração se não houver registros
 if (!getRecords().length) {
