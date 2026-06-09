@@ -4104,14 +4104,29 @@ function gastoNoPeriodo(startTs, endTs) {
 
 // Calcula gasto total de reposições por base (compat com código antigo)
 // Cache de baixas vindas do servidor (todas as reposições, qualquer dispositivo)
-let _serverBaixas = [];
-function syncBaixasFromGAS() {
+// Persiste em localStorage pra sobreviver reload sem esperar GAS
+let _serverBaixas = (function() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('vammo_server_baixas_cache') || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch { return []; }
+})();
+let _syncingBaixas = false;
+function syncBaixasFromGAS(retry) {
+  retry = retry || 0;
   const cfg = getConfig();
   if (!cfg.webhookUrl) return;
+  if (_syncingBaixas) return; // evita chamadas concorrentes
+  _syncingBaixas = true;
   gasGet(cfg.webhookUrl, 'action=ncsResolvidasGet', (data, err) => {
-    if (err || !data?.ncs) return;
-    // Cada NC reposta no servidor vira uma baixa "virtual" — qtd default 1
-    // (tipo Ajuste = Reposta_Por contém " (Ajuste)"; sem isso assume Reposição)
+    _syncingBaixas = false;
+    if (err || !data?.ncs) {
+      // Retry com backoff curto até 3x
+      if (retry < 2) {
+        setTimeout(() => syncBaixasFromGAS(retry + 1), 1500 * (retry + 1));
+      }
+      return;
+    }
     _serverBaixas = data.ncs.map(nc => {
       const por = String(nc.reposta_por||'');
       const isAjuste = /\(Ajuste\)/i.test(por);
@@ -4125,13 +4140,11 @@ function syncBaixasFromGAS() {
         carrinho: nc.carrinho,
         ferramenta: nc.ferramenta,
         tipo: isAjuste ? 'ajuste' : 'reposicao',
-        qtd: 1, // padrão; pode evoluir quando GAS gravar qtd
+        qtd: 1,
         por: por.replace(/\s*\((Reposição|Ajuste)\)\s*$/i, ''),
       };
     });
-    // Aplica estornos (vindos dos logs)
     if (Array.isArray(_serverEstornos) && _serverEstornos.length) {
-      // Cada estorno reduz qtd da baixa correspondente (cart+ferramenta+base) mais recente até o estorno
       _serverEstornos.forEach(est => {
         const cand = _serverBaixas.find(b => b.base === est.base
           && b.ferramenta === est.ferramenta
@@ -4140,11 +4153,18 @@ function syncBaixasFromGAS() {
         if (cand) { cand._estornada = true; }
       });
     }
-    // Re-render dos painéis ativos
-    if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
-    if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+    // Persiste em cache local pra próximo carregamento ter dados imediatos
+    try { localStorage.setItem('vammo_server_baixas_cache', JSON.stringify(_serverBaixas)); } catch {}
+    // Re-render APENAS na primeira carga (quando o gráfico ainda está vazio).
+    // Não re-renderiza em syncs subsequentes pra evitar pisca.
+    if (!_baixasSyncedOnce) {
+      _baixasSyncedOnce = true;
+      if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
+      if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+    }
   });
 }
+let _baixasSyncedOnce = false;
 
 let _serverEstornos = [];
 function syncEstornosFromGAS() {
@@ -5565,8 +5585,8 @@ function bootApp() {
   // Carrega histórico de baixas+estornos do servidor (pra ver gastos em qualquer dispositivo) — IMEDIATAMENTE
   syncEstornosFromGAS();
   syncBaixasFromGAS();
-  // Re-sync periódico das baixas
-  setInterval(syncBaixasFromGAS, 60000);
+  // Re-sync periódico (silencioso — só atualiza cache; UI atualiza quando user troca de aba ou clica Atualizar)
+  setInterval(syncBaixasFromGAS, 120000); // 2 min
   // Log de login (best effort) — só uma vez por sessão
   if (!sessionStorage.getItem('vammo_login_logged')) {
     setTimeout(() => {
