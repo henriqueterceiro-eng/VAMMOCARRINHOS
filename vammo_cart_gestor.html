@@ -1480,7 +1480,7 @@
 
     <div style="display:flex;gap:10px;margin-top:22px;">
       <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeReporModal()">Cancelar</button>
-      <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="confirmRepor()">↻ Confirmar</button>
+      <button class="btn-sm btn-az" id="repor-confirmar-btn" style="flex:2;padding:12px;font-weight:900;" onclick="confirmRepor()">↻ Confirmar</button>
     </div>
   </div>
 </div>
@@ -3090,7 +3090,9 @@ function onTipoReporChange() {
   document.getElementById('repor-qtd-wrap').style.display = (tipo === 'reposicao') ? 'block' : 'none';
 }
 
+let _reporEmAndamento = false;
 function confirmRepor() {
+  if (_reporEmAndamento) return; // anti duplo-clique
   const ctx = _reporCtx;
   if (!ctx) return;
   const tipo = document.querySelector('input[name="repor-tipo"]:checked')?.value;
@@ -3100,12 +3102,21 @@ function confirmRepor() {
   localStorage.setItem('vammo_gestor_nome', por); // lembra pra próxima
   const obs = document.getElementById('repor-obs').value.trim();
   ctx.por = por;
+  // trava o botão (visual + lógico) — libera só após callback do servidor
+  _reporEmAndamento = true;
+  const btn = document.getElementById('repor-confirmar-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.55'; btn.style.cursor = 'wait'; btn.textContent = '⏳ Processando...'; }
 
+  function liberaBotao() {
+    _reporEmAndamento = false;
+    const b = document.getElementById('repor-confirmar-btn');
+    if (b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; b.textContent = '↻ Confirmar'; }
+  }
   if (tipo === 'reposicao') {
     const qtd = parseInt(document.getElementById('repor-qtd').value, 10);
-    if (!qtd || qtd < 1) { showAlert('repor-alert', 'rd', '❌ Quantidade inválida.'); return; }
+    if (!qtd || qtd < 1) { showAlert('repor-alert', 'rd', '❌ Quantidade inválida.'); liberaBotao(); return; }
     if (qtd > ctx.disp) {
-      if (!confirm(`⚠️ Estoque insuficiente (disponível: ${ctx.disp}, solicitado: ${qtd}).\nProsseguir mesmo assim? (estoque fica negativo)`)) return;
+      if (!confirm(`⚠️ Estoque insuficiente (disponível: ${ctx.disp}, solicitado: ${qtd}).\nProsseguir mesmo assim? (estoque fica negativo)`)) { liberaBotao(); return; }
     }
     executaRepor(ctx, 'reposicao', qtd, obs);
   } else if (tipo === 'ajuste') {
@@ -3165,6 +3176,9 @@ function executaRepor(ctx, tipo, qtd, obs) {
   const cfg = getConfig();
   const tipoLabel = tipo === 'reposicao' ? 'Reposição' : 'Ajuste';
   if (!cfg.webhookUrl) {
+    _reporEmAndamento = false;
+    const btn0 = document.getElementById('repor-confirmar-btn');
+    if (btn0) { btn0.disabled = false; btn0.style.opacity = ''; btn0.style.cursor = ''; btn0.textContent = '↻ Confirmar'; }
     closeReporModal();
     showAlert('cart-alert-box', 'yw',
       `⚠️ ${tipoLabel} local ok, mas SEM URL de servidor — a NC vai voltar pros mecânicos. Configure em ⚙️.`);
@@ -3175,6 +3189,9 @@ function executaRepor(ctx, tipo, qtd, obs) {
   showAlert('repor-alert', 'az', '⏳ Sincronizando com servidor...');
   const porQuem = ctx.por || localStorage.getItem('vammo_gestor_nome') || 'gestor';
   reporNCnoGASComRetry(cfg.webhookUrl, carrinho, ferramenta, porQuem, tipo, 0, (sucesso, err) => {
+    _reporEmAndamento = false;
+    const btn = document.getElementById('repor-confirmar-btn');
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; btn.textContent = '↻ Confirmar'; }
     closeReporModal();
     if (sucesso) {
       const msg = tipo === 'reposicao'
