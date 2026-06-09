@@ -3235,8 +3235,7 @@ function executaRepor(ctx, tipo, qtd, obs) {
 
   // UX OTIMISTA: fecha modal imediatamente, atualiza UI, deixa o GAS rodar em background
   const porQuem = ctx.por || localStorage.getItem('vammo_gestor_nome') || 'gestor';
-  const cartNorm = normalizeCartName(carrinho);
-  // 1) Remove a NC localmente (otimista)
+  // 1) Remove a NC localmente (otimista) — cartNorm já declarado acima
   _serverOpenNCs = _serverOpenNCs.filter(nc => !(normalizeCartName(nc.carrinho) === cartNorm && nc.ferramenta === ferramenta));
   // 2) Libera botão + fecha modal
   _reporEmAndamento = false;
