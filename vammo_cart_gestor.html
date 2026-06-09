@@ -2591,6 +2591,134 @@ function resetColabDefault() {
 let _dashPeriodo = 'mes'; // 'hoje' | 'semana' | 'mes'
 function setDashPeriodo(p) { _dashPeriodo = p; renderDashboard(); }
 
+function gastoDiarioBase(base, dias) {
+  // Retorna [{label:'DD/MM', dataIso:'YYYY-MM-DD', gasto:0, ncs:0}] dos últimos N dias da base
+  const out = [];
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+  const baixasLocais = getBaixas();
+  for (let i = dias - 1; i >= 0; i--) {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - i);
+    const inicio = d.getTime();
+    const fim = inicio + 86400000;
+    let gasto = 0, ncCount = 0;
+    const chaves = new Set();
+    baixasLocais.forEach(b => {
+      if (b.base !== base) return;
+      if (b.tipo === 'ajuste') return;
+      if (b.estornada) return;
+      const ts = new Date(b.ts).getTime();
+      if (ts < inicio || ts >= fim) return;
+      chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+      gasto += (Number(b.qtd)||0) * getPreco(b.ferramenta);
+      ncCount++;
+    });
+    _serverBaixas.forEach(b => {
+      if (b.base !== base) return;
+      if (b.tipo === 'ajuste') return;
+      if (b._estornada) return;
+      const ts = new Date(b.ts).getTime();
+      if (ts < inicio || ts >= fim) return;
+      const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
+      if (chaves.has(k)) return;
+      gasto += (Number(b.qtd)||1) * getPreco(b.ferramenta);
+      ncCount++;
+    });
+    out.push({
+      label: d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}),
+      dataIso: d.toISOString().slice(0,10),
+      gasto: gasto,
+      ncs: ncCount
+    });
+  }
+  return out;
+}
+function renderChartDiario() {
+  const canvas = document.getElementById('chart-semanal');
+  if (!canvas) return;
+  const series = gastoDiarioBase(_SUPERVISOR_BASE, 14);
+  const cssW = canvas.parentElement.clientWidth - 4;
+  const cssH = 220;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const PAD = { t: 24, b: 36, l: 56, r: 14 };
+  const innerW = cssW - PAD.l - PAD.r;
+  const innerH = cssH - PAD.t - PAD.b;
+  const maxV = Math.max(1, ...series.map(s => s.gasto));
+
+  // Eixo Y
+  ctx.strokeStyle = 'rgba(255,255,255,.08)';
+  ctx.fillStyle = '#888';
+  ctx.font = '10px Barlow, sans-serif';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD.t + (innerH * i / 4);
+    const val = maxV * (1 - i/4);
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(PAD.l + innerW, y); ctx.stroke();
+    ctx.fillText('R$ ' + val.toFixed(0), PAD.l - 6, y + 3);
+  }
+  // Linha + área
+  if (series.length > 1) {
+    const stepX = innerW / (series.length - 1);
+    const points = series.map((s, i) => ({
+      x: PAD.l + stepX * i,
+      y: PAD.t + innerH * (1 - s.gasto / maxV),
+      v: s.gasto
+    }));
+    // Área sob a linha
+    const grad = ctx.createLinearGradient(0, PAD.t, 0, PAD.t + innerH);
+    grad.addColorStop(0, 'rgba(46,194,255,.35)');
+    grad.addColorStop(1, 'rgba(46,194,255,.02)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, PAD.t + innerH);
+    points.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(points[points.length-1].x, PAD.t + innerH);
+    ctx.closePath();
+    ctx.fill();
+    // Linha
+    ctx.strokeStyle = '#2EC2FF';
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.stroke();
+    // Pontos + valor
+    points.forEach((p, i) => {
+      const s = series[i];
+      // ponto
+      ctx.fillStyle = s.gasto > 0 ? '#2EC2FF' : '#444';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+      // valor acima do ponto
+      if (s.gasto > 0) {
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px Barlow, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('R$ ' + s.gasto.toFixed(0), p.x, p.y - 9);
+      }
+      // label data (rotacionada se muitos)
+      ctx.fillStyle = '#888';
+      ctx.font = '9.5px Barlow, sans-serif';
+      ctx.textAlign = 'center';
+      const isHoje = i === series.length - 1;
+      ctx.fillStyle = isHoje ? '#2EC2FF' : '#888';
+      ctx.font = (isHoje ? 'bold ' : '') + '10px Barlow, sans-serif';
+      ctx.fillText(s.label, p.x, PAD.t + innerH + 14);
+      if (s.ncs > 0) {
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = '9px Barlow, sans-serif';
+        ctx.fillText('⚠' + s.ncs, p.x, PAD.t + innerH + 26);
+      }
+    });
+  }
+}
+
 function renderChartSemanal() {
   const canvas = document.getElementById('chart-semanal');
   if (!canvas) return;
@@ -2702,6 +2830,50 @@ function renderDashboard() {
 
   const estBasesPraMostrar = sup ? viewableEstoqueBases() : ESTOQUE_BASES;
 
+  // Patrimônio compacto pro supervisor (1 card pequeno); detalhado pro gestor
+  const patrimonioHtml = sup
+    ? `<div style="grid-column:1 / -1;display:flex;justify-content:flex-end;margin-top:6px;">
+        ${estBasesPraMostrar.map(b => {
+          const s = estStats[b] || { qtd:0, valor:0 };
+          const isReserva = b === 'Estoque Mooca';
+          return `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-left:8px;min-width:170px;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;">💰 Patrimônio${isReserva?' Reserva':''}</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gn);line-height:1;margin-top:3px;">${fmtMoney(s.valor)}</div>
+            <div style="font-size:10.5px;color:var(--gr);margin-top:2px;">${s.qtd} ferramenta(s)</div>
+          </div>`;
+        }).join('')}
+      </div>`
+    : `<div style="grid-column:1 / -1;margin-top:6px;padding:16px 18px;background:linear-gradient(180deg, rgba(34,197,94,.08), var(--c1));border:1px solid var(--gn);border-radius:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11.5px;font-weight:800;letter-spacing:2px;color:var(--gn);text-transform:uppercase;margin-bottom:4px;">💰 Patrimônio em Ferramentas (estoque atual)</div>
+          <div style="font-size:11px;color:var(--gr);">Soma de qtd × preço unit. Snapshot agora, independe do período.</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--gn);line-height:1;">${fmtMoney(estTotalValor)}</div>
+          <div style="font-size:11px;color:var(--w2);margin-top:3px;"><strong>${estTotalQtd}</strong> ferramenta(s) no total</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;">
+        ${estBasesPraMostrar.map(b => {
+          const s = estStats[b] || { qtd: 0, valor: 0 };
+          const isReserva = b === 'Estoque Mooca';
+          const label = isReserva ? '📦 Reserva Mooca' : '📍 ' + b;
+          return `<div style="background:var(--c2);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;${isReserva?'border-color:var(--w2);':''}">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;margin-bottom:6px;">${label}</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:${isReserva?'var(--w2)':'var(--az)'};line-height:1;">${s.qtd}</div>
+            <div style="font-size:11px;color:var(--gr);margin-top:2px;">ferramenta(s)</div>
+            <div style="font-size:13px;color:var(--gn);font-weight:700;margin-top:6px;">${fmtMoney(s.valor)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  // Chart: pro gestor é semanal (12 semanas VAMMO); pro supervisor é diário (14 dias da base dele)
+  const chartTitle = sup
+    ? `📈 Gasto diário em reposições — ${_SUPERVISOR_BASE} (últimos 14 dias)`
+    : '📊 Gasto semanal — últimas 12 semanas (VAMMO total)';
+
   document.getElementById('stat-grid').innerHTML = `
     <div class="dash-period-bar">
       <span class="dpb-lbl">Período</span>
@@ -2719,38 +2891,14 @@ function renderDashboard() {
       `).join('')}
     </div>
 
-    <div style="grid-column:1 / -1;margin-top:6px;padding:16px 18px;background:linear-gradient(180deg, rgba(34,197,94,.08), var(--c1));border:1px solid var(--gn);border-radius:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11.5px;font-weight:800;letter-spacing:2px;color:var(--gn);text-transform:uppercase;margin-bottom:4px;">💰 Patrimônio em Ferramentas (estoque atual)</div>
-          <div style="font-size:11px;color:var(--gr);">Soma de qtd × preço unit. Snapshot agora, independe do período.</div>
-        </div>
-        ${sup ? '' : `<div style="text-align:right;">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--gn);line-height:1;">${fmtMoney(estTotalValor)}</div>
-          <div style="font-size:11px;color:var(--w2);margin-top:3px;"><strong>${estTotalQtd}</strong> ferramenta(s) no total</div>
-        </div>`}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;">
-        ${estBasesPraMostrar.map(b => {
-          const s = estStats[b] || { qtd: 0, valor: 0 };
-          const isReserva = b === 'Estoque Mooca';
-          const label = isReserva ? '📦 Reserva Mooca' : '📍 ' + b;
-          return `<div style="background:var(--c2);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;${isReserva?'border-color:var(--w2);':''}">
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;margin-bottom:6px;">${label}</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:${isReserva?'var(--w2)':'var(--az)'};line-height:1;">${s.qtd}</div>
-            <div style="font-size:11px;color:var(--gr);margin-top:2px;">ferramenta(s)</div>
-            <div style="font-size:13px;color:var(--gn);font-weight:700;margin-top:6px;">${fmtMoney(s.valor)}</div>
-          </div>`;
-        }).join('')}
-      </div>
+    <div class="chart-wrap">
+      <div class="chart-title">${chartTitle}</div>
+      <canvas id="chart-semanal" height="${sup?180:160}"></canvas>
     </div>
 
-    ${sup ? '' : `<div class="chart-wrap">
-      <div class="chart-title">📊 Gasto semanal — últimas 12 semanas (VAMMO total)</div>
-      <canvas id="chart-semanal" height="160"></canvas>
-    </div>`}
+    ${patrimonioHtml}
   `;
-  if (!sup) setTimeout(renderChartSemanal, 50);
+  setTimeout(sup ? renderChartDiario : renderChartSemanal, 50);
 
   // Filtra recs/NCs do dashboard pra bases visíveis (no caso supervisor)
   const recsFiltrados = sup ? recs.filter(r => {
@@ -5338,8 +5486,11 @@ function bootApp() {
   syncEstoqueFromGAS();
   syncNCsComServidor(true);
   syncGameStartFromGAS();
-  // Carrega histórico de baixas+estornos do servidor (pra ver gastos em qualquer dispositivo)
-  setTimeout(() => { syncEstornosFromGAS(); setTimeout(syncBaixasFromGAS, 800); }, 500);
+  // Carrega histórico de baixas+estornos do servidor (pra ver gastos em qualquer dispositivo) — IMEDIATAMENTE
+  syncEstornosFromGAS();
+  syncBaixasFromGAS();
+  // Re-sync periódico das baixas
+  setInterval(syncBaixasFromGAS, 60000);
   // Log de login (best effort) — só uma vez por sessão
   if (!sessionStorage.getItem('vammo_login_logged')) {
     setTimeout(() => {
