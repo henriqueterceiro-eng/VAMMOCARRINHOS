@@ -884,11 +884,29 @@
   <div style="max-width:420px;width:100%;background:#141414;border:1px solid #2a2a2a;border-radius:14px;padding:34px 28px;text-align:center;">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:6px;color:#00B4E5;margin-bottom:6px;">VAMMO</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:3px;color:#aaa;text-transform:uppercase;margin-bottom:28px;">Gestão de Carrinhos</div>
-    <div id="login-role-info" style="background:rgba(46,194,255,.08);border:1px solid rgba(46,194,255,.2);border-radius:8px;padding:12px;margin-bottom:18px;font-size:13px;color:#e0e0e0;"></div>
-    <div id="gsi-button-wrap" style="display:flex;justify-content:center;margin-bottom:16px;"></div>
-    <div id="login-status" style="font-size:12.5px;color:#aaa;margin-top:14px;min-height:18px;line-height:1.5;"></div>
+    <div id="login-role-info" style="background:rgba(46,194,255,.08);border:1px solid rgba(46,194,255,.2);border-radius:8px;padding:12px;margin-bottom:18px;font-size:13px;color:#e0e0e0;">
+      <strong style="color:#00B4E5;">Acesso Restrito · @vammo.com</strong><br>
+      <span style="font-size:11.5px;color:#aaa;">Faça login com sua conta corporativa Google.</span>
+    </div>
+    <div id="gsi-button-wrap" style="display:flex;justify-content:center;margin-bottom:16px;min-height:44px;"></div>
+    <div id="login-status" style="font-size:12.5px;color:#aaa;margin-top:14px;min-height:18px;line-height:1.5;">⏳ Carregando login do Google...</div>
+    <div id="login-erro-diag" style="font-size:10.5px;color:#666;margin-top:18px;font-family:monospace;text-align:left;display:none;background:#0a0a0a;padding:8px;border-radius:5px;border:1px solid #333;"></div>
   </div>
 </div>
+<script>
+  // Handler global de erro — captura qualquer erro JS e mostra no login-gate
+  window.addEventListener('error', function(e){
+    try {
+      const dx = document.getElementById('login-erro-diag');
+      if (dx) {
+        dx.style.display = 'block';
+        dx.textContent = '⚠ ' + (e.message || 'erro') + ' @ ' + (e.filename||'').split('/').pop() + ':' + (e.lineno||'?');
+      }
+      const st = document.getElementById('login-status');
+      if (st) st.textContent = '⚠️ Erro ao carregar o app — veja detalhe abaixo.';
+    } catch(_) {}
+  });
+</script>
 
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
@@ -5103,7 +5121,19 @@ function bootApp() {
   }
 }
 
-checkAuthAndBoot();
+try {
+  checkAuthAndBoot();
+} catch (e) {
+  console.error('[VAMMO] checkAuthAndBoot falhou:', e);
+  // Mesmo se quebrar, força a UI de login a aparecer
+  try {
+    const st = document.getElementById('login-status');
+    if (st) st.textContent = '⚠️ ' + (e.message || 'erro inesperado');
+    const dx = document.getElementById('login-erro-diag');
+    if (dx) { dx.style.display = 'block'; dx.textContent = String(e.stack || e); }
+    initGoogleAuthGate();
+  } catch(_) {}
+}
 
 // Seed data para demonstração se não houver registros
 if (!getRecords().length) {
