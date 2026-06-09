@@ -3876,17 +3876,88 @@ function gastoNoPeriodo(startTs, endTs) {
 }
 
 // Calcula gasto total de reposições por base (compat com código antigo)
+// Cache de baixas vindas do servidor (todas as reposições, qualquer dispositivo)
+let _serverBaixas = [];
+function syncBaixasFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=ncsResolvidasGet', (data, err) => {
+    if (err || !data?.ncs) return;
+    // Cada NC reposta no servidor vira uma baixa "virtual" — qtd default 1
+    // (tipo Ajuste = Reposta_Por contém " (Ajuste)"; sem isso assume Reposição)
+    _serverBaixas = data.ncs.map(nc => {
+      const por = String(nc.reposta_por||'');
+      const isAjuste = /\(Ajuste\)/i.test(por);
+      const cart = String(nc.carrinho||'').toUpperCase().replace(/\s+/g,'');
+      const base = cart.startsWith('MC') ? 'Mooca' :
+                   (cart.startsWith('OC') || cart.startsWith('0C')) ? 'Osasco' :
+                   cart.startsWith('SC') ? 'SBC' : '?';
+      return {
+        ts: nc.reposta_ts,
+        base,
+        carrinho: nc.carrinho,
+        ferramenta: nc.ferramenta,
+        tipo: isAjuste ? 'ajuste' : 'reposicao',
+        qtd: 1, // padrão; pode evoluir quando GAS gravar qtd
+        por: por.replace(/\s*\((Reposição|Ajuste)\)\s*$/i, ''),
+      };
+    });
+    // Aplica estornos (vindos dos logs)
+    if (Array.isArray(_serverEstornos) && _serverEstornos.length) {
+      // Cada estorno reduz qtd da baixa correspondente (cart+ferramenta+base) mais recente até o estorno
+      _serverEstornos.forEach(est => {
+        const cand = _serverBaixas.find(b => b.base === est.base
+          && b.ferramenta === est.ferramenta
+          && b.tipo === 'reposicao'
+          && !b._estornada);
+        if (cand) { cand._estornada = true; }
+      });
+    }
+    // Re-render dos painéis ativos
+    if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
+    if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+  });
+}
+
+let _serverEstornos = [];
+function syncEstornosFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=logsGet&limit=2000', (data, err) => {
+    if (err || !data?.logs) return;
+    _serverEstornos = data.logs.filter(l => l.acao === 'estorno_reposicao').map(l => {
+      // detalhes: "{carrinho} · {ferramenta} · +{qtd} em {base}..."
+      const m = (l.detalhes || '').match(/^(.+?) · (.+?) · \+\d+ em (.+?)(\s·|$)/);
+      return m ? { ts: l.ts, carrinho: m[1].trim(), ferramenta: m[2].trim(), base: m[3].trim() } : null;
+    }).filter(Boolean);
+  });
+}
+
 function gastoPorBase() {
-  const baixas = getBaixas();
+  // Junta baixas locais (mais detalhadas, tem qtd real) + baixas servidor (cobre multi-device)
   const game = getGameStartTs();
   const gameMs = game ? new Date(game).getTime() : 0;
   const out = { Mooca: 0, Osasco: 0, SBC: 0, _total: 0 };
-  baixas.forEach(b => {
+  // 1) Locais (gestor que processou)
+  const baixasLocais = getBaixas();
+  const chaves = new Set();
+  baixasLocais.forEach(b => {
     if (b.tipo === 'ajuste') return;
-    if (b.estornada) return; // ignora reposições devolvidas
+    if (b.estornada) return;
     if (new Date(b.ts).getTime() < gameMs) return;
-    const preco = getPreco(b.ferramenta);
-    const v = (Number(b.qtd) || 0) * preco;
+    chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+    const v = (Number(b.qtd) || 0) * getPreco(b.ferramenta);
+    if (out[b.base] != null) out[b.base] += v;
+    out._total += v;
+  });
+  // 2) Servidor (preenche o que falta — qualquer baixa que não estava no local)
+  _serverBaixas.forEach(b => {
+    if (b.tipo === 'ajuste') return;
+    if (b._estornada) return;
+    if (new Date(b.ts).getTime() < gameMs) return;
+    const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
+    if (chaves.has(k)) return; // já contado no local
+    const v = (Number(b.qtd) || 1) * getPreco(b.ferramenta);
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
   });
@@ -3903,20 +3974,32 @@ function gastosResumo() {
   };
 }
 
-// Gasto por base num período (baixas tipo=reposicao no intervalo)
+// Gasto por base num período (junta baixas locais + servidor)
 function gastoPorBaseNoPeriodo(startTs, endTs) {
-  const baixas = getBaixas();
   const game = getGameStartTs();
   const startMs = startTs ? new Date(startTs).getTime() : 0;
   const endMs = endTs ? new Date(endTs).getTime() : Infinity;
   const gameMs = game ? new Date(game).getTime() : 0;
   const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0 };
-  baixas.forEach(b => {
+  const chaves = new Set();
+  getBaixas().forEach(b => {
     if (b.tipo === 'ajuste') return;
-    if (b.estornada) return; // ignora reposições devolvidas
+    if (b.estornada) return;
     const ts = new Date(b.ts).getTime();
     if (ts < gameMs || ts < startMs || ts >= endMs) return;
+    chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
     const v = (Number(b.qtd) || 0) * getPreco(b.ferramenta);
+    if (out[b.base] != null) out[b.base] += v;
+    out.VAMMO += v;
+  });
+  _serverBaixas.forEach(b => {
+    if (b.tipo === 'ajuste') return;
+    if (b._estornada) return;
+    const ts = new Date(b.ts).getTime();
+    if (ts < gameMs || ts < startMs || ts >= endMs) return;
+    const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
+    if (chaves.has(k)) return;
+    const v = (Number(b.qtd) || 1) * getPreco(b.ferramenta);
     if (out[b.base] != null) out[b.base] += v;
     out.VAMMO += v;
   });
@@ -5255,6 +5338,8 @@ function bootApp() {
   syncEstoqueFromGAS();
   syncNCsComServidor(true);
   syncGameStartFromGAS();
+  // Carrega histórico de baixas+estornos do servidor (pra ver gastos em qualquer dispositivo)
+  setTimeout(() => { syncEstornosFromGAS(); setTimeout(syncBaixasFromGAS, 800); }, 500);
   // Log de login (best effort) — só uma vez por sessão
   if (!sessionStorage.getItem('vammo_login_logged')) {
     setTimeout(() => {
