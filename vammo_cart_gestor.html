@@ -1134,7 +1134,7 @@
           <table>
             <thead><tr>
               <th>Data/Hora</th><th>Base</th><th>Carrinho</th>
-              <th>Ferramenta</th><th>Tipo</th><th>Qtd</th><th>Obs</th>
+              <th>Ferramenta</th><th>Tipo</th><th>Qtd</th><th>Obs</th><th style="width:120px;">Ação</th>
             </tr></thead>
             <tbody id="baixas-tbody"></tbody>
           </table>
@@ -1448,6 +1448,41 @@
     <div style="display:flex;gap:10px;margin-top:22px;">
       <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeTransferModal()">Cancelar</button>
       <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="confirmTransfer()">↔ Confirmar Transferência</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Estornar reposição (mecânico devolveu/achou a ferramenta) -->
+<div class="modal-ov hidden" id="modal-estorno">
+  <div class="modal-box" style="max-width:480px;">
+    <h2 style="margin-bottom:8px;"><button class="modal-close" onclick="closeEstornoModal()">✕</button> ↺ Devolver ao Estoque</h2>
+    <div style="color:var(--gr);font-size:12.5px;margin-bottom:18px;" id="estorno-info">–</div>
+
+    <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:7px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--w2);">
+      💡 Use quando o mecânico <strong>devolver a ferramenta</strong> que foi reposta (achou, ou pegou outra emprestada). Vai <strong>somar de volta no estoque</strong> e <strong>estornar o custo</strong> registrado.
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Quantidade devolvida *</div>
+      <input type="number" id="estorno-qtd" min="1" value="1" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;">
+      <div style="font-size:11px;color:var(--gr);margin-top:4px;">Pode ser menor que a quantidade baixada (estorno parcial).</div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Quem está registrando *</div>
+      <input type="text" id="estorno-por" placeholder="Seu nome" class="select-filt" style="width:100%;padding:11px 12px;font-size:13px;">
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Motivo / observação <span style="font-weight:400;text-transform:none;color:var(--gr);">(opcional)</span></div>
+      <input type="text" id="estorno-obs" placeholder="Ex: mec achou no chão · pegou emprestada do colega · etc" class="select-filt" style="width:100%;padding:11px 12px;font-size:13px;">
+    </div>
+
+    <div id="estorno-alert" style="margin-top:10px;"></div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeEstornoModal()">Cancelar</button>
+      <button class="btn-sm btn-az" id="estorno-confirmar-btn" style="flex:2;padding:12px;font-weight:900;" onclick="confirmEstorno()">↺ Confirmar Devolução</button>
     </div>
   </div>
 </div>
@@ -3825,6 +3860,7 @@ function gastoNoPeriodo(startTs, endTs) {
   let total = 0;
   baixas.forEach(b => {
     if (b.tipo === 'ajuste') return;
+    if (b.estornada) return; // ignora reposições devolvidas
     const ts = new Date(b.ts).getTime();
     if (ts < gameMs) return;
     if (ts < startMs) return;
@@ -3843,6 +3879,7 @@ function gastoPorBase() {
   const out = { Mooca: 0, Osasco: 0, SBC: 0, _total: 0 };
   baixas.forEach(b => {
     if (b.tipo === 'ajuste') return;
+    if (b.estornada) return; // ignora reposições devolvidas
     if (new Date(b.ts).getTime() < gameMs) return;
     const preco = getPreco(b.ferramenta);
     const v = (Number(b.qtd) || 0) * preco;
@@ -3872,6 +3909,7 @@ function gastoPorBaseNoPeriodo(startTs, endTs) {
   const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0 };
   baixas.forEach(b => {
     if (b.tipo === 'ajuste') return;
+    if (b.estornada) return; // ignora reposições devolvidas
     const ts = new Date(b.ts).getTime();
     if (ts < gameMs || ts < startMs || ts >= endMs) return;
     const v = (Number(b.qtd) || 0) * getPreco(b.ferramenta);
@@ -3959,25 +3997,138 @@ function renderBaixas() {
   tbody.innerHTML = list.length
     ? list.slice(0,200).map(b => {
         const tipo = b.tipo || (b.qtd > 0 ? 'reposicao' : 'ajuste');
-        const tipoTag = tipo === 'reposicao'
-          ? '<span class="badge baz" style="background:rgba(46,194,255,.15);color:var(--az);border:1px solid var(--az);">📦 Reposição</span>'
-          : '<span class="badge" style="background:rgba(245,158,11,.12);color:var(--yw);border:1px solid var(--yw);">🛠 Ajuste</span>';
+        const estornada = !!b.estornada;
+        const tipoTag = estornada
+          ? '<span class="badge" style="background:rgba(120,120,120,.15);color:var(--gr);border:1px solid var(--gr);">↺ Estornada</span>'
+          : tipo === 'reposicao'
+            ? '<span class="badge baz" style="background:rgba(46,194,255,.15);color:var(--az);border:1px solid var(--az);">📦 Reposição</span>'
+            : '<span class="badge" style="background:rgba(245,158,11,.12);color:var(--yw);border:1px solid var(--yw);">🛠 Ajuste</span>';
         const qtdCell = tipo === 'reposicao'
-          ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--az);">${b.qtd}</span>`
+          ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:${estornada?'var(--gr)':'var(--az)'};${estornada?'text-decoration:line-through;':''}">${b.qtd}</span>`
           : `<span style="color:var(--gr);font-size:12px;">—</span>`;
-        return `<tr>
+        const obsCell = estornada
+          ? `<span style="font-size:11px;color:var(--gr);">${b.obs||'-'} <span style="color:var(--yw);">· estornada ${b.estorno_ts?new Date(b.estorno_ts).toLocaleString('pt-BR'):''}${b.estorno_por?' · por '+b.estorno_por:''}${b.estorno_obs?' · '+b.estorno_obs:''}</span></span>`
+          : `<span style="font-size:12px;color:var(--gr);">${b.obs||'-'}</span>`;
+        const acaoCell = (tipo === 'reposicao' && !estornada)
+          ? `<button class="btn-sm btn-outline" style="padding:5px 10px;font-size:10.5px;" onclick="abrirEstornoModal('${b.id}')" title="Mecânico devolveu / achou — repõe ao estoque e estorna o custo">↺ Devolver</button>`
+          : `<span style="color:var(--gr);font-size:10px;">—</span>`;
+        return `<tr style="${estornada?'opacity:0.55;':''}">
           <td style="color:var(--gr);white-space:nowrap;">${fmtDateFull(b.ts)}</td>
           <td>${b.base}</td>
           <td><strong>${b.carrinho}</strong></td>
           <td>${b.ferramenta}</td>
           <td>${tipoTag}</td>
           <td>${qtdCell}</td>
-          <td style="font-size:12px;color:var(--gr);">${b.obs||'-'}</td>
+          <td>${obsCell}</td>
+          <td>${acaoCell}</td>
         </tr>`;
       }).join('')
-    : `<tr class="empty-row"><td colspan="7">Nenhuma baixa registrada${f?' nessa base':''}.</td></tr>`;
+    : `<tr class="empty-row"><td colspan="8">Nenhuma baixa registrada${f?' nessa base':''}.</td></tr>`;
   document.getElementById('baixas-footer').textContent = `${list.length} baixa(s)${baixas.length!==list.length?` de ${baixas.length} total`:''}`;
 }
+
+// ─── ESTORNO DE REPOSIÇÃO (mecânico devolveu a ferramenta) ────────────────────
+let _estornoCtx = null;
+function abrirEstornoModal(baixaId) {
+  const baixas = getBaixas();
+  const b = baixas.find(x => x.id === baixaId);
+  if (!b) { showAlert('est-alert-box','rd','❌ Baixa não encontrada.'); return; }
+  if (b.estornada) { showAlert('est-alert-box','yw','⚠ Essa baixa já foi estornada.'); return; }
+  _estornoCtx = b;
+  const preco = getPreco(b.ferramenta);
+  const valor = (Number(b.qtd)||0) * preco;
+  document.getElementById('estorno-info').innerHTML =
+    `<strong>${b.ferramenta}</strong> · ${b.qtd} un. baixada(s) em ${b.base} · Carrinho <strong>${b.carrinho}</strong><br>
+    <span style="color:var(--gr);font-size:11.5px;">Em ${new Date(b.ts).toLocaleString('pt-BR')} · custo: ${fmtMoney(valor)}</span>`;
+  document.getElementById('estorno-qtd').value = b.qtd;
+  document.getElementById('estorno-qtd').max = b.qtd;
+  document.getElementById('estorno-por').value = localStorage.getItem('vammo_gestor_nome') || '';
+  document.getElementById('estorno-obs').value = '';
+  document.getElementById('estorno-alert').innerHTML = '';
+  document.getElementById('modal-estorno').classList.remove('hidden');
+}
+function closeEstornoModal() {
+  document.getElementById('modal-estorno').classList.add('hidden');
+  _estornoCtx = null;
+}
+
+let _estornoEmAndamento = false;
+function confirmEstorno() {
+  if (_estornoEmAndamento) return;
+  const b = _estornoCtx;
+  if (!b) return;
+  const qtdDevolver = parseInt(document.getElementById('estorno-qtd').value, 10);
+  if (!qtdDevolver || qtdDevolver < 1 || qtdDevolver > b.qtd) {
+    showAlert('estorno-alert','rd', `❌ Quantidade inválida (entre 1 e ${b.qtd}).`); return;
+  }
+  const por = document.getElementById('estorno-por').value.trim();
+  if (!por) { showAlert('estorno-alert','rd','❌ Informe seu nome.'); return; }
+  localStorage.setItem('vammo_gestor_nome', por);
+  const obs = document.getElementById('estorno-obs').value.trim();
+  const cfg = getConfig();
+
+  _estornoEmAndamento = true;
+  const btn = document.getElementById('estorno-confirmar-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.55'; btn.style.cursor = 'wait'; btn.textContent = '⏳ Processando...'; }
+
+  // 1) +qtd no estoque local
+  const est = getEstoque();
+  if (!est[b.base]) est[b.base] = {};
+  est[b.base][b.ferramenta] = (Number(est[b.base][b.ferramenta])||0) + qtdDevolver;
+  saveEstoque(est);
+
+  // 2) marca/parcializa a baixa
+  const baixas = getBaixas();
+  const idx = baixas.findIndex(x => x.id === b.id);
+  if (idx >= 0) {
+    if (qtdDevolver === b.qtd) {
+      // Estorno total
+      baixas[idx].estornada = true;
+      baixas[idx].estorno_ts = new Date().toISOString();
+      baixas[idx].estorno_por = por;
+      baixas[idx].estorno_obs = obs;
+    } else {
+      // Estorno parcial: reduz qtd da baixa original e cria uma nova entry de estorno
+      baixas[idx].qtd = b.qtd - qtdDevolver;
+      baixas.unshift({
+        id: 'BX-' + Date.now().toString(36).toUpperCase(),
+        ts: new Date().toISOString(),
+        base: b.base, carrinho: b.carrinho, ferramenta: b.ferramenta,
+        motivo: 'devolucao', qtd: qtdDevolver,
+        obs: 'Estorno parcial: ' + (obs || 'mecânico devolveu'),
+        tipo: 'reposicao', recId: '',
+        estornada: true, estorno_ts: new Date().toISOString(),
+        estorno_por: por, estorno_obs: obs,
+        origem_baixa_id: b.id
+      });
+    }
+    saveBaixas(baixas);
+  }
+
+  // 3) UI otimista: fecha modal, atualiza tudo
+  _estornoEmAndamento = false;
+  if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; btn.textContent = '↺ Confirmar Devolução'; }
+  closeEstornoModal();
+  showAlert('est-alert-box','gn',
+    `✅ ${qtdDevolver}× ${b.ferramenta} devolvida ao estoque de ${b.base}. Custo estornado: ${fmtMoney(qtdDevolver * getPreco(b.ferramenta))}.`);
+  renderEstoque();
+  if (document.querySelector('#panel-dashboard')?.classList.contains('active')) renderDashboard();
+
+  // 4) GAS adjust em background
+  if (cfg.webhookUrl) {
+    gasGet(cfg.webhookUrl,
+      'action=estoqueAdjust&base=' + encodeURIComponent(b.base) +
+      '&ferramenta=' + encodeURIComponent(b.ferramenta) +
+      '&delta=' + qtdDevolver,
+      (data, err) => {
+        if (err || !data?.ok) console.warn('estorno estoqueAdjust falhou:', err || data);
+        else logAcao('estorno_reposicao', `${b.carrinho} · ${b.ferramenta} · +${qtdDevolver} em ${b.base}${obs?' · '+obs:''}`, b.base);
+      });
+  }
+}
+
+// Exclui estornadas do cálculo de gasto (sobrescreve as duas funções abaixo)
+const _origGastoPorBase = null;
 
 function exportEstoqueCSV() {
   const est = getEstoque();
@@ -4826,7 +4977,8 @@ const _MODAL_CLOSE_MAP = {
   'modal-transfer': () => closeTransferModal(),
   'modal-pedido': () => closePedidoModal(),
   'modal-inventario': () => closeInventarioModal(),
-  'modal-resolver-todos': () => closeResolverTodosModal()
+  'modal-resolver-todos': () => closeResolverTodosModal(),
+  'modal-estorno': () => closeEstornoModal()
 };
 function fecharModalNoTopo() {
   const abertos = Array.from(document.querySelectorAll('.modal-ov:not(.hidden)'));
