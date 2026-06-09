@@ -894,6 +894,9 @@
       <div class="nav-item" data-panel="links" onclick="showPanel('links')">
         <span class="nav-icon">🔗</span> Links de Acesso
       </div>
+      <div class="nav-item" data-panel="logs" onclick="showPanel('logs')">
+        <span class="nav-icon">📜</span> Logs de Auditoria
+      </div>
       <div class="nav-item" data-panel="config" onclick="showPanel('config')">
         <span class="nav-icon">⚙️</span> Configurações
       </div>
@@ -1121,6 +1124,35 @@
           <button class="btn-sm btn-outline" onclick="importColabPrompt()">⬆ Importar JSON</button>
           <button class="btn-sm btn-outline" onclick="resetColabDefault()">↺ Restaurar padrão</button>
           <button class="btn-sm btn-rd" onclick="resetColab()">🗑 Limpar Lista</button>
+        </div>
+      </div>
+
+      <!-- ── LOGS DE AUDITORIA ── -->
+      <div class="panel" id="panel-logs">
+        <div class="config-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+            <div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);">📜 LOGS DE AUDITORIA</div>
+              <div style="font-size:11.5px;color:var(--gr);margin-top:3px;">Tudo que acontece nos apps: logins, reposições, transferências, pedidos, inventários, NCs resolvidas.</div>
+            </div>
+            <button class="btn-sm btn-az" onclick="syncLogsFromGAS()">🔄 Atualizar</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+            <input type="text" id="logs-search" placeholder="🔍 buscar (email, ação, base...)" oninput="renderLogs()" style="flex:1;min-width:220px;padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12.5px;">
+            <select id="logs-filt-acao" onchange="renderLogs()" style="padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
+              <option value="">Todas as ações</option>
+            </select>
+            <select id="logs-filt-base" onchange="renderLogs()" style="padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
+              <option value="">Todas as bases</option>
+              <option value="Mooca">Mooca</option>
+              <option value="Osasco">Osasco</option>
+              <option value="SBC">SBC</option>
+              <option value="Estoque Mooca">Estoque Mooca</option>
+            </select>
+          </div>
+          <div id="logs-tbody-wrap" style="background:var(--c1);border:1px solid var(--bd);border-radius:6px;max-height:65vh;overflow-y:auto;">
+            <div style="padding:40px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando logs...</div>
+          </div>
         </div>
       </div>
 
@@ -1517,6 +1549,40 @@ function getSupervisorEmails() {
   try { return JSON.parse(localStorage.getItem('vammo_supervisor_emails')) || {}; } catch { return {}; }
 }
 function setSupervisorEmails(o) { localStorage.setItem('vammo_supervisor_emails', JSON.stringify(o)); }
+function syncAcessosFromGAS(cb) {
+  const cfg = (function(){ try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } })();
+  const url = cfg.webhookUrl || 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
+  const cbName = '_acessos_cb_' + Date.now();
+  const sc = document.createElement('script');
+  const timer = setTimeout(() => { cleanup(); if (cb) cb(false); }, 10000);
+  function cleanup(){ clearTimeout(timer); delete window[cbName]; if (sc.parentNode) sc.parentNode.removeChild(sc); }
+  window[cbName] = (d) => { cleanup(); if (d?.acessos) { setSupervisorEmails(d.acessos); } if (cb) cb(true); };
+  sc.onerror = () => { cleanup(); if (cb) cb(false); };
+  sc.src = url + '?action=acessosGet&callback=' + cbName;
+  document.head.appendChild(sc);
+}
+// envia log de auditoria pro GAS — best-effort, não bloqueia UI
+function logAcao(acao, detalhes, base) {
+  try {
+    const u = getStoredAuth() || {};
+    const cfg = (function(){ try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } })();
+    const url = cfg.webhookUrl;
+    if (!url) return;
+    const sc = document.createElement('script');
+    const cbn = '_log_' + Date.now() + Math.random().toString(36).slice(2,7);
+    window[cbn] = () => { delete window[cbn]; if (sc.parentNode) sc.parentNode.removeChild(sc); };
+    sc.onerror = window[cbn];
+    sc.src = url + '?action=logAdd'
+      + '&acao=' + encodeURIComponent(acao)
+      + '&email=' + encodeURIComponent(u.email || '')
+      + '&nome=' + encodeURIComponent(u.name || '')
+      + '&base=' + encodeURIComponent(base || u.base || '')
+      + '&detalhes=' + encodeURIComponent(detalhes || '')
+      + '&origem=' + encodeURIComponent(u.role || 'gestor')
+      + '&callback=' + cbn;
+    document.head.appendChild(sc);
+  } catch (_) {}
+}
 function decodeJwt(t) { try { const b = t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'); return JSON.parse(decodeURIComponent(atob(b).split('').map(c => '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''))); } catch { return null; } }
 function getStoredAuth() { try { return JSON.parse(localStorage.getItem('vammo_auth')) || null; } catch { return null; } }
 function saveAuth(o) { localStorage.setItem('vammo_auth', JSON.stringify(o)); }
@@ -1688,7 +1754,7 @@ function showPanel(id) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + id).classList.add('active');
   document.querySelector(`[data-panel="${id}"]`)?.classList.add('active');
-  const titles = { dashboard:'Dashboard', registros:'Registros', nc:'Não Conformidades', carrinhos:'Carrinhos', estoque:'Estoque por Base', colab:'Colaboradores', links:'Links de Acesso', config:'Configurações' };
+  const titles = { dashboard:'Dashboard', registros:'Registros', nc:'Não Conformidades', carrinhos:'Carrinhos', estoque:'Estoque por Base', colab:'Colaboradores', links:'Links de Acesso', logs:'Logs de Auditoria', config:'Configurações' };
   document.getElementById('top-title').textContent = titles[id] || id;
   closeSidebar();
 
@@ -1700,6 +1766,7 @@ function showPanel(id) {
   if (id === 'nc') syncNCsComServidor(true); // silent: alinha local com servidor ao abrir
   if (id === 'colab') renderColab();
   if (id === 'links') renderLinks();
+  if (id === 'logs') { renderLogs(); syncLogsFromGAS(); }
   if (id === 'config') renderConfig();
 }
 
@@ -1765,6 +1832,72 @@ function renderLinks() {
       `).join('')}
     </div>
   `).join('');
+}
+
+// ─── LOGS DE AUDITORIA ─────────────────────────────────────────────────────
+let _logsCache = [];
+function syncLogsFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  const wrap = document.getElementById('logs-tbody-wrap');
+  if (wrap) wrap.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando logs do servidor...</div>';
+  gasGet(cfg.webhookUrl, 'action=logsGet&limit=1000', (d, err) => {
+    if (err || !d?.ok) {
+      if (wrap) wrap.innerHTML = `<div style="padding:40px;text-align:center;color:var(--rd);font-size:13px;">❌ Erro ao carregar logs: ${err||d?.error||'desconhecido'}</div>`;
+      return;
+    }
+    _logsCache = d.logs || [];
+    // popula filtro de ações
+    const acoes = [...new Set(_logsCache.map(l => l.acao).filter(Boolean))].sort();
+    const sel = document.getElementById('logs-filt-acao');
+    if (sel) {
+      const v = sel.value;
+      sel.innerHTML = '<option value="">Todas as ações</option>' + acoes.map(a => `<option value="${a}"${v===a?' selected':''}>${a}</option>`).join('');
+    }
+    renderLogs();
+  });
+}
+function renderLogs() {
+  const wrap = document.getElementById('logs-tbody-wrap');
+  if (!wrap) return;
+  const q = (document.getElementById('logs-search')?.value || '').toLowerCase();
+  const filtAcao = document.getElementById('logs-filt-acao')?.value || '';
+  const filtBase = document.getElementById('logs-filt-base')?.value || '';
+  const filtered = _logsCache.filter(l => {
+    if (filtAcao && l.acao !== filtAcao) return false;
+    if (filtBase && l.base !== filtBase) return false;
+    if (!q) return true;
+    return (l.acao + ' ' + l.email + ' ' + l.nome + ' ' + l.base + ' ' + l.detalhes + ' ' + l.origem).toLowerCase().includes(q);
+  });
+  if (!filtered.length) {
+    wrap.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gr);font-size:13px;">Nenhum log corresponde ao filtro.</div>';
+    return;
+  }
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="background:var(--c2);position:sticky;top:0;z-index:1;">
+        <th style="padding:8px 10px;text-align:left;color:var(--gr);font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:10.5px;">Data/Hora</th>
+        <th style="padding:8px 10px;text-align:left;color:var(--gr);font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:10.5px;">Ação</th>
+        <th style="padding:8px 10px;text-align:left;color:var(--gr);font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:10.5px;">Por</th>
+        <th style="padding:8px 10px;text-align:left;color:var(--gr);font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:10.5px;">Base</th>
+        <th style="padding:8px 10px;text-align:left;color:var(--gr);font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:10.5px;">Detalhes</th>
+        <th style="padding:8px 10px;text-align:left;color:var(--gr);font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:10.5px;">Origem</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${filtered.map(l => `
+        <tr style="border-top:1px solid rgba(255,255,255,.04);">
+          <td style="padding:8px 10px;color:var(--w2);white-space:nowrap;font-family:monospace;font-size:11px;">${l.ts ? new Date(l.ts).toLocaleString('pt-BR') : '—'}</td>
+          <td style="padding:8px 10px;"><span style="background:rgba(46,194,255,.12);color:var(--az);padding:3px 7px;border-radius:4px;font-size:10.5px;font-family:monospace;font-weight:700;">${l.acao}</span></td>
+          <td style="padding:8px 10px;color:var(--wh);font-size:11.5px;"><div>${l.nome||'—'}</div><div style="color:var(--gr);font-size:10.5px;">${l.email||''}</div></td>
+          <td style="padding:8px 10px;color:var(--w2);font-size:11.5px;">${l.base||'—'}</td>
+          <td style="padding:8px 10px;color:var(--w2);font-size:11.5px;">${l.detalhes||''}</td>
+          <td style="padding:8px 10px;color:var(--gr);font-size:10.5px;">${l.origem||''}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+  <div style="padding:10px 12px;background:var(--c2);border-top:1px solid var(--bd);color:var(--gr);font-size:11px;text-align:center;">${filtered.length} de ${_logsCache.length} entradas</div>`;
 }
 
 function copiarLink(url, btn) {
@@ -2836,6 +2969,7 @@ function executaRepor(ctx, tipo, qtd, obs) {
         ? `✅ Reposição confirmada: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`
         : `✅ Ajuste registrado: NC de ${ferramenta} (${carrinho}) fechada sem mexer no estoque.`;
       showAlert('cart-alert-box', 'gn', msg);
+      logAcao(tipo === 'reposicao' ? 'nc_reposicao' : 'nc_ajuste', `${carrinho} · ${ferramenta} · por ${porQuem}${tipo==='reposicao'?' · baixou '+qtd+' de '+base:''}`, base);
     } else {
       showAlert('cart-alert-box', 'rd',
         `❌ Erro ao sincronizar com servidor: ${err || 'sem resposta'}. A NC pode voltar! Tente de novo.`);
@@ -3136,6 +3270,8 @@ function confirmarPedido() {
       if (data.dedup) { showAlert('pedido-alert','yw','⚠ Pedido idêntico já registrado nos últimos 60s — ignorado.'); setTimeout(closePedidoModal, 2500); syncEstoqueFromGAS(); return; }
       closePedidoModal();
       showAlert('est-alert-box','gn',`✅ Pedido registrado: ${data.registrados} item(ns) adicionado(s) ao estoque ${base}.`);
+      const itensStr = itens.map(i => `${i.ferramenta} x${i.qtd}`).join(', ');
+      logAcao('pedido_add', `Pedido na base ${base}: ${itensStr} · comp: ${comprovante}`, base);
       syncEstoqueFromGAS();
     });
 }
@@ -3322,6 +3458,7 @@ function confirmTransfer() {
       renderEstoque();
       showAlert('est-alert-box','gn',
         `✅ Transferido ${qtd}× ${ferr}: ${from} (${data.novo_from}) → ${to} (${data.novo_to}).`);
+      logAcao('estoque_transfer', `${qtd}× ${ferr} de ${from} → ${to}${obs?' · '+obs:''}`, from);
     });
 }
 
@@ -3600,10 +3737,19 @@ function adicionarSupervisor(base) {
   const emails = getSupervisorEmails();
   if (!emails[base]) emails[base] = [];
   if (emails[base].includes(email)) { alert('Já cadastrado.'); return; }
+  // 1) local imediato
   emails[base].push(email);
   setSupervisorEmails(emails);
   inp.value = '';
   renderSupervisoresConfig();
+  // 2) sync com GAS
+  const cfg = getConfig();
+  if (cfg.webhookUrl) {
+    gasGet(cfg.webhookUrl, 'action=acessoAdd&base=' + encodeURIComponent(base) + '&email=' + encodeURIComponent(email) + '&por=' + encodeURIComponent((getStoredAuth()||{}).email||'gestor'), (d, err) => {
+      if (err || !d?.ok) alert('⚠ Adicionado local mas falhou no servidor: ' + (err || d?.error));
+      else { logAcao('acesso_add', `Supervisor ${email} adicionado à base ${base}`, base); }
+    });
+  }
 }
 function removerSupervisor(base, email) {
   if (!confirm(`Remover ${email} da base ${base}?`)) return;
@@ -3611,6 +3757,13 @@ function removerSupervisor(base, email) {
   if (emails[base]) emails[base] = emails[base].filter(e => e !== email);
   setSupervisorEmails(emails);
   renderSupervisoresConfig();
+  const cfg = getConfig();
+  if (cfg.webhookUrl) {
+    gasGet(cfg.webhookUrl, 'action=acessoRemove&base=' + encodeURIComponent(base) + '&email=' + encodeURIComponent(email), (d, err) => {
+      if (err) alert('⚠ Removido local mas falhou no servidor: ' + err);
+      else logAcao('acesso_remove', `Supervisor ${email} removido da base ${base}`, base);
+    });
+  }
 }
 
 function renderConfig() {
@@ -4327,22 +4480,25 @@ function logout() {
 }
 
 function checkAuthAndBoot() {
-  const stored = getStoredAuth();
-  if (stored?.email) {
-    const v = isEmailAutorizado(stored.email);
-    if (v.ok) {
-      const expectedRole = isSupervisor() ? 'supervisor' : 'gestor';
-      const expectedBase = isSupervisor() ? _SUPERVISOR_BASE : 'all';
-      if (stored.role === expectedRole && stored.base === expectedBase) {
-        document.getElementById('login-gate').style.display = 'none';
-        bootApp();
-        return;
+  // Sincroniza lista de supervisores autorizados ANTES de validar login
+  syncAcessosFromGAS(() => {
+    const stored = getStoredAuth();
+    if (stored?.email) {
+      const v = isEmailAutorizado(stored.email);
+      if (v.ok) {
+        const expectedRole = isSupervisor() ? 'supervisor' : 'gestor';
+        const expectedBase = isSupervisor() ? _SUPERVISOR_BASE : 'all';
+        if (stored.role === expectedRole && stored.base === expectedBase) {
+          document.getElementById('login-gate').style.display = 'none';
+          bootApp();
+          return;
+        }
       }
+      clearAuth();
     }
-    clearAuth();
-  }
-  showLoginInfo();
-  initGoogleAuthGate();
+    showLoginInfo();
+    initGoogleAuthGate();
+  });
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
@@ -4355,7 +4511,7 @@ function aplicarRoleSupervisor() {
     badge.style.display = 'inline-block';
   }
   // Esconde abas que supervisor não pode usar
-  ['colab','links','config'].forEach(p => {
+  ['colab','links','logs','config'].forEach(p => {
     const navEl = document.querySelector(`.nav-item[data-panel="${p}"]`);
     if (navEl) navEl.style.display = 'none';
     const panelEl = document.getElementById('panel-' + p);
@@ -4378,7 +4534,7 @@ function aplicarRoleSupervisor() {
   // Bloqueia navegação direta pras abas escondidas
   const originalShowPanel = window.showPanel;
   window.showPanel = function(id) {
-    if (['colab','links','config'].includes(id)) {
+    if (['colab','links','logs','config'].includes(id)) {
       id = 'dashboard';
     }
     return originalShowPanel.call(this, id);
@@ -4391,6 +4547,13 @@ function bootApp() {
   syncEstoqueFromGAS();
   syncNCsComServidor(true);
   syncGameStartFromGAS();
+  // Log de login (best effort) — só uma vez por sessão
+  if (!sessionStorage.getItem('vammo_login_logged')) {
+    setTimeout(() => {
+      logAcao('login', `Entrou no app ${isSupervisor() ? 'como supervisor de ' + _SUPERVISOR_BASE : 'como gestor central'}`, _SUPERVISOR_BASE || '');
+      sessionStorage.setItem('vammo_login_logged', '1');
+    }, 1500);
+  }
   // Mostra chip de usuário logado no topbar
   const u = getStoredAuth();
   if (u?.email) {
