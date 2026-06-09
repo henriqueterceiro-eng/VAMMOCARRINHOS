@@ -1434,6 +1434,34 @@
   </div>
 </div>
 
+<!-- MODAL: Resolver TODAS as NCs de um carrinho -->
+<div class="modal-ov hidden" id="modal-resolver-todos">
+  <div class="modal-box" style="max-width:640px;">
+    <h2 style="margin-bottom:8px;"><button class="modal-close" onclick="closeResolverTodosModal()">✕</button> ↻ Resolver Todas as NCs</h2>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:14px;" id="rt-info">–</div>
+
+    <div id="rt-lista" style="margin-bottom:14px;max-height:48vh;overflow-y:auto;"></div>
+
+    <div style="margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Resolvido por *</div>
+        <input type="text" id="rt-por" placeholder="Seu nome" class="select-filt" style="width:100%;padding:10px 12px;font-size:13px;">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Obs. geral (opcional)</div>
+        <input type="text" id="rt-obs" placeholder="Aplicado a todas..." class="select-filt" style="width:100%;padding:10px 12px;font-size:13px;">
+      </div>
+    </div>
+
+    <div id="rt-alert" style="margin-top:10px;"></div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeResolverTodosModal()">Cancelar</button>
+      <button class="btn-sm btn-az" id="rt-confirmar-btn" style="flex:2;padding:12px;font-weight:900;" onclick="confirmResolverTodos()">↻ Resolver TODAS</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Resolver NC (Reposição ou Ajuste) -->
 <div class="modal-ov hidden" id="modal-repor">
   <div class="modal-box" style="max-width:480px;">
@@ -3194,6 +3222,12 @@ function executaRepor(ctx, tipo, qtd, obs) {
     if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; btn.textContent = '↻ Confirmar'; }
     closeReporModal();
     if (sucesso) {
+      // Remove a NC da lista local imediatamente (otimista) — o sync de 30s confirma depois
+      const cartNorm = normalizeCartName(carrinho);
+      _serverOpenNCs = _serverOpenNCs.filter(nc => !(normalizeCartName(nc.carrinho) === cartNorm && nc.ferramenta === ferramenta));
+    }
+    refreshDetailIfOpen();
+    if (sucesso) {
       const msg = tipo === 'reposicao'
         ? `✅ Reposição confirmada: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`
         : `✅ Ajuste registrado: NC de ${ferramenta} (${carrinho}) fechada sem mexer no estoque.`;
@@ -4502,7 +4536,15 @@ function renderMiniHistoricoGestor(carrinho, max) {
 }
 
 // ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
+let _currentDetailRecId = null;
+function refreshDetailIfOpen() {
+  // Re-renderiza o detail se estiver aberto (após resolver NC, transferência, etc)
+  if (!document.getElementById('modal-detail')?.classList.contains('hidden') && _currentDetailRecId) {
+    openDetail(_currentDetailRecId);
+  }
+}
 function openDetail(id) {
+  _currentDetailRecId = id;
   const recs = getRecords();
   const rec = recs.find(r => r.id === id);
   if (!rec) return;
@@ -4537,9 +4579,14 @@ function openDetail(id) {
     return `<div class="detail-section"><h4>Assinatura</h4><div style="color:var(--gn);font-size:13px;">✅ Assinatura coletada no celular</div></div>`;
   })() : '';
 
+  const cartEscDetail = (rec.carrinho || '').replace(/'/g,'');
   const ncHtml = ncs.length ? `
     <div class="detail-section">
-      <h4>Não Conformidades (${ncs.length})${ncsAbertas.length ? ` <span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;margin-left:6px;">${ncsAbertas.length} ainda abertas</span>` : ''}</h4>
+      <h4 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span>Não Conformidades (${ncs.length})</span>
+        ${ncsAbertas.length ? `<span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;">${ncsAbertas.length} ainda abertas</span>` : ''}
+        ${ncsAbertas.length >= 2 ? `<button class="btn-sm btn-az" style="margin-left:auto;padding:6px 12px;font-size:11px;font-weight:800;" onclick="abrirResolverTodosModal('${cartEscDetail}')">↻ Resolver Todas (${ncsAbertas.length})</button>` : ''}
+      </h4>
       ${ncs.map(([k,v]) => {
         const aindaAberta = abertasSet.has(k);
         const ferrEsc = JSON.stringify(k).replace(/"/g,'&quot;');
@@ -4550,7 +4597,7 @@ function openDetail(id) {
           <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
           <span style="flex:1;min-width:120px;">${k}</span>
           ${aindaAberta
-            ? `<button class="btn-repor" style="padding:6px 14px;font-size:11.5px;font-weight:800;" onclick="closeDetail(); reporFerramenta('${recIdEsc}', ${ferrEsc}, '${cartEsc}', '${motivoEsc}')">↻ Resolver</button>`
+            ? `<button class="btn-repor" style="padding:6px 14px;font-size:11.5px;font-weight:800;" onclick="reporFerramenta('${recIdEsc}', ${ferrEsc}, '${cartEsc}', '${motivoEsc}')">↻ Resolver</button>`
             : `<span style="color:var(--gn);font-size:11px;font-weight:700;">✅ Resolvida</span>`
           }
         </div>`;
@@ -4576,7 +4623,216 @@ function openDetail(id) {
 
 function closeDetail() {
   document.getElementById('modal-detail').classList.add('hidden');
+  _currentDetailRecId = null;
 }
+
+// ─── RESOLVER TODAS AS NCs DE UM CARRINHO ─────────────────────────────────────
+let _resolverTodosCtx = null;
+function abrirResolverTodosModal(carrinho) {
+  const cartNorm = normalizeCartName(carrinho);
+  const ncsAbertas = (_serverOpenNCs || []).filter(nc => normalizeCartName(nc.carrinho) === cartNorm);
+  if (!ncsAbertas.length) { showAlert('cart-alert-box','yw','Nenhuma NC aberta nesse carrinho.'); return; }
+  const base = getCartBase(carrinho);
+  const est = getEstoque();
+  const itens = ncsAbertas.map(nc => {
+    const dispo = (est[base] && typeof est[base][nc.ferramenta] === 'number') ? est[base][nc.ferramenta] : 0;
+    return {
+      ferramenta: nc.ferramenta,
+      motivo: nc.motivo || 'nc',
+      dispo,
+      // default: reposição se tiver estoque, senão ajuste
+      tipo: dispo >= 1 ? 'reposicao' : 'ajuste',
+      qtd: dispo >= 1 ? 1 : 0
+    };
+  });
+  _resolverTodosCtx = { carrinho, base, itens };
+
+  document.getElementById('rt-info').innerHTML =
+    `Carrinho <strong>${carrinho}</strong> · Base ${base} · ${itens.length} NC(s) abertas`;
+  document.getElementById('rt-por').value = localStorage.getItem('vammo_gestor_nome') || '';
+  document.getElementById('rt-obs').value = '';
+  document.getElementById('rt-alert').innerHTML = '';
+  renderResolverTodosLista();
+  document.getElementById('modal-resolver-todos').classList.remove('hidden');
+}
+function closeResolverTodosModal() {
+  document.getElementById('modal-resolver-todos').classList.add('hidden');
+  _resolverTodosCtx = null;
+}
+function renderResolverTodosLista() {
+  if (!_resolverTodosCtx) return;
+  const { itens } = _resolverTodosCtx;
+  const wrap = document.getElementById('rt-lista');
+  if (!wrap) return;
+  wrap.innerHTML = itens.map((it, i) => {
+    const semEstoque = it.dispo < 1;
+    return `<div style="background:var(--c2);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:13.5px;font-weight:700;color:var(--wh);">${it.ferramenta}</div>
+          <div style="font-size:11px;color:var(--gr);margin-top:2px;">
+            <span class="badge ${it.motivo === 'faltando' ? 'byw' : 'brd'}" style="margin-right:4px;">${it.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
+            Estoque: <strong style="color:${semEstoque ? 'var(--rd)' : 'var(--gn)'};">${it.dispo}</strong>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:${semEstoque?'not-allowed':'pointer'};opacity:${semEstoque?'0.4':'1'};">
+            <input type="radio" name="rt-tipo-${i}" value="reposicao" ${it.tipo==='reposicao'?'checked':''} ${semEstoque?'disabled':''} onchange="setRTTipo(${i}, 'reposicao')">
+            <span>📦 Reposição</span>
+          </label>
+          <input type="number" min="1" max="${it.dispo}" value="${it.qtd}" data-idx="${i}" onchange="setRTQtd(${i}, this.value)" style="width:55px;padding:5px 7px;font-size:12px;background:var(--c1);border:1px solid var(--bd);border-radius:4px;color:var(--wh);text-align:center;${semEstoque || it.tipo!=='reposicao'?'opacity:0.4;pointer-events:none;':''}">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;">
+            <input type="radio" name="rt-tipo-${i}" value="ajuste" ${it.tipo==='ajuste'?'checked':''} onchange="setRTTipo(${i}, 'ajuste')">
+            <span>🛠 Ajuste</span>
+          </label>
+        </div>
+      </div>
+      ${semEstoque ? `<div style="font-size:10.5px;color:var(--yw);margin-top:4px;">⚠ Sem estoque — só Ajuste disponível. Faça pedido depois pra repor.</div>` : ''}
+    </div>`;
+  }).join('');
+}
+function setRTTipo(idx, tipo) {
+  if (!_resolverTodosCtx) return;
+  _resolverTodosCtx.itens[idx].tipo = tipo;
+  if (tipo === 'ajuste') _resolverTodosCtx.itens[idx].qtd = 0;
+  else if (_resolverTodosCtx.itens[idx].qtd < 1) _resolverTodosCtx.itens[idx].qtd = 1;
+  renderResolverTodosLista();
+}
+function setRTQtd(idx, val) {
+  if (!_resolverTodosCtx) return;
+  const n = parseInt(val) || 0;
+  const it = _resolverTodosCtx.itens[idx];
+  it.qtd = Math.max(1, Math.min(n, it.dispo));
+}
+
+let _resolverTodosEmAndamento = false;
+function confirmResolverTodos() {
+  if (_resolverTodosEmAndamento) return;
+  const ctx = _resolverTodosCtx;
+  if (!ctx) return;
+  const por = document.getElementById('rt-por').value.trim();
+  if (!por) { showAlert('rt-alert','rd','❌ Informe seu nome em "Resolvido por".'); return; }
+  localStorage.setItem('vammo_gestor_nome', por);
+  const obsGeral = document.getElementById('rt-obs').value.trim();
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { showAlert('rt-alert','rd','❌ Servidor não configurado.'); return; }
+  _resolverTodosEmAndamento = true;
+  const btn = document.getElementById('rt-confirmar-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.55'; btn.style.cursor = 'wait'; btn.textContent = '⏳ Resolvendo...'; }
+
+  const { carrinho, base, itens } = ctx;
+  let processados = 0, sucessos = 0, falhas = 0;
+  showAlert('rt-alert','az',`⏳ Resolvendo 1 de ${itens.length}...`);
+
+  function processarProximo(i) {
+    if (i >= itens.length) {
+      // Finaliza
+      _resolverTodosEmAndamento = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; btn.textContent = '↻ Resolver TODAS'; }
+      closeResolverTodosModal();
+      const msg = falhas === 0
+        ? `✅ Todas as ${sucessos} NCs resolvidas com sucesso (${carrinho}).`
+        : `⚠ ${sucessos} resolvidas, ${falhas} falharam. Verifique e tente as faltantes.`;
+      showAlert('cart-alert-box', falhas === 0 ? 'gn' : 'yw', msg);
+      renderNC(); renderEstoque();
+      if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+      refreshDetailIfOpen();
+      return;
+    }
+    const it = itens[i];
+    showAlert('rt-alert','az',`⏳ Resolvendo ${i+1} de ${itens.length}: ${it.ferramenta}...`);
+
+    // 1) baixa local se reposição
+    if (it.tipo === 'reposicao' && it.qtd > 0) {
+      const est = getEstoque();
+      if (!est[base]) est[base] = {};
+      if (typeof est[base][it.ferramenta] !== 'number') est[base][it.ferramenta] = 0;
+      est[base][it.ferramenta] -= it.qtd;
+      saveEstoque(est);
+      gasGet(cfg.webhookUrl,
+        'action=estoqueAdjust&base=' + encodeURIComponent(base) +
+        '&ferramenta=' + encodeURIComponent(it.ferramenta) +
+        '&delta=' + (-it.qtd),
+        () => {});
+    }
+    // 2) histórico local
+    const baixas = getBaixas();
+    baixas.unshift({
+      id: 'BX-' + Date.now().toString(36).toUpperCase() + '-' + i,
+      ts: new Date().toISOString(),
+      base, carrinho, ferramenta: it.ferramenta, motivo: it.motivo,
+      qtd: it.qtd, obs: obsGeral || (it.tipo === 'ajuste' ? 'Ajuste em lote' : 'Reposição em lote'),
+      tipo: it.tipo, recId: ''
+    });
+    saveBaixas(baixas);
+    // 3) marca NCs locais como repostas (todos os recIds com cart+ferramenta)
+    const rep = getNCRepostas();
+    const cartNorm = normalizeCartName(carrinho);
+    const ts = new Date().toISOString();
+    getRecords().forEach(r => {
+      if (normalizeCartName(r.carrinho) !== cartNorm) return;
+      const v = r.ferramentas?.[it.ferramenta];
+      if (v && v.status === 'nao_ok') {
+        rep[ncKey(r.id, it.ferramenta)] = { ts, qtd: it.qtd, obs: obsGeral, tipo: it.tipo };
+      }
+    });
+    saveNCRepostas(rep);
+
+    // 4) avisa GAS pra fechar a NC
+    reporNCnoGASComRetry(cfg.webhookUrl, carrinho, it.ferramenta, por, it.tipo, 0, (ok) => {
+      processados++;
+      if (ok) {
+        sucessos++;
+        // remove da lista local imediatamente
+        _serverOpenNCs = _serverOpenNCs.filter(nc => !(normalizeCartName(nc.carrinho) === cartNorm && nc.ferramenta === it.ferramenta));
+        logAcao(it.tipo === 'reposicao' ? 'nc_reposicao' : 'nc_ajuste',
+          `${carrinho} · ${it.ferramenta} · por ${por}${it.tipo==='reposicao'?' · baixou '+it.qtd+' de '+base:''} · LOTE`, base);
+      } else {
+        falhas++;
+      }
+      processarProximo(i + 1);
+    });
+  }
+  processarProximo(0);
+}
+
+// ─── FECHAMENTO DE MODAIS (ESC + clique fora) ─────────────────────────────────
+const _MODAL_CLOSE_MAP = {
+  'modal-detail': () => closeDetail(),
+  'modal-repor': () => closeReporModal(),
+  'modal-force': () => closeForceModal(),
+  'modal-transfer': () => closeTransferModal(),
+  'modal-pedido': () => closePedidoModal(),
+  'modal-inventario': () => closeInventarioModal(),
+  'modal-resolver-todos': () => closeResolverTodosModal()
+};
+function fecharModalNoTopo() {
+  const abertos = Array.from(document.querySelectorAll('.modal-ov:not(.hidden)'));
+  if (!abertos.length) return false;
+  const ultimo = abertos[abertos.length - 1];
+  const fn = _MODAL_CLOSE_MAP[ultimo.id];
+  if (fn) fn(); else ultimo.classList.add('hidden');
+  return true;
+}
+// ESC fecha o modal mais acima na pilha (lightbox tem prioridade)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('lightbox')?.classList.contains('open')) return; // lightbox tem seu próprio handler
+  fecharModalNoTopo();
+});
+// Clique no overlay (fora do .modal-box) fecha
+function setupModalCloseOnOverlayClick() {
+  document.querySelectorAll('.modal-ov').forEach(ov => {
+    if (ov.dataset.closeBound === '1') return;
+    ov.dataset.closeBound = '1';
+    ov.addEventListener('click', (e) => {
+      if (e.target !== ov) return; // ignora clique no conteúdo
+      const fn = _MODAL_CLOSE_MAP[ov.id];
+      if (fn) fn(); else ov.classList.add('hidden');
+    });
+  });
+}
+setupModalCloseOnOverlayClick();
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function fmtDate(iso) {
