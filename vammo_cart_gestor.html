@@ -3214,30 +3214,35 @@ function executaRepor(ctx, tipo, qtd, obs) {
     if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
     return;
   }
-  showAlert('repor-alert', 'az', '⏳ Sincronizando com servidor...');
+
+  // UX OTIMISTA: fecha modal imediatamente, atualiza UI, deixa o GAS rodar em background
   const porQuem = ctx.por || localStorage.getItem('vammo_gestor_nome') || 'gestor';
+  const cartNorm = normalizeCartName(carrinho);
+  // 1) Remove a NC localmente (otimista)
+  _serverOpenNCs = _serverOpenNCs.filter(nc => !(normalizeCartName(nc.carrinho) === cartNorm && nc.ferramenta === ferramenta));
+  // 2) Libera botão + fecha modal
+  _reporEmAndamento = false;
+  const btnEarly = document.getElementById('repor-confirmar-btn');
+  if (btnEarly) { btnEarly.disabled = false; btnEarly.style.opacity = ''; btnEarly.style.cursor = ''; btnEarly.textContent = '↻ Confirmar'; }
+  closeReporModal();
+  // 3) Feedback imediato + UI refresh
+  const msgOtim = tipo === 'reposicao'
+    ? `✅ ${qtd}× ${ferramenta} reposto em ${base} · <span style="color:var(--gr);">⏳ confirmando no servidor...</span>`
+    : `✅ NC de ${ferramenta} ajustada · <span style="color:var(--gr);">⏳ confirmando no servidor...</span>`;
+  showAlert('cart-alert-box', 'gn', msgOtim);
+  renderNC(); renderEstoque(); refreshDetailIfOpen();
+  if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+  // 4) Em background: notifica GAS (com retry). Se falhar, mostra erro e reverte UI.
   reporNCnoGASComRetry(cfg.webhookUrl, carrinho, ferramenta, porQuem, tipo, 0, (sucesso, err) => {
-    _reporEmAndamento = false;
-    const btn = document.getElementById('repor-confirmar-btn');
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; btn.textContent = '↻ Confirmar'; }
-    closeReporModal();
     if (sucesso) {
-      // Remove a NC da lista local imediatamente (otimista) — o sync de 30s confirma depois
-      const cartNorm = normalizeCartName(carrinho);
-      _serverOpenNCs = _serverOpenNCs.filter(nc => !(normalizeCartName(nc.carrinho) === cartNorm && nc.ferramenta === ferramenta));
-    }
-    refreshDetailIfOpen();
-    if (sucesso) {
-      const msg = tipo === 'reposicao'
-        ? `✅ Reposição confirmada: ${qtd}× ${ferramenta} (${base}). Estoque novo: ${est[base][ferramenta]}.`
-        : `✅ Ajuste registrado: NC de ${ferramenta} (${carrinho}) fechada sem mexer no estoque.`;
-      showAlert('cart-alert-box', 'gn', msg);
       logAcao(tipo === 'reposicao' ? 'nc_reposicao' : 'nc_ajuste', `${carrinho} · ${ferramenta} · por ${porQuem}${tipo==='reposicao'?' · baixou '+qtd+' de '+base:''}`, base);
-    } else {
-      showAlert('cart-alert-box', 'rd',
-        `❌ Erro ao sincronizar com servidor: ${err || 'sem resposta'}. A NC pode voltar! Tente de novo.`);
+      return; // já estava marcado como sucesso na UI, nada a fazer
     }
-    renderNC(); renderEstoque();
+    // Reverte: re-adiciona NC à lista local + avisa
+    _serverOpenNCs.push({ carrinho, ferramenta, motivo: motivo || 'nc', mecanico: '', ts: new Date().toISOString() });
+    showAlert('cart-alert-box', 'rd',
+      `❌ Servidor não confirmou ${ferramenta} (${carrinho}): ${err || 'sem resposta'}. Tente novamente.`);
+    renderNC(); renderEstoque(); refreshDetailIfOpen();
     if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
   });
 }
