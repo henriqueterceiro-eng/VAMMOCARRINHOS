@@ -36,22 +36,25 @@
 
     // Service Worker inline via Blob
     const _swCode = `
-      const CACHE = 'vammo-cart-v2';
+      const CACHE = 'vammo-cart-v3';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
       });
       self.addEventListener('activate', e => {
-        // limpa caches antigos
+        // limpa caches antigos (v1, v2, ...) — força refresh do HTML
         e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
       });
       self.addEventListener('fetch', e => {
-        // Cross-origin (GAS, Google Sign-In, fontes, CDN) → browser direto
         if (new URL(e.request.url).origin !== self.location.origin) return;
-        // Não cachear POST
         if (e.request.method !== 'GET') return;
+        // Network-first: sempre tenta rede; cache é só fallback offline. Garante que updates do HTML chegam ao usuário.
         e.respondWith(
-          caches.match(e.request).then(r => r || fetch(e.request).catch(() => r))
+          fetch(e.request).then(resp => {
+            const copy = resp.clone();
+            caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+            return resp;
+          }).catch(() => caches.match(e.request))
         );
       });
     `;
