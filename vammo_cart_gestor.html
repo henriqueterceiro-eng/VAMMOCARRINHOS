@@ -4143,7 +4143,6 @@ function gastoPorBase() {
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
   });
-  console.log('[VAMMO] gastoPorBase →', out, '· _serverBaixas:', _serverBaixas.length);
   return out;
 }
 
@@ -4165,7 +4164,6 @@ function gastoPorBaseNoPeriodo(startTs, endTs) {
   const gameMs = game ? new Date(game).getTime() : 0;
   const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0 };
   const chaves = new Set();
-  let dbgServer = 0, dbgServerFiltradas = 0;
   getBaixas().forEach(b => {
     if (b.tipo === 'ajuste') return;
     if (b.estornada) return;
@@ -4180,18 +4178,13 @@ function gastoPorBaseNoPeriodo(startTs, endTs) {
     if (b.tipo === 'ajuste') return;
     if (b._estornada) return;
     const ts = new Date(b.ts).getTime();
-    dbgServer++;
-    if (ts < gameMs || ts < startMs || ts >= endMs) { dbgServerFiltradas++; return; }
+    if (ts < gameMs || ts < startMs || ts >= endMs) return;
     const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
     if (chaves.has(k)) return;
     const v = (Number(b.qtd) || 1) * getPreco(b.ferramenta);
     if (out[b.base] != null) out[b.base] += v;
     out.VAMMO += v;
   });
-  console.log('[VAMMO] gastoPorBaseNoPeriodo · período: ',
-    new Date(startMs).toLocaleString('pt-BR'), '→', endMs===Infinity?'∞':new Date(endMs).toLocaleString('pt-BR'),
-    '· _serverBaixas: ', _serverBaixas.length, '(filtradas:', dbgServerFiltradas, ')',
-    '· out:', out);
   return out;
 }
 
