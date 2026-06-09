@@ -1093,7 +1093,8 @@ const DEFAULT_EMAILS = [
   "emerson.gatti@vammo.com","felipe.nunes@vammo.com","luiz.muller@vammo.com","jacqueline.lima@vammo.com",
   "ariel.santos@vammo.com","hebert.gouveia@vammo.com","tetsu.dobashi@vammo.com","genadson.leite@vammo.com",
   "bryan.moreira@vammo.com","carlos.henrique@vammo.com","gabriela.souza@vammo.com","caio.martins@vammo.com",
-  "diogo.sousa@vammo.com","junior.tonet@vammo.com","ryansilva.responsa@vammo.com","rauloliveira.responsa@vammo.com"
+  "diogo.sousa@vammo.com","junior.tonet@vammo.com","ryansilva.responsa@vammo.com","rauloliveira.responsa@vammo.com",
+  "eduardo.almeidasilva@vammo.com","lucas.morales@vammo.com"
 ];
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -1123,10 +1124,23 @@ let sigHasData = false;
 // ─── STORAGE ──────────────────────────────────────────────────────────────────
 // Lista flat de e-mails autorizados (storage 'vammo_colab_emails')
 function getColab() {
-  try {
-    const raw = JSON.parse(localStorage.getItem('vammo_colab_emails'));
-    if (Array.isArray(raw) && raw.length) return raw;
-  } catch {}
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem('vammo_colab_emails')); } catch {}
+  if (Array.isArray(raw) && raw.length) {
+    // Migration: garante que TODOS os DEFAULT_EMAILS estão presentes (sem remover os custom)
+    const set = new Set(raw.map(s => String(s).toLowerCase()));
+    let mudou = false;
+    DEFAULT_EMAILS.forEach(e => {
+      const lc = e.toLowerCase();
+      if (!set.has(lc)) { set.add(lc); mudou = true; }
+    });
+    if (mudou) {
+      const merged = Array.from(set).sort();
+      try { localStorage.setItem('vammo_colab_emails', JSON.stringify(merged)); } catch {}
+      return merged;
+    }
+    return raw;
+  }
   // primeira execução: faz seed
   try { localStorage.setItem('vammo_colab_emails', JSON.stringify(DEFAULT_EMAILS)); } catch {}
   return DEFAULT_EMAILS.slice();
