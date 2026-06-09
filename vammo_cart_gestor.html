@@ -660,29 +660,6 @@
     .cart-card-v3 .ccv-mec { font-size: 12px; color: var(--w2); margin-top: 4px; line-height: 1.3; }
     .cart-card-v3 .ccv-time { font-size: 10px; color: var(--gr); margin-top: 2px; }
 
-    /* Badge de celular (presença Headwind): ícone + "Celular VAMMO" + status */
-    .cart-card-v3 .ccv-phone-badge {
-      display: flex; align-items: center; justify-content: center; gap: 7px;
-      margin-top: 8px;
-    }
-    .cart-card-v3 .ccv-phone-badge svg { width: 23px; height: 23px; display: block; }
-    .cart-card-v3 .ccv-phone-txt { display: flex; flex-direction: column; line-height: 1.05; text-align: left; }
-    .cart-card-v3 .cpb-label  { font-size: 8.5px; letter-spacing: .6px; color: var(--gr); text-transform: uppercase; font-weight: 800; white-space: nowrap; }
-    .cart-card-v3 .cpb-status { font-size: 12.5px; font-weight: 900; letter-spacing: .5px; white-space: nowrap; }
-    /* online: verde brilhando */
-    .cart-card-v3 .ccv-phone-badge.on svg { color: #22c55e; filter: drop-shadow(0 0 4px rgba(34,197,94,.9)) drop-shadow(0 0 9px rgba(34,197,94,.5)); }
-    .cart-card-v3 .ccv-phone-badge.on .cpb-status { color: #22c55e; }
-    /* offline (sem resposta do Headwind): vermelho piscando */
-    .cart-card-v3 .ccv-phone-badge.alert svg,
-    .cart-card-v3 .ccv-phone-badge.alert .cpb-status { color: #ef4444; animation: phoneAlert 1s ease-in-out infinite; }
-    /* sem celular cadastrado: cinza */
-    .cart-card-v3 .ccv-phone-badge.nodev svg,
-    .cart-card-v3 .ccv-phone-badge.nodev .cpb-status { color: #9aa0a6; }
-    @keyframes phoneAlert {
-      0%, 100% { opacity: .55; filter: drop-shadow(0 0 2px rgba(239,68,68,.5)); }
-      50%      { opacity: 1;   filter: drop-shadow(0 0 8px rgba(239,68,68,.95)); }
-    }
-
     /* Bandeira/flag de NC */
     .cart-card-v3 .ccv-flag {
       position: absolute; top: -8px; right: -8px;
@@ -902,6 +879,9 @@
       <div class="nav-item" data-panel="colab" onclick="showPanel('colab')">
         <span class="nav-icon">👥</span> Colaboradores
       </div>
+      <div class="nav-item" data-panel="links" onclick="showPanel('links')">
+        <span class="nav-icon">🔗</span> Links de Acesso
+      </div>
       <div class="nav-item" data-panel="config" onclick="showPanel('config')">
         <span class="nav-icon">⚙️</span> Configurações
       </div>
@@ -917,6 +897,7 @@
     <div class="top-bar">
       <button class="hamburger" onclick="openSidebar()">☰</button>
       <div class="page-title" id="top-title">Dashboard</div>
+      <div id="role-badge" style="display:none;margin-left:10px;padding:5px 10px;border-radius:5px;background:rgba(46,194,255,.15);color:var(--az);border:1px solid var(--az);font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;">Supervisor · –</div>
       <div class="spacer"></div>
       <div class="sync-badge" id="sync-status">–</div>
       <button class="btn-sm btn-outline" onclick="refreshAll()">🔄 Atualizar</button>
@@ -1128,6 +1109,16 @@
           <button class="btn-sm btn-outline" onclick="importColabPrompt()">⬆ Importar JSON</button>
           <button class="btn-sm btn-outline" onclick="resetColabDefault()">↺ Restaurar padrão</button>
           <button class="btn-sm btn-rd" onclick="resetColab()">🗑 Limpar Lista</button>
+        </div>
+      </div>
+
+      <!-- ── LINKS DE ACESSO ── -->
+      <div class="panel" id="panel-links">
+        <div class="config-card">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);margin-bottom:6px;">🔗 LINKS DE ACESSO</div>
+          <div style="font-size:12px;color:var(--gr);margin-bottom:18px;">Compartilhe o link certo com cada perfil. Cada um abre uma visão diferente. Clique no botão "Copiar" pra colar onde precisar (Slack, WhatsApp, e-mail).</div>
+
+          <div id="links-list" style="display:flex;flex-direction:column;gap:14px;"></div>
         </div>
       </div>
 
@@ -1489,13 +1480,10 @@ function getColab() {
 function saveColab(arr) { localStorage.setItem('vammo_colab_emails', JSON.stringify(arr)); }
 // URL padrão do Apps Script — gestor e checkin já abrem configurados.
 const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
-// Serviço de presença (celular online no Headwind MDM) — web app separado
-const DEFAULT_PRESENCE_URL = 'https://script.google.com/macros/s/AKfycbz-yRCeTwX-zxgUVSTAdaRe6ILlnkYgasqBK_lrTMoDFrRnatFQl7YLSYoHZ774ekmIlA/exec';
 function getConfig() {
   let cfg = {};
   try { cfg = JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch {}
   if (!cfg.webhookUrl) cfg.webhookUrl = DEFAULT_WEBHOOK_URL;
-  if (!cfg.presenceUrl) cfg.presenceUrl = DEFAULT_PRESENCE_URL;
   return cfg;
 }
 function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c)); }
@@ -1504,6 +1492,20 @@ function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c))
 const BASES = ['Mooca', 'Osasco', 'SBC'];
 // Bases que recebem estoque (inclui overflow do armário Mooca). Carrinhos só usam BASES.
 const ESTOQUE_BASES = ['Mooca', 'Osasco', 'SBC', 'Estoque Mooca'];
+
+// ─── ROLE / SUPERVISOR DE BASE ──────────────────────────────────────────────
+// Modo supervisor: URL ?role=supervisor&base=Mooca → vê só uma base, sem cadastros/dashboard geral
+const _URL_PARAMS = new URLSearchParams(window.location.search);
+const _ROLE = (_URL_PARAMS.get('role') || 'gestor').toLowerCase();
+const _SUPERVISOR_BASE = _URL_PARAMS.get('base') || '';
+function isSupervisor() { return _ROLE === 'supervisor' && BASES.includes(_SUPERVISOR_BASE); }
+function viewableBases() { return isSupervisor() ? [_SUPERVISOR_BASE] : BASES.slice(); }
+function viewableEstoqueBases() {
+  if (!isSupervisor()) return ESTOQUE_BASES.slice();
+  // supervisor Mooca também vê reserva Estoque Mooca; outros não
+  return _SUPERVISOR_BASE === 'Mooca' ? ['Mooca', 'Estoque Mooca'] : [_SUPERVISOR_BASE];
+}
+function podeVerBase(b) { return viewableBases().includes(b); }
 const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC' };
 const BASE_COUNT  = { Mooca: 35,   Osasco: 50,   SBC: 6   };
 
@@ -1653,7 +1655,7 @@ function showPanel(id) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + id).classList.add('active');
   document.querySelector(`[data-panel="${id}"]`)?.classList.add('active');
-  const titles = { dashboard:'Dashboard', registros:'Registros', nc:'Não Conformidades', carrinhos:'Carrinhos', estoque:'Estoque por Base', colab:'Colaboradores', config:'Configurações' };
+  const titles = { dashboard:'Dashboard', registros:'Registros', nc:'Não Conformidades', carrinhos:'Carrinhos', estoque:'Estoque por Base', colab:'Colaboradores', links:'Links de Acesso', config:'Configurações' };
   document.getElementById('top-title').textContent = titles[id] || id;
   closeSidebar();
 
@@ -1664,7 +1666,87 @@ function showPanel(id) {
   if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); syncGameStartFromGAS(); }
   if (id === 'nc') syncNCsComServidor(true); // silent: alinha local com servidor ao abrir
   if (id === 'colab') renderColab();
+  if (id === 'links') renderLinks();
   if (id === 'config') renderConfig();
+}
+
+// ─── LINKS DE ACESSO ──────────────────────────────────────────────────────────
+const LINKS_BASE_URL = 'https://henriqueterceiro-eng.github.io/VAMMOCARRINHOS';
+function renderLinks() {
+  const wrap = document.getElementById('links-list');
+  if (!wrap) return;
+  const grupos = [
+    {
+      titulo: '📊 GESTÃO CENTRAL',
+      cor: 'var(--az)',
+      desc: 'Visão completa de todas as bases. Para você, Marcelo, Billy.',
+      links: [
+        { rotulo: 'Gestor (você, central)', url: `${LINKS_BASE_URL}/vammo_cart_gestor.html`, perfil: 'Vê tudo' },
+      ]
+    },
+    {
+      titulo: '🧑‍🔧 SUPERVISOR DE BASE',
+      cor: 'var(--gn)',
+      desc: 'Mesmas ações do gestor mas só vê 1 base. Pode repor, transferir, pedido, inventário. Mande pro Luciano/Wladmir/Ronaldo/Edson.',
+      links: [
+        { rotulo: 'Supervisor Mooca (Luciano / Wladmir)', url: `${LINKS_BASE_URL}/vammo_cart_gestor.html?role=supervisor&base=Mooca`, perfil: 'Repor, transfer, inventário · só Mooca' },
+        { rotulo: 'Supervisor Osasco (Ronaldo)', url: `${LINKS_BASE_URL}/vammo_cart_gestor.html?role=supervisor&base=Osasco`, perfil: 'Repor, transfer, inventário · só Osasco' },
+        { rotulo: 'Supervisor SBC (Edson)', url: `${LINKS_BASE_URL}/vammo_cart_gestor.html?role=supervisor&base=SBC`, perfil: 'Repor, transfer, inventário · só SBC' },
+      ]
+    },
+    {
+      titulo: '👁️ ENCARREGADO (read-only · tablet)',
+      cor: 'var(--w2)',
+      desc: 'Só visualiza os carrinhos da sua base, sem mexer em nada. Otimizado pra tablet (fullscreen + wake-lock).',
+      links: [
+        { rotulo: 'Encarregado Mooca', url: `${LINKS_BASE_URL}/vammo_cart_encarregado.html?base=Mooca`, perfil: 'Só visualiza · Mooca' },
+        { rotulo: 'Encarregado Osasco', url: `${LINKS_BASE_URL}/vammo_cart_encarregado.html?base=Osasco`, perfil: 'Só visualiza · Osasco' },
+        { rotulo: 'Encarregado SBC', url: `${LINKS_BASE_URL}/vammo_cart_encarregado.html?base=SBC`, perfil: 'Só visualiza · SBC' },
+      ]
+    },
+    {
+      titulo: '🛠 MECÂNICO',
+      cor: 'var(--yw)',
+      desc: 'Check-in/check-out via QR code. Login Google obrigatório (deve estar na lista de Colaboradores).',
+      links: [
+        { rotulo: 'App do Mecânico', url: `${LINKS_BASE_URL}/vammo_cart_checkin.html`, perfil: 'Quem opera o carrinho' },
+      ]
+    },
+  ];
+  wrap.innerHTML = grupos.map(g => `
+    <div style="border:1px solid var(--bd);border-radius:8px;padding:14px;background:var(--c1);">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;letter-spacing:1.5px;color:${g.cor};margin-bottom:4px;">${g.titulo}</div>
+      <div style="font-size:11.5px;color:var(--gr);margin-bottom:12px;">${g.desc}</div>
+      ${g.links.map(l => `
+        <div style="background:var(--c2);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+            <div style="font-size:13px;font-weight:700;color:var(--wh);">${l.rotulo}</div>
+            <div style="font-size:10.5px;color:var(--gr);font-style:italic;">${l.perfil}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input type="text" readonly value="${l.url}" onclick="this.select()" style="flex:1;min-width:220px;padding:7px 9px;font-size:11px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--w2);font-family:monospace;">
+            <button class="btn-sm btn-az" onclick="copiarLink('${l.url.replace(/'/g,"\\'")}', this)" style="padding:7px 12px;font-size:11px;font-weight:800;">📋 Copiar</button>
+            <a href="${l.url}" target="_blank" class="btn-sm btn-outline" style="padding:7px 12px;font-size:11px;font-weight:800;text-decoration:none;display:inline-block;">↗ Abrir</a>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function copiarLink(url, btn) {
+  navigator.clipboard.writeText(url).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copiado!';
+    btn.style.background = 'var(--gn)';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1500);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); btn.textContent = '✅ Copiado!'; } catch { alert('Não consegui copiar — selecione e copie manual.'); }
+    document.body.removeChild(ta);
+    setTimeout(() => { btn.textContent = '📋 Copiar'; }, 1500);
+  });
 }
 
 function openSidebar() {
@@ -1706,58 +1788,34 @@ function computeCartState(nome, recs) {
   return { status, last, ncAbertas: abertas };
 }
 
-// ─── PRESENÇA (celular online no Headwind) ──────────────────────────────────
-let _presDevices = [];   // [{tokens:[...nome...], online:bool}]
-let _presLoaded  = false;
-let _presTimer   = null;
-
-function _deburr(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,''); }
-// "nome.sobrenome@vammo.com" ou nome livre -> ['nome','sobrenome',...]
-function _nameTokens(s){
-  let v = String(s||'');
-  if (v.indexOf('@') >= 0) v = v.split('@')[0].replace(/[._]+/g,' ');
-  return _deburr(v).toLowerCase().replace(/[^a-z\s]/g,' ').trim().split(/\s+/).filter(Boolean);
-}
-// Status do celular do mecânico: true=online, false=offline, null=sem match
-function mecPhoneStatus(mec){
-  const mt = _nameTokens(mec);
-  if (!_presLoaded || !mt.length) return null;
-  const first = mt[0], last = mt[mt.length-1];
-  for (const d of _presDevices){
-    if (d.tokens.includes(first) && d.tokens.includes(last)) return !!d.online;
-  }
-  return null;
-}
-function refreshPresence(){
-  const cfg = getConfig();
-  if (!cfg.presenceUrl) return;
-  gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
-    if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
-    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), online: !!d.online }));
-    _presLoaded = true;
-    try { renderCarrinhos(); } catch(e){}
-  });
-}
-
 function renderCarrinhos() {
   const carts = getCarts();
   const recs  = getRecords();
   const q     = (document.getElementById('cart-search')?.value || '').toLowerCase();
 
-  // ── Chips de cadastro agrupados por base
+  const visibleBases = viewableBases();
+  // No modo supervisor: força tab ativa pra base dele
+  if (isSupervisor()) _currentBaseTab = _SUPERVISOR_BASE;
+
+  // ── Chips de cadastro agrupados por base (supervisor não cadastra; esconde o container)
   const chipsContainer = document.getElementById('cart-chips-by-base');
+  const cadastroContainer = chipsContainer?.closest('[data-role-only="gestor"]') || chipsContainer;
   if (chipsContainer) {
-    chipsContainer.innerHTML = BASES.map(b => {
-      const list = carts.filter(c => c.base === b);
-      const chipsHtml = list.length
-        ? list.map(c => `<span class="cart-chip">${c.nome}<button onclick="removeCart('${c.nome}')" title="Remover">×</button></span>`).join('')
-        : `<span style="color:var(--gr);font-size:13px;">Nenhum carrinho.</span>`;
-      return `
-        <div style="margin-bottom:14px;">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gr);letter-spacing:2px;text-transform:uppercase;font-weight:800;margin-bottom:6px;">Base ${b} <span style="color:var(--w2);">(${list.length})</span></div>
-          <div class="cart-list-chips">${chipsHtml}</div>
-        </div>`;
-    }).join('');
+    if (isSupervisor()) {
+      chipsContainer.innerHTML = '';
+    } else {
+      chipsContainer.innerHTML = BASES.map(b => {
+        const list = carts.filter(c => c.base === b);
+        const chipsHtml = list.length
+          ? list.map(c => `<span class="cart-chip">${c.nome}<button onclick="removeCart('${c.nome}')" title="Remover">×</button></span>`).join('')
+          : `<span style="color:var(--gr);font-size:13px;">Nenhum carrinho.</span>`;
+        return `
+          <div style="margin-bottom:14px;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gr);letter-spacing:2px;text-transform:uppercase;font-weight:800;margin-bottom:6px;">Base ${b} <span style="color:var(--w2);">(${list.length})</span></div>
+            <div class="cart-list-chips">${chipsHtml}</div>
+          </div>`;
+      }).join('');
+    }
   }
 
   // ── Tabs por base
@@ -1766,7 +1824,7 @@ function renderCarrinhos() {
   if (!tabsEl || !sectionsEl) return;
 
   // Contadores por base p/ exibir no chip
-  const tabs = BASES.map(b => {
+  const tabs = visibleBases.map(b => {
     const list = carts.filter(c => c.base === b);
     return { base: b, total: list.length };
   });
@@ -1776,9 +1834,9 @@ function renderCarrinhos() {
      </button>`
   ).join('');
 
-  // Stats globais
+  // Stats globais (filtrados pra bases visíveis)
   let totLog=0, totDeslog=0, totSem=0, totNC=0;
-  carts.forEach(c => {
+  carts.filter(c => visibleBases.includes(c.base)).forEach(c => {
     const st = computeCartState(c.nome, recs);
     if (st.status === 'logado') totLog++;
     else if (st.status === 'deslogado') totDeslog++;
@@ -1794,7 +1852,7 @@ function renderCarrinhos() {
   `;
 
   // Seções: uma por base, mas só a ativa visível
-  sectionsEl.innerHTML = BASES.map(b => {
+  sectionsEl.innerHTML = visibleBases.map(b => {
     const list = carts.filter(c => c.base === b && (!q || c.nome.toLowerCase().includes(q)));
     if (!list.length) {
       return `<div class="base-section ${b===_currentBaseTab?'active':''}" data-base="${b}">
@@ -1813,25 +1871,11 @@ function renderCarrinhos() {
       const forceBtn = st.status === 'logado'
         ? `<button class="cart-force-btn" onclick="event.stopPropagation(); forcarCheckout('${c.nome}', '${mec.replace(/'/g,'')}')" title="Forçar checkout">🔓 Forçar checkout</button>`
         : '';
-      // Presença (só p/ logado). online=verde ONLINE · offline(sem resposta do Headwind)=
-      // vermelho piscando OFFLINE · sem registro=cinza NÃO CADASTRADO. Deslogado/carregando=nada.
-      const PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/></svg>';
-      const PHONE_SVG_SLASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/><line x1="3.5" y1="2.5" x2="20.5" y2="21.5"/></svg>';
-      let phoneBadge = '';
-      if (st.status === 'logado' && _presLoaded) {
-        const p = mecPhoneStatus(mec); // true=online · false=offline · null=sem celular
-        let bcls, bsvg, btxt;
-        if (p === true)       { bcls='on';    bsvg=PHONE_SVG;       btxt='ONLINE'; }
-        else if (p === false) { bcls='alert'; bsvg=PHONE_SVG;       btxt='OFFLINE'; }
-        else                  { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='NÃO CADASTRADO'; }
-        phoneBadge = `<div class="ccv-phone-badge ${bcls}"><span>${bsvg}</span><span class="ccv-phone-txt"><span class="cpb-label">Celular VAMMO</span><span class="cpb-status">${btxt}</span></span></div>`;
-      }
       return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
         <div>
           <div class="ccv-id">${c.nome}</div>
           <div class="ccv-status">${label}</div>
-          ${phoneBadge}
         </div>
         <div>
           ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
@@ -2199,6 +2243,8 @@ function renderChartSemanal() {
 
 function renderDashboard() {
   const recs = getRecords();
+  const visibleBs = viewableBases();
+  const sup = isSupervisor();
   const now = new Date();
   let pStart;
   if (_dashPeriodo === 'hoje') pStart = startOfDay(now);
@@ -2214,6 +2260,16 @@ function renderDashboard() {
     return `<button class="dash-tab ${p===_dashPeriodo?'active':''}" onclick="setDashPeriodo('${p}')">${label}</button>`;
   }).join('');
 
+  // Supervisor só vê a métrica da sua base; gestor vê VAMMO + 3 bases
+  const metricas = sup
+    ? [{ key: _SUPERVISOR_BASE, label: `📍 ${_SUPERVISOR_BASE}`, cls: 'metric-total' }]
+    : [
+        { key:'VAMMO', label:'🏢 VAMMO Total', cls:'metric-total' },
+        { key:'Mooca', label:'📍 Mooca', cls:'' },
+        { key:'Osasco', label:'📍 Osasco', cls:'' },
+        { key:'SBC', label:'📍 SBC', cls:'' }
+      ];
+
   document.getElementById('stat-grid').innerHTML = `
     <div class="dash-period-bar">
       <span class="dpb-lbl">Período</span>
@@ -2221,12 +2277,7 @@ function renderDashboard() {
       <span class="dpb-info">${pLabel} · desde ${pStart.toLocaleDateString('pt-BR')}</span>
     </div>
     <div class="dash-metrics">
-      ${[
-        { key:'VAMMO', label:'🏢 VAMMO Total', cls:'metric-total' },
-        { key:'Mooca', label:'📍 Mooca', cls:'' },
-        { key:'Osasco', label:'📍 Osasco', cls:'' },
-        { key:'SBC', label:'📍 SBC', cls:'' }
-      ].map(m => `
+      ${metricas.map(m => `
         <div class="metric-card ${m.cls}">
           <div class="mc-lbl">${m.label}</div>
           <div class="mc-money">${fmtMoney(gastos[m.key]||0)}</div>
@@ -2235,14 +2286,20 @@ function renderDashboard() {
         </div>
       `).join('')}
     </div>
-    <div class="chart-wrap">
+    ${sup ? '' : `<div class="chart-wrap">
       <div class="chart-title">📊 Gasto semanal — últimas 12 semanas (VAMMO total)</div>
       <canvas id="chart-semanal" height="160"></canvas>
-    </div>
+    </div>`}
   `;
-  setTimeout(renderChartSemanal, 50);
+  if (!sup) setTimeout(renderChartSemanal, 50);
 
-  const recentHtml = recs.slice(0, 8).map(r => `
+  // Filtra recs/NCs do dashboard pra bases visíveis (no caso supervisor)
+  const recsFiltrados = sup ? recs.filter(r => {
+    const cart = getCarts().find(c => normalizeCartName(c.nome) === normalizeCartName(r.carrinho));
+    return cart && visibleBs.includes(cart.base);
+  }) : recs;
+
+  const recentHtml = recsFiltrados.slice(0, 8).map(r => `
     <tr onclick="openDetail('${r.id}')" style="cursor:pointer;">
       <td><strong>${normalizeCartName(r.carrinho)}</strong></td>
       <td>${r.mecanico}</td>
@@ -2253,7 +2310,12 @@ function renderDashboard() {
   document.getElementById('dash-recent').innerHTML = recentHtml;
 
   // NCs do dashboard puxam do servidor (fonte da verdade)
-  const ncsServer = _serverOpenNCs.slice().sort((a,b) => new Date(b.ts) - new Date(a.ts)).slice(0, 8);
+  let ncsBaseFiltrados = _serverOpenNCs;
+  if (sup) {
+    const cartsBase = new Set(getCarts().filter(c => visibleBs.includes(c.base)).map(c => normalizeCartName(c.nome)));
+    ncsBaseFiltrados = _serverOpenNCs.filter(nc => cartsBase.has(normalizeCartName(nc.carrinho)));
+  }
+  const ncsServer = ncsBaseFiltrados.slice().sort((a,b) => new Date(b.ts) - new Date(a.ts)).slice(0, 8);
   if (!ncsServer.length) {
     document.getElementById('dash-nc').innerHTML = '<div style="padding:24px;text-align:center;color:var(--gr);font-size:14px;">✅ Sem não conformidades abertas</div>';
     return;
@@ -2283,7 +2345,10 @@ function renderRegistros() {
   const filtTipo = document.getElementById('reg-filt-tipo')?.value || '';
   const filtTurno = document.getElementById('reg-filt-turno')?.value || '';
 
+  // Supervisor: filtra pelos carrinhos da base dele
+  const cartsBaseSetReg = new Set(getCarts().filter(c => viewableBases().includes(c.base)).map(c => normalizeCartName(c.nome)));
   let filtered = recs.filter(r => {
+    if (isSupervisor() && !cartsBaseSetReg.has(normalizeCartName(r.carrinho))) return false;
     const m = (r.carrinho + ' ' + r.mecanico + ' ' + r.id + ' ' + r.turno).toLowerCase();
     return (!search || m.includes(search)) &&
            (!filtTipo || r.tipo === filtTipo) &&
@@ -2541,7 +2606,12 @@ function renderNC() {
   // veem exatamente a mesma coisa porque ambos puxam do mesmo lugar.
   // Locais são usados só pra enriquecer (mecânico original, info de motivo).
   const localRecs = getRecords();
-  const ncs = _serverOpenNCs.map(nc => {
+  // Filtra _serverOpenNCs pelos carrinhos das bases visíveis (supervisor → 1 base)
+  const cartsBaseSet = new Set(getCarts().filter(c => viewableBases().includes(c.base)).map(c => normalizeCartName(c.nome)));
+  const ncsFonte = isSupervisor()
+    ? _serverOpenNCs.filter(nc => cartsBaseSet.has(normalizeCartName(nc.carrinho)))
+    : _serverOpenNCs;
+  const ncs = ncsFonte.map(nc => {
     const cartN = normalizeCartName(nc.carrinho);
     // Procura registros locais que tem essa ferramenta marcada nao_ok pra esse carrinho
     const matches = localRecs
@@ -3759,8 +3829,6 @@ function syncAgora() {
 
 function iniciarAutoSync() {
   if (_syncTimer) clearInterval(_syncTimer);
-  // presença (celular online) — independe do webhook de registros
-  if (!_presTimer) { setTimeout(refreshPresence, 1500); _presTimer = setInterval(refreshPresence, 30000); }
   const cfg = getConfig();
   if (!cfg.webhookUrl) return;
   setTimeout(syncAgora, 3000);
@@ -4108,6 +4176,46 @@ function importarRegistros(input) {
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+function aplicarRoleSupervisor() {
+  if (!isSupervisor()) return;
+  // Badge no top
+  const badge = document.getElementById('role-badge');
+  if (badge) {
+    badge.textContent = `Supervisor · ${_SUPERVISOR_BASE}`;
+    badge.style.display = 'inline-block';
+  }
+  // Esconde abas que supervisor não pode usar
+  ['colab','links','config'].forEach(p => {
+    const navEl = document.querySelector(`.nav-item[data-panel="${p}"]`);
+    if (navEl) navEl.style.display = 'none';
+    const panelEl = document.getElementById('panel-' + p);
+    if (panelEl) panelEl.style.display = 'none';
+  });
+  // Esconde botão importar/exportar CSV do topbar
+  document.querySelectorAll('.top-bar button, .top-bar label').forEach(el => {
+    if (el.textContent.includes('CSV') || el.textContent.includes('Importar')) el.style.display = 'none';
+  });
+  // Esconde seção de cadastro de carrinhos no panel Carrinhos
+  setTimeout(() => {
+    const addCartSection = document.getElementById('cart-add-section');
+    if (addCartSection) addCartSection.style.display = 'none';
+    const chipsCadastro = document.getElementById('cart-chips-by-base');
+    if (chipsCadastro && chipsCadastro.parentElement) chipsCadastro.parentElement.style.display = 'none';
+  }, 50);
+  // Modifica título do menu
+  const sidebarSub = document.querySelector('.sidebar-logo .sub');
+  if (sidebarSub) sidebarSub.textContent = `Supervisor · ${_SUPERVISOR_BASE}`;
+  // Bloqueia navegação direta pras abas escondidas
+  const originalShowPanel = window.showPanel;
+  window.showPanel = function(id) {
+    if (['colab','links','config'].includes(id)) {
+      id = 'dashboard';
+    }
+    return originalShowPanel.call(this, id);
+  };
+}
+aplicarRoleSupervisor();
+
 renderDashboard();
 iniciarAutoSync(); // sync automático a cada 30s se URL configurada
 syncEstoqueFromGAS(); // puxa estoque do servidor ao abrir
