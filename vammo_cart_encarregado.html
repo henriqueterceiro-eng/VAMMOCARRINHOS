@@ -543,6 +543,8 @@ function openDetail(nome) {
   const recsDoCart = _registros.filter(r => normalizeCartName(r.carrinho) === normalizeCartName(nome));
   recsDoCart.sort((a,b) => new Date(b.ts) - new Date(a.ts));
   const last = recsDoCart[0];
+  // Fotos: usa o último registro QUE TEM fotos (skip force checkouts/registros sem foto)
+  const lastComFotos = recsDoCart.find(r => r.fotos && ['sup','inf','elv'].some(k => typeof r.fotos[k] === 'string' && r.fotos[k]));
 
   const ncsHtml = st.ncAbertas.length
     ? `<div class="detail-section"><h4>⚠ NCs Abertas (${st.ncAbertas.length})</h4>${st.ncAbertas.map(nc => `
@@ -553,7 +555,7 @@ function openDetail(nome) {
         </div>`).join('')}</div>`
     : '<div class="detail-section"><div style="color:var(--gn);font-size:13px;">✅ Sem NCs em aberto</div></div>';
 
-  const fotosHtml = last && last.fotos ? renderFotos(last.fotos) : '';
+  const fotosHtml = lastComFotos && lastComFotos.fotos ? renderFotos(lastComFotos.fotos) : '';
   const sigHtml = last && last.assinatura ? renderAssinatura(last.assinatura) : '';
   const historicoHtml = renderMiniHistorico(recsDoCart, 4);
 

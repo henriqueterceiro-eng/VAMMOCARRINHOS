@@ -2092,7 +2092,10 @@ function renderCarrinhos() {
       const mec  = st.last ? st.last.mecanico : '';
       const hora = st.last ? new Date(st.last.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
       const data = st.last ? new Date(st.last.ts).toLocaleDateString('pt-BR') : '';
-      const recIdAttr = st.last ? st.last.id : '';
+      // recId pro click: prioriza último COM fotos (skip force-checkouts), fallback no último em si
+      const nameN = normalizeCartName(c.nome);
+      const lastComFotos = recs.find(r => normalizeCartName(r.carrinho) === nameN && r.fotos && ['sup','inf','elv'].some(k => typeof r.fotos[k] === 'string' && r.fotos[k]));
+      const recIdAttr = (lastComFotos && lastComFotos.id) || (st.last ? st.last.id : '');
       const forceBtn = st.status === 'logado'
         ? `<button class="cart-force-btn" onclick="event.stopPropagation(); forcarCheckout('${c.nome}', '${mec.replace(/'/g,'')}')" title="Forçar checkout">🔓 Forçar checkout</button>`
         : '';
@@ -4100,13 +4103,30 @@ function syncAgora() {
     }
     const records = data.records || [];
     let existentes = getRecords();
-    const ids = new Set(existentes.map(r => r.id));
-    let adicionados = 0;
+    const byId = new Map(existentes.map(r => [r.id, r]));
+    let adicionados = 0, atualizadosFotos = 0;
     records.forEach(rec => {
-      if (rec.id && !ids.has(rec.id)) { existentes.unshift(rec); ids.add(rec.id); adicionados++; }
+      if (!rec.id) return;
+      const existing = byId.get(rec.id);
+      if (!existing) {
+        byId.set(rec.id, rec); adicionados++;
+        return;
+      }
+      // Se o servidor já tem URL de foto e o local tinha false/null, atualiza só as fotos
+      // (servidor é a fonte da verdade — uploads do Drive chegam depois do appendRow inicial)
+      const sf = rec.fotos || {}, lf = existing.fotos || {};
+      let mudou = false;
+      ['sup','inf','elv'].forEach(k => {
+        if (typeof sf[k] === 'string' && sf[k] && typeof lf[k] !== 'string') {
+          if (!existing.fotos) existing.fotos = {};
+          existing.fotos[k] = sf[k]; mudou = true;
+        }
+      });
+      if (mudou) atualizadosFotos++;
     });
-    existentes.sort((a,b) => new Date(b.ts)-new Date(a.ts));
+    existentes = Array.from(byId.values()).sort((a,b) => new Date(b.ts)-new Date(a.ts));
     localStorage.setItem('vammo_registros', JSON.stringify(existentes));
+    if (atualizadosFotos > 0) console.log('[VAMMO] fotos atualizadas em ' + atualizadosFotos + ' registro(s)');
     const hora = new Date().toLocaleTimeString('pt-BR');
     log('✅ ' + hora + ' — ' + (adicionados>0?'+'+adicionados+' novo(s)':'sem novidades') + ' · ' + records.length + ' total');
     if (statusEl) statusEl.textContent = adicionados>0 ? '🟢 +'+adicionados : '🟢';
