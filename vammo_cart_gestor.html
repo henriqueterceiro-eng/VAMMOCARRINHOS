@@ -4036,15 +4036,26 @@ function gastoNoPeriodo(startTs, endTs) {
   const endMs = endTs ? new Date(endTs).getTime() : Infinity;
   const gameMs = game ? new Date(game).getTime() : 0;
   let total = 0;
+  const chaves = new Set();
   baixas.forEach(b => {
     if (b.tipo === 'ajuste') return;
-    if (b.estornada) return; // ignora reposições devolvidas
+    if (b.estornada) return;
     const ts = new Date(b.ts).getTime();
     if (ts < gameMs) return;
     if (ts < startMs) return;
     if (ts >= endMs) return;
-    const preco = getPreco(b.ferramenta);
-    total += (Number(b.qtd) || 0) * preco;
+    chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+    total += (Number(b.qtd) || 0) * getPreco(b.ferramenta);
+  });
+  // Mescla baixas do servidor (qualquer dispositivo)
+  _serverBaixas.forEach(b => {
+    if (b.tipo === 'ajuste') return;
+    if (b._estornada) return;
+    const ts = new Date(b.ts).getTime();
+    if (ts < gameMs || ts < startMs || ts >= endMs) return;
+    const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
+    if (chaves.has(k)) return;
+    total += (Number(b.qtd) || 1) * getPreco(b.ferramenta);
   });
   return total;
 }
@@ -4108,11 +4119,9 @@ function syncEstornosFromGAS() {
 }
 
 function gastoPorBase() {
-  // Junta baixas locais (mais detalhadas, tem qtd real) + baixas servidor (cobre multi-device)
   const game = getGameStartTs();
   const gameMs = game ? new Date(game).getTime() : 0;
   const out = { Mooca: 0, Osasco: 0, SBC: 0, _total: 0 };
-  // 1) Locais (gestor que processou)
   const baixasLocais = getBaixas();
   const chaves = new Set();
   baixasLocais.forEach(b => {
@@ -4124,17 +4133,17 @@ function gastoPorBase() {
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
   });
-  // 2) Servidor (preenche o que falta — qualquer baixa que não estava no local)
   _serverBaixas.forEach(b => {
     if (b.tipo === 'ajuste') return;
     if (b._estornada) return;
     if (new Date(b.ts).getTime() < gameMs) return;
     const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
-    if (chaves.has(k)) return; // já contado no local
+    if (chaves.has(k)) return;
     const v = (Number(b.qtd) || 1) * getPreco(b.ferramenta);
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
   });
+  console.log('[VAMMO] gastoPorBase →', out, '· _serverBaixas:', _serverBaixas.length);
   return out;
 }
 
@@ -4156,6 +4165,7 @@ function gastoPorBaseNoPeriodo(startTs, endTs) {
   const gameMs = game ? new Date(game).getTime() : 0;
   const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0 };
   const chaves = new Set();
+  let dbgServer = 0, dbgServerFiltradas = 0;
   getBaixas().forEach(b => {
     if (b.tipo === 'ajuste') return;
     if (b.estornada) return;
@@ -4170,13 +4180,18 @@ function gastoPorBaseNoPeriodo(startTs, endTs) {
     if (b.tipo === 'ajuste') return;
     if (b._estornada) return;
     const ts = new Date(b.ts).getTime();
-    if (ts < gameMs || ts < startMs || ts >= endMs) return;
+    dbgServer++;
+    if (ts < gameMs || ts < startMs || ts >= endMs) { dbgServerFiltradas++; return; }
     const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
     if (chaves.has(k)) return;
     const v = (Number(b.qtd) || 1) * getPreco(b.ferramenta);
     if (out[b.base] != null) out[b.base] += v;
     out.VAMMO += v;
   });
+  console.log('[VAMMO] gastoPorBaseNoPeriodo · período: ',
+    new Date(startMs).toLocaleString('pt-BR'), '→', endMs===Infinity?'∞':new Date(endMs).toLocaleString('pt-BR'),
+    '· _serverBaixas: ', _serverBaixas.length, '(filtradas:', dbgServerFiltradas, ')',
+    '· out:', out);
   return out;
 }
 
