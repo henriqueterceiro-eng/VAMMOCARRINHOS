@@ -2602,6 +2602,24 @@ function renderDashboard() {
         { key:'SBC', label:'📍 SBC', cls:'' }
       ];
 
+  // Estoque atual: quantidade + valor por base (sempre disponível, independe do período)
+  const est = getEstoque();
+  const estStats = {};
+  let estTotalQtd = 0, estTotalValor = 0;
+  ESTOQUE_BASES.forEach(b => {
+    let qtd = 0, valor = 0;
+    Object.entries(est[b] || {}).forEach(([ferr, q]) => {
+      const n = Math.max(0, Number(q) || 0);
+      qtd += n;
+      valor += n * getPreco(ferr);
+    });
+    estStats[b] = { qtd, valor };
+    estTotalQtd += qtd;
+    estTotalValor += valor;
+  });
+
+  const estBasesPraMostrar = sup ? viewableEstoqueBases() : ESTOQUE_BASES;
+
   document.getElementById('stat-grid').innerHTML = `
     <div class="dash-period-bar">
       <span class="dpb-lbl">Período</span>
@@ -2618,6 +2636,33 @@ function renderDashboard() {
         </div>
       `).join('')}
     </div>
+
+    <div style="margin-top:18px;padding:14px 16px;background:linear-gradient(180deg, rgba(34,197,94,.08), var(--c1));border:1px solid var(--gn);border-radius:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11.5px;font-weight:800;letter-spacing:2px;color:var(--gn);text-transform:uppercase;margin-bottom:4px;">💰 Patrimônio em Ferramentas (estoque atual)</div>
+          <div style="font-size:11px;color:var(--gr);">Soma de qtd × preço unit. Snapshot agora, independe do período.</div>
+        </div>
+        ${sup ? '' : `<div style="text-align:right;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--gn);line-height:1;">${fmtMoney(estTotalValor)}</div>
+          <div style="font-size:11px;color:var(--w2);margin-top:3px;"><strong>${estTotalQtd}</strong> ferramenta(s) no total</div>
+        </div>`}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;">
+        ${estBasesPraMostrar.map(b => {
+          const s = estStats[b] || { qtd: 0, valor: 0 };
+          const isReserva = b === 'Estoque Mooca';
+          const label = isReserva ? '📦 Reserva Mooca' : '📍 ' + b;
+          return `<div style="background:var(--c2);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;${isReserva?'border-color:var(--w2);':''}">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;margin-bottom:6px;">${label}</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:${isReserva?'var(--w2)':'var(--az)'};line-height:1;">${s.qtd}</div>
+            <div style="font-size:11px;color:var(--gr);margin-top:2px;">ferramenta(s)</div>
+            <div style="font-size:13px;color:var(--gn);font-weight:700;margin-top:6px;">${fmtMoney(s.valor)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
     ${sup ? '' : `<div class="chart-wrap">
       <div class="chart-title">📊 Gasto semanal — últimas 12 semanas (VAMMO total)</div>
       <canvas id="chart-semanal" height="160"></canvas>
