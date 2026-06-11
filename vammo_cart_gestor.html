@@ -2209,6 +2209,20 @@ function _nameTokens(s){
   if (v.indexOf('@') >= 0) v = v.split('@')[0].replace(/[._]+/g,' ');
   return _deburr(v).toLowerCase().replace(/[^a-z\s]/g,' ').trim().split(/\s+/).filter(Boolean);
 }
+// true se a e b diferem em no máx. 1 letra (typo) — exige token >=3 chars
+function _close(a,b){
+  if (a === b) return true;
+  const la=a.length, lb=b.length;
+  if (la<3 || lb<3 || Math.abs(la-lb)>1) return false;
+  let i=0,j=0,ed=0;
+  while (i<la && j<lb){
+    if (a[i]===b[j]){ i++; j++; continue; }
+    if (++ed>1) return false;
+    if (la>lb) i++; else if (lb>la) j++; else { i++; j++; }
+  }
+  if (i<la || j<lb) ed++;
+  return ed<=1;
+}
 // Status do celular do mecânico: true=online, false=offline, null=sem match
 function mecPhoneStatus(mec){
   const mt = _nameTokens(mec);
@@ -2232,6 +2246,10 @@ function mecDevice(mec){
   const first = mt[0], last = mt[mt.length-1];
   for (const d of _presDevices){
     if (d.tokens.includes(first) && d.tokens.includes(last)) return d;
+  }
+  // 3) tolerância a typo de 1 letra (ex.: capetine vs capetini)
+  for (const d of _presDevices){
+    if (d.tokens.some(t=>_close(t,first)) && d.tokens.some(t=>_close(t,last))) return d;
   }
   return null;
 }
