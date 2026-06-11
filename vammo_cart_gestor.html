@@ -2091,7 +2091,7 @@ function renderLinks() {
       cor: 'var(--az)',
       desc: 'Visão completa de todas as bases. Para você, Marcelo, Billy.',
       links: [
-        { rotulo: 'Gestor central', url: `${LINKS_NETLIFY}/gestor`, perfil: 'Vê tudo · link novo', alt: `${LINKS_GITHUB}/vammo_cart_gestor.html` },
+        { rotulo: 'Gestor central', url: `${LINKS_GITHUB}/vammo_cart_gestor.html`, perfil: 'Vê tudo' },
       ]
     },
     {
@@ -2099,9 +2099,9 @@ function renderLinks() {
       cor: 'var(--gn)',
       desc: 'Mesmas ações do gestor mas só vê 1 base. Pode repor, transferir, pedido, inventário. Mande pro Luciano/Wladmir/Ronaldo/Edson.',
       links: [
-        { rotulo: 'Supervisor Mooca (Luciano / Wladmir)', url: `${LINKS_NETLIFY}/supervisor?base=Mooca`, perfil: 'Repor, transfer, inventário · só Mooca', alt: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Mooca` },
-        { rotulo: 'Supervisor Osasco (Ronaldo)', url: `${LINKS_NETLIFY}/supervisor?base=Osasco`, perfil: 'Repor, transfer, inventário · só Osasco', alt: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Osasco` },
-        { rotulo: 'Supervisor SBC (Edson)', url: `${LINKS_NETLIFY}/supervisor?base=SBC`, perfil: 'Repor, transfer, inventário · só SBC', alt: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=SBC` },
+        { rotulo: 'Supervisor Mooca (Luciano / Wladmir)', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Mooca`, perfil: 'Repor, transfer, inventário · só Mooca' },
+        { rotulo: 'Supervisor Osasco (Ronaldo)', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Osasco`, perfil: 'Repor, transfer, inventário · só Osasco' },
+        { rotulo: 'Supervisor SBC (Edson)', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=SBC`, perfil: 'Repor, transfer, inventário · só SBC' },
       ]
     },
     {
@@ -2109,9 +2109,9 @@ function renderLinks() {
       cor: 'var(--w2)',
       desc: 'Só visualiza os carrinhos da sua base, sem mexer em nada. Otimizado pra tablet (fullscreen + wake-lock).',
       links: [
-        { rotulo: 'Encarregado Mooca', url: `${LINKS_NETLIFY}/encarregado?base=Mooca`, perfil: 'Só visualiza · Mooca', alt: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Mooca` },
-        { rotulo: 'Encarregado Osasco', url: `${LINKS_NETLIFY}/encarregado?base=Osasco`, perfil: 'Só visualiza · Osasco', alt: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Osasco` },
-        { rotulo: 'Encarregado SBC', url: `${LINKS_NETLIFY}/encarregado?base=SBC`, perfil: 'Só visualiza · SBC', alt: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=SBC` },
+        { rotulo: 'Encarregado Mooca', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Mooca`, perfil: 'Só visualiza · Mooca' },
+        { rotulo: 'Encarregado Osasco', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Osasco`, perfil: 'Só visualiza · Osasco' },
+        { rotulo: 'Encarregado SBC', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=SBC`, perfil: 'Só visualiza · SBC' },
       ]
     },
     {
@@ -2119,12 +2119,12 @@ function renderLinks() {
       cor: 'var(--yw)',
       desc: 'Check-in/check-out via QR code. Login Google obrigatório (deve estar na lista de Colaboradores).',
       links: [
-        { rotulo: 'App do Mecânico', url: `${LINKS_NETLIFY}/mecanico`, perfil: 'Quem opera o carrinho', alt: `${LINKS_GITHUB}/vammo_cart_checkin.html` },
+        { rotulo: 'App do Mecânico', url: `${LINKS_GITHUB}/vammo_cart_checkin.html`, perfil: 'Quem opera o carrinho' },
       ]
     },
   ];
   wrap.innerHTML = `<div style="background:rgba(46,194,255,.08);border:1px solid rgba(46,194,255,.25);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--w2);line-height:1.5;">
-    💡 <strong style="color:var(--az);">Use os links novos abaixo</strong> pra novos compartilhamentos — são mais curtos e sem nome pessoal. Os links antigos do GitHub Pages continuam funcionando pra quem já tem salvo (clique em "Ver link antigo" pra ver).
+    💡 Links de acesso por perfil. Copie e compartilhe — todos abrem direto (GitHub Pages).
   </div>` + grupos.map(g => `
     <div style="border:1px solid var(--bd);border-radius:8px;padding:14px;background:var(--c1);">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;letter-spacing:1.5px;color:${g.cor};margin-bottom:4px;">${g.titulo}</div>
