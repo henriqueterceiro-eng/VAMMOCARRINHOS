@@ -1074,6 +1074,7 @@
             <h2>Status em Tempo Real</h2>
             <div class="spacer"></div>
             <button class="btn-sm btn-outline" onclick="abrirRelatorioNC()" title="Relatório de NCs abertas por base — ferramentas necessárias">📋 Relatório NC</button>
+            <button class="btn-sm btn-outline" onclick="abrirBuscaAparelho()" title="Buscar aparelho por IMEI, serial, nome ou e-mail">🔎 Buscar aparelho</button>
             <input type="text" class="search-inp" id="cart-search" placeholder="Filtrar carrinho..." oninput="renderCarrinhos()">
           </div>
           <div style="padding:16px;">
@@ -2292,6 +2293,45 @@ function setBaseTab(base) {
 }
 
 // ─── RELATÓRIO DE NC POR BASE ───────────────────────────────────────────────
+// ─── BUSCAR APARELHO (IMEI / serial / nome / e-mail) ─────────────────────────
+function abrirBuscaAparelho(){
+  const ov = document.createElement('div'); ov.id='busca-ap-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100001;display:flex;align-items:flex-start;justify-content:center;padding:40px 18px;';
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:620px;width:100%;max-height:82vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);">
+      <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:1.5px;color:var(--wh);">🔎 BUSCAR APARELHO</div>
+      <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('busca-ap-overlay').remove()">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;">
+      <input id="busca-ap-inp" oninput="renderBuscaAparelho()" placeholder="IMEI, serial, nome ou e-mail…" style="width:100%;padding:10px 12px;background:var(--c1);border:1px solid var(--bd);border-radius:7px;color:var(--wh);font-size:14px;box-sizing:border-box;">
+      <div id="busca-ap-res" style="margin-top:12px;"></div>
+    </div></div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  setTimeout(() => { const i = document.getElementById('busca-ap-inp'); if (i) i.focus(); }, 50);
+}
+function renderBuscaAparelho(){
+  const res = document.getElementById('busca-ap-res'); if (!res) return;
+  const q = (document.getElementById('busca-ap-inp').value||'').trim().toLowerCase();
+  if (q.length < 2) { res.innerHTML = '<div style="color:var(--gr);font-size:12.5px;padding:8px;">Digite ao menos 2 caracteres (IMEI, serial, nome ou e-mail).</div>'; return; }
+  const qd = q.replace(/\D/g,'');
+  const hits = (_presDevices||[]).filter(d => {
+    const nome=(d.number||'').toLowerCase(), email=(d.email||'').toLowerCase(), serial=(d.serial||'').toLowerCase(), imei=(d.imei||'');
+    return nome.includes(q) || email.includes(q) || serial.includes(q) || (qd.length>=4 && (imei.includes(qd) || serial.replace(/\D/g,'').includes(qd)));
+  }).slice(0, 25);
+  if (!hits.length) { res.innerHTML = '<div style="color:var(--gr);font-size:12.5px;padding:8px;">Nenhum aparelho encontrado. (A lista carrega junto com o painel — aguarde alguns segundos se acabou de abrir.)</div>'; return; }
+  res.innerHTML = hits.map(d => `<div style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--c2);">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="width:9px;height:9px;border-radius:50%;background:${d.online?'#22c55e':'#ef4444'};flex:0 0 auto;"></span>
+      <b style="color:var(--wh);font-size:14px;">${d.number||'—'}</b>
+      <span style="margin-left:auto;color:${d.online?'#22c55e':'#ef4444'};font-size:11px;font-weight:800;">${d.online?'ONLINE':'OFFLINE'}</span>
+      ${d.battery!=null?`<span style="color:var(--w2);font-size:11.5px;">🔋 ${d.battery}%</span>`:''}
+    </div>
+    <div style="color:var(--az);font-size:12.5px;margin-top:3px;">${d.email||'(sem e-mail na descrição)'}</div>
+    <div style="color:var(--gr);font-size:10.5px;font-family:monospace;margin-top:3px;">IMEI ${d.imei||'—'} · Serial ${d.serial||'—'}</div>
+  </div>`).join('') + `<div style="color:var(--gr);font-size:10.5px;text-align:center;padding:4px;">${hits.length} resultado(s)</div>`;
+}
+
 function _aggNCporBase() {
   const map = {}; // base -> ferramenta -> {qtd, carts:Set, motivos:Set}
   (_serverOpenNCs || []).forEach(nc => {
@@ -2515,7 +2555,7 @@ function refreshPresence(){
   if (!cfg.presenceUrl) return;
   gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
     if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
-    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim() }));
+    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), number: d.number || '', online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim(), serial: d.serial || '', imei: d.imei || '' }));
     _presLoaded = true;
     try { renderCarrinhos(); } catch(e){}
   });
