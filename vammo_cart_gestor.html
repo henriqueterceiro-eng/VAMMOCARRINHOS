@@ -1962,40 +1962,63 @@ function savePerfisToGAS(config, cb) {
   fetch(cfg.webhookUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) })
     .then(() => { cb && cb(true); }).catch(() => { cb && cb(true); });
 }
+function _pfExtraHtml(perfil, t){
+  return `<label style="display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--wh);padding:2px 0;cursor:pointer;"><input type="checkbox" class="pf-tool" data-perfil="${perfil}" value="${String(t).replace(/"/g,'&quot;')}" checked> 🔧 ${t}</label>`;
+}
+function addToolPerfil(perfil){
+  const inp = document.getElementById('pf-add-'+perfil); if (!inp) return;
+  const v = (inp.value||'').trim(); if (!v) { inp.focus(); return; }
+  const dup = Array.from(document.querySelectorAll('.pf-tool[data-perfil="'+perfil+'"]')).some(cb => cb.value.toLowerCase() === v.toLowerCase());
+  if (!dup) document.getElementById('pf-extras-'+perfil).insertAdjacentHTML('beforeend', _pfExtraHtml(perfil, v));
+  inp.value = ''; inp.focus();
+}
 function renderPerfis() {
   const body = document.getElementById('perfis-body'); if (!body) return;
-  let html = '<div style="margin-bottom:8px;color:var(--w2);font-size:12.5px;"><b>1) Ferramentas de cada perfil</b> · <span style="color:var(--gr)">Mecânico = catálogo completo. Marque as do Diagnóstico e Qualidade.</span></div>';
+  let html = '<div style="margin-bottom:10px;color:var(--w2);font-size:14px;"><b>1) Ferramentas de cada perfil</b> · <span style="color:var(--gr)">Mecânico = catálogo completo. Marque as do Diagnóstico e Qualidade. Ferramenta que não está na lista? Use "Extras" pra adicionar.</span></div>';
   ['Diagnóstico','Qualidade'].forEach(perfil => {
-    const sel = new Set(getPerfilTools(perfil)), cor = PERFIL_CORES[perfil];
-    html += `<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
-        <span style="width:12px;height:12px;border-radius:3px;background:${cor};display:inline-block;"></span>
-        <b style="color:${cor};font-size:14px;">${perfil}</b>
-        <span style="color:var(--gr);font-size:11px;">(${sel.size} ferramenta(s))</span>
-        <button class="btn-sm btn-outline" style="margin-left:auto;font-size:10px;" onclick="marcarTodasPerfil('${perfil}',true)">Todas</button>
-        <button class="btn-sm btn-outline" style="font-size:10px;" onclick="marcarTodasPerfil('${perfil}',false)">Nenhuma</button>
+    const list = getPerfilTools(perfil);
+    const sel = new Set(list);
+    const catalogo = new Set(flatTools());
+    const extras = list.filter(t => !catalogo.has(t));
+    const cor = PERFIL_CORES[perfil];
+    html += `<div style="border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <span style="width:14px;height:14px;border-radius:4px;background:${cor};display:inline-block;"></span>
+        <b style="color:${cor};font-size:17px;">${perfil}</b>
+        <span style="color:var(--gr);font-size:12.5px;">(${sel.size} ferramenta(s))</span>
+        <button class="btn-sm btn-outline" style="margin-left:auto;font-size:12px;" onclick="marcarTodasPerfil('${perfil}',true)">Todas</button>
+        <button class="btn-sm btn-outline" style="font-size:12px;" onclick="marcarTodasPerfil('${perfil}',false)">Nenhuma</button>
       </div>
-      <div style="columns:2;column-gap:18px;">`;
+      <div style="columns:2;column-gap:22px;">`;
     TOOLS_CATALOG.forEach(cat => {
-      html += `<div style="break-inside:avoid;margin-bottom:6px;"><div style="color:var(--az);font-size:9.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin:3px 0;">${cat.cat}</div>`;
+      html += `<div style="break-inside:avoid;margin-bottom:8px;"><div style="color:${cor};font-size:11.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin:5px 0 2px;">${cat.cat}</div>`;
       cat.items.forEach(t => {
-        html += `<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--w2);padding:1px 0;cursor:pointer;"><input type="checkbox" class="pf-tool" data-perfil="${perfil}" value="${String(t).replace(/"/g,'&quot;')}" ${sel.has(t)?'checked':''}> ${t}</label>`;
+        html += `<label style="display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--w2);padding:2px 0;cursor:pointer;"><input type="checkbox" class="pf-tool" data-perfil="${perfil}" value="${String(t).replace(/"/g,'&quot;')}" ${sel.has(t)?'checked':''}> ${t}</label>`;
       });
       html += `</div>`;
     });
-    html += `</div></div>`;
+    html += `</div>
+      <div style="border-top:1px dashed var(--bd);margin-top:10px;padding-top:10px;">
+        <div style="color:var(--az);font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;">+ Ferramentas extras (fora do catálogo do mecânico)</div>
+        <div id="pf-extras-${perfil}">${extras.map(t => _pfExtraHtml(perfil, t)).join('')}</div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <input id="pf-add-${perfil}" placeholder="Nome da ferramenta + Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addToolPerfil('${perfil}');}" style="flex:1;padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:6px;color:var(--wh);font-size:13.5px;">
+          <button class="btn-sm btn-az" onclick="addToolPerfil('${perfil}')">+ Adicionar</button>
+        </div>
+      </div>
+    </div>`;
   });
-  html += '<div style="margin:14px 0 8px;color:var(--w2);font-size:12.5px;"><b>2) Perfil de cada carrinho</b></div>';
+  html += '<div style="margin:16px 0 8px;color:var(--w2);font-size:14px;"><b>2) Perfil de cada carrinho</b></div>';
   BASES.forEach(base => {
     const carts = getCarts().filter(c => c.base === base);
     if (!carts.length) return;
-    html += `<div style="margin-bottom:10px;"><div style="color:var(--gr);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">${base}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;">`;
+    html += `<div style="margin-bottom:12px;"><div style="color:var(--gr);font-size:12.5px;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">${base}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px;">`;
     carts.forEach(c => {
       const p = getCartPerfil(c.nome);
-      html += `<div style="display:flex;align-items:center;gap:6px;background:var(--c1);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;">
-        <span style="width:9px;height:9px;border-radius:50%;background:${PERFIL_CORES[p]};flex:0 0 auto;"></span>
-        <span style="flex:1;color:var(--wh);font-size:12px;font-weight:700;">${c.nome}</span>
-        <select class="pf-cart" data-cart="${String(c.nome).replace(/"/g,'&quot;')}" onchange="this.previousElementSibling.previousElementSibling.style.background=({'Mecânico':'#22c55e','Diagnóstico':'#3b82f6','Qualidade':'#a855f7'})[this.value]" style="padding:4px 6px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:11.5px;">
+      html += `<div style="display:flex;align-items:center;gap:7px;background:var(--c1);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${PERFIL_CORES[p]};flex:0 0 auto;"></span>
+        <span style="flex:1;color:var(--wh);font-size:13.5px;font-weight:700;">${c.nome}</span>
+        <select class="pf-cart" data-cart="${String(c.nome).replace(/"/g,'&quot;')}" onchange="this.previousElementSibling.previousElementSibling.style.background=({'Mecânico':'#22c55e','Diagnóstico':'#3b82f6','Qualidade':'#a855f7'})[this.value]" style="padding:5px 7px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12.5px;">
           ${PERFIL_NOMES.map(pn=>`<option ${pn===p?'selected':''}>${pn}</option>`).join('')}
         </select></div>`;
     });

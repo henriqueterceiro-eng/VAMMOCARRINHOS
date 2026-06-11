@@ -1076,8 +1076,13 @@ function getCartPerfil(nome) {
 }
 function toolsForPerfil(perfil) {
   if (perfil === 'Mecânico' || !_perfisCfg || !_perfisCfg.perfis || !_perfisCfg.perfis[perfil]) return TOOLS_FULL;
-  const allow = new Set(_perfisCfg.perfis[perfil]);
-  return TOOLS_FULL.map(c => ({ cat: c.cat, items: c.items.filter(i => allow.has(i)) })).filter(c => c.items.length);
+  const lista = _perfisCfg.perfis[perfil] || [];
+  const allow = new Set(lista);
+  const cats = TOOLS_FULL.map(c => ({ cat: c.cat, items: c.items.filter(i => allow.has(i)) })).filter(c => c.items.length);
+  const conhecidas = new Set(TOOLS_FULL.flatMap(c => c.items));
+  const extras = lista.filter(t => !conhecidas.has(t)); // ferramentas fora do catálogo do mecânico
+  if (extras.length) cats.push({ cat: 'EXTRAS DO PERFIL', items: extras });
+  return cats;
 }
 function aplicarPerfilCarrinho(nome) { TOOLS = toolsForPerfil(getCartPerfil(nome)); }
 
