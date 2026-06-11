@@ -1207,9 +1207,9 @@
               <option value="Estoque Mooca">Estoque Mooca</option>
             </select>
             <span style="color:var(--gr);font-size:11px;">de</span>
-            <input type="date" id="logs-filt-de" onchange="renderLogs()" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
+            <input type="date" id="logs-filt-de" onchange="renderLogs()" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;color-scheme:dark;cursor:pointer;">
             <span style="color:var(--gr);font-size:11px;">até</span>
-            <input type="date" id="logs-filt-ate" onchange="renderLogs()" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
+            <input type="date" id="logs-filt-ate" onchange="renderLogs()" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;color-scheme:dark;cursor:pointer;">
             <button class="btn-sm btn-outline" onclick="document.getElementById('logs-filt-de').value='';document.getElementById('logs-filt-ate').value='';renderLogs();" title="Limpar datas">✕</button>
           </div>
           <div id="logs-tbody-wrap" style="background:var(--c1);border:1px solid var(--bd);border-radius:6px;max-height:65vh;overflow-y:auto;">
@@ -2169,6 +2169,12 @@ function _aggNCporBase() {
   });
   return map;
 }
+// estoque/mínimo helpers p/ relatório e pedido
+function _estoqueDe(base, ferr){ const e = getEstoque(); return (e[base] && Number(e[base][ferr])) || 0; }
+function getEstoqueMin(){ try { return JSON.parse(localStorage.getItem('vammo_estoque_min')) || {}; } catch { return {}; } }
+function saveEstoqueMin(m){ localStorage.setItem('vammo_estoque_min', JSON.stringify(m)); }
+function getMin(base, ferr){ const m = getEstoqueMin(); return (m[base] && Number(m[base][ferr])) || 0; }
+
 function abrirRelatorioNC() {
   const map = _aggNCporBase(); window._relncMap = map;
   const bases = Object.keys(map).sort();
@@ -2183,21 +2189,24 @@ function abrirRelatorioNC() {
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:1.5px;color:var(--az);margin-bottom:6px;">📍 ${base} <span style="color:var(--gr);font-size:13px;">· ${sub} NC</span></div>
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
           <thead><tr style="color:var(--gr);text-transform:uppercase;font-size:10px;letter-spacing:1px;">
-            <th style="text-align:left;padding:5px 8px;">Ferramenta</th><th style="padding:5px 8px;">Qtd</th><th style="text-align:left;padding:5px 8px;">Carrinhos</th><th style="text-align:left;padding:5px 8px;">Motivo</th></tr></thead>
-          <tbody>${ferrs.map(([f,m])=>`<tr style="border-top:1px solid rgba(255,255,255,.06);">
+            <th style="text-align:left;padding:5px 8px;">Ferramenta</th><th style="padding:5px 8px;"># NC</th><th style="padding:5px 8px;">Em estoque</th><th style="padding:5px 8px;">A comprar</th><th style="text-align:left;padding:5px 8px;">Carrinhos</th></tr></thead>
+          <tbody>${ferrs.map(([f,m])=>{ const est=_estoqueDe(base,f); const comprar=Math.max(0,m.qtd-est); return `<tr style="border-top:1px solid rgba(255,255,255,.06);">
             <td style="padding:6px 8px;color:var(--wh);font-weight:700;">${f}</td>
             <td style="padding:6px 8px;text-align:center;color:var(--yw);font-weight:900;">${m.qtd}</td>
-            <td style="padding:6px 8px;color:var(--w2);font-size:11px;">${[...m.carts].sort().join(', ')}</td>
-            <td style="padding:6px 8px;color:var(--w2);font-size:11px;">${[...m.motivos].join(', ')}</td></tr>`).join('')}</tbody>
+            <td style="padding:6px 8px;text-align:center;color:var(--w2);">${est}</td>
+            <td style="padding:6px 8px;text-align:center;font-weight:900;color:${comprar>0?'#ef4444':'var(--gn)'};">${comprar}</td>
+            <td style="padding:6px 8px;color:var(--w2);font-size:11px;">${[...m.carts].sort().join(', ')}</td></tr>`;}).join('')}</tbody>
         </table></div>`;
     });
   }
   const ov = document.createElement('div');
   ov.id = 'relnc-overlay';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;';
-  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:800px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:860px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
     <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap;">
-      <div style="flex:1;min-width:180px;font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:900;letter-spacing:2px;color:var(--wh);">📋 RELATÓRIO DE NC POR BASE <span style="color:var(--gr);font-size:13px;">· ${total} no total</span></div>
+      <div style="flex:1;min-width:160px;font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:900;letter-spacing:2px;color:var(--wh);">📋 RELATÓRIO DE NC <span style="color:var(--gr);font-size:13px;">· ${total} no total</span></div>
+      <button class="btn-sm btn-az" onclick="gerarPedidoCompra()" title="Gera PDF de compra: NCs a repor + estoque mínimo − estoque atual">🛒 Pedido de Compra</button>
+      <button class="btn-sm btn-outline" onclick="abrirEstoqueMinimo()" title="Definir estoque mínimo por ferramenta/base">⚙ Estoque mínimo</button>
       <button class="btn-sm btn-outline" onclick="exportRelatorioNCCSV()">⬇ CSV</button>
       <button class="btn-sm btn-outline" onclick="imprimirRelatorioNC()">🖨 Imprimir</button>
       <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('relnc-overlay').remove()">✕</button>
@@ -2208,10 +2217,11 @@ function abrirRelatorioNC() {
 }
 function exportRelatorioNCCSV() {
   const map = window._relncMap || _aggNCporBase();
-  let csv = 'Base;Ferramenta;Quantidade;Carrinhos;Motivos\n';
+  let csv = 'Base;Ferramenta;# NC;Em estoque;A comprar;Carrinhos;Motivos\n';
   Object.keys(map).sort().forEach(base => {
     Object.entries(map[base]).sort((a,b)=>b[1].qtd-a[1].qtd).forEach(([f,m]) => {
-      csv += [base, f, m.qtd, [...m.carts].sort().join(' | '), [...m.motivos].join(' | ')]
+      const est = _estoqueDe(base, f), comprar = Math.max(0, m.qtd - est);
+      csv += [base, f, m.qtd, est, comprar, [...m.carts].sort().join(' | '), [...m.motivos].join(' | ')]
         .map(x => `"${String(x).replace(/"/g,'""')}"`).join(';') + '\n';
     });
   });
@@ -2227,13 +2237,72 @@ function imprimirRelatorioNC() {
   Object.keys(map).sort().forEach(base => {
     const ferrs = Object.entries(map[base]).sort((a,b)=>b[1].qtd-a[1].qtd);
     const sub = ferrs.reduce((s,[,m])=>s+m.qtd,0);
-    html += '<h2>' + base + ' — ' + sub + ' NC</h2><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;"><tr><th align="left">Ferramenta</th><th>Qtd</th><th align="left">Carrinhos</th><th align="left">Motivo</th></tr>';
-    ferrs.forEach(([f,m]) => { html += '<tr><td>' + f + '</td><td align="center">' + m.qtd + '</td><td>' + [...m.carts].sort().join(', ') + '</td><td>' + [...m.motivos].join(', ') + '</td></tr>'; });
+    html += '<h2>' + base + ' — ' + sub + ' NC</h2><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;"><tr><th align="left">Ferramenta</th><th># NC</th><th>Em estoque</th><th>A comprar</th><th align="left">Carrinhos</th></tr>';
+    ferrs.forEach(([f,m]) => { const est=_estoqueDe(base,f), comprar=Math.max(0,m.qtd-est); html += '<tr><td>' + f + '</td><td align="center">' + m.qtd + '</td><td align="center">' + est + '</td><td align="center"><b>' + comprar + '</b></td><td>' + [...m.carts].sort().join(', ') + '</td></tr>'; });
     html += '</table>';
   });
   const w = window.open('', '_blank');
   w.document.write('<html><head><title>Relatório NC</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111;}h1{font-size:20px;}h2{font-size:15px;margin-top:18px;color:#0077a3;}th{background:#f0f0f0;}</style></head><body>' + html + '</body></html>');
   w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch(e){} }, 350);
+}
+// PEDIDO DE COMPRA: comprar = max(0, NCs + estoque mínimo − estoque atual)
+function gerarPedidoCompra() {
+  const map = _aggNCporBase(), est = getEstoque();
+  let grand = 0, secoes = '', any = false;
+  BASES.forEach(base => {
+    const linhas = [];
+    flatTools().forEach(f => {
+      const nc = (map[base] && map[base][f]) ? map[base][f].qtd : 0;
+      const e = (est[base] && Number(est[base][f])) || 0;
+      const min = getMin(base, f);
+      const comprar = Math.max(0, nc + min - e);
+      if (comprar > 0) {
+        const preco = getPreco(f), sub = comprar * preco; grand += sub; any = true;
+        linhas.push('<tr><td>'+f+'</td><td align="center">'+nc+'</td><td align="center">'+e+'</td><td align="center">'+min+'</td><td align="center"><b>'+comprar+'</b></td><td align="right">'+fmtMoney(preco)+'</td><td align="right">'+fmtMoney(sub)+'</td></tr>');
+      }
+    });
+    if (linhas.length) {
+      const subBase = linhas.length;
+      secoes += '<h2>'+base+' <span style="font-size:12px;color:#777;">('+subBase+' item(ns))</span></h2><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;"><tr><th align="left">Ferramenta</th><th>NC</th><th>Estoque</th><th>Mín</th><th>Comprar</th><th>Preço un.</th><th>Subtotal</th></tr>'+linhas.join('')+'</table>';
+    }
+  });
+  if (!any) { alert('Nada a comprar — o estoque cobre as NCs e o mínimo. 🎉'); return; }
+  const cab = '<h1>Pedido de Compra — VAMMO</h1><p>Gerado em '+new Date().toLocaleString('pt-BR')+'</p>'
+    + '<p style="font-size:11.5px;color:#555;">Por item: <b>Comprar = NCs a repor + Estoque mínimo − Estoque atual</b>. Preços do cadastro de preços (0 = sem preço cadastrado).</p>';
+  const rod = '<h3 style="text-align:right;margin-top:18px;">Total estimado: '+fmtMoney(grand)+'</h3>';
+  const w = window.open('', '_blank');
+  w.document.write('<html><head><title>Pedido de Compra VAMMO</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111;}h1{font-size:21px;}h2{font-size:15px;margin-top:20px;color:#0077a3;}th{background:#f0f0f0;}table{margin-top:6px;}</style></head><body>'+cab+secoes+rod+'</body></html>');
+  w.document.close(); w.focus(); setTimeout(()=>{ try{w.print();}catch(e){} }, 400);
+}
+// ESTOQUE MÍNIMO por ferramenta/base
+function _estMinBody(base){
+  return TOOLS_CATALOG.map(cat =>
+    `<div style="margin-bottom:8px;"><div style="color:var(--az);font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:6px 0 3px;">${cat.cat}</div>`
+    + cat.items.map(f => `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;"><span style="flex:1;color:var(--w2);font-size:12px;">${f}</span><input type="number" min="0" data-ferr="${String(f).replace(/"/g,'&quot;')}" value="${getMin(base,f)}" style="width:62px;padding:4px 6px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;text-align:center;"></div>`).join('')
+    + `</div>`).join('');
+}
+function abrirEstoqueMinimo(){
+  const ov = document.createElement('div'); ov.id='estmin-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:100002;display:flex;align-items:center;justify-content:center;padding:18px;';
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:560px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap;">
+      <div style="flex:1;min-width:140px;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:1.5px;color:var(--wh);">⚙ ESTOQUE MÍNIMO</div>
+      <select id="estmin-base" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">${BASES.map(b=>`<option>${b}</option>`).join('')}</select>
+      <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('estmin-overlay').remove()">✕</button>
+    </div>
+    <div id="estmin-body" style="padding:14px 18px;overflow-y:auto;">${_estMinBody(BASES[0])}</div>
+    <div style="padding:12px 18px;border-top:1px solid var(--bd);text-align:right;"><button class="btn-sm btn-az" onclick="salvarEstoqueMinModal(false)">💾 Salvar</button></div></div>`;
+  document.body.appendChild(ov);
+  const sel = document.getElementById('estmin-base'); sel._base = BASES[0];
+  sel.addEventListener('change', () => { salvarEstoqueMinModal(true); sel._base = sel.value; document.getElementById('estmin-body').innerHTML = _estMinBody(sel.value); });
+}
+function salvarEstoqueMinModal(silent){
+  const sel = document.getElementById('estmin-base'); if (!sel) return;
+  const base = sel._base || sel.value;
+  const m = getEstoqueMin(); m[base] = m[base] || {};
+  document.querySelectorAll('#estmin-body input[data-ferr]').forEach(inp => { m[base][inp.dataset.ferr] = Math.max(0, parseInt(inp.value)||0); });
+  saveEstoqueMin(m);
+  if (!silent) { const o = document.getElementById('estmin-overlay'); if (o) o.remove(); showAlert('cart-alert-box','gn','✅ Estoque mínimo salvo.'); }
 }
 
 function ncListFromRec(rec) {
