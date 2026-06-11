@@ -1955,10 +1955,14 @@ function syncPerfisFromGAS() {
   });
 }
 function savePerfisToGAS(config, cb) {
-  const cfg = getConfig(); if (!cfg.webhookUrl) { cb && cb(false); return; }
-  _perfisCfg = config;
-  fetch(cfg.webhookUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) })
-    .then(() => { cb && cb(true); }).catch(() => { cb && cb(true); });
+  const cfg = getConfig(); if (!cfg.webhookUrl) { cb && cb(false, 'sem-url'); return; }
+  // Checa se o backend tem o handler de perfis ANTES de postar (evita criar registro vazio via salvar()).
+  gasGet(cfg.webhookUrl, 'action=perfisGet', (d) => {
+    if (!d || !('config' in d)) { cb && cb(false, 'backend-sem-perfis'); return; }
+    _perfisCfg = config;
+    fetch(cfg.webhookUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) })
+      .then(() => { cb && cb(true); }).catch(() => { cb && cb(true); });
+  });
 }
 function _pfExtraHtml(perfil, t){
   return `<label style="display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--wh);padding:2px 0;cursor:pointer;"><input type="checkbox" class="pf-tool" data-perfil="${perfil}" value="${String(t).replace(/"/g,'&quot;')}" checked> 🔧 ${t}</label>`;
@@ -2032,9 +2036,11 @@ function salvarPerfis(){
   });
   const carrinhos = {};
   document.querySelectorAll('.pf-cart').forEach(s => { const p = s.value; if (p && p !== 'Mecânico') carrinhos[normalizeCartName(s.dataset.cart)] = p; });
-  savePerfisToGAS({ perfis, carrinhos }, () => {});
-  alert('✅ Perfis salvos! O check-in e o painel já passam a usar.');
-  try { renderCarrinhos(); } catch(e){}
+  savePerfisToGAS({ perfis, carrinhos }, (ok, reason) => {
+    if (ok) { try { renderCarrinhos(); } catch(e){} alert('✅ Perfis salvos! O check-in e o painel já passam a usar.'); }
+    else if (reason === 'backend-sem-perfis') alert('⚠ NÃO salvei: o backend ainda não tem os perfis.\n\nCole o snippet (perfisGet/perfisSet) no Apps Script dos carrinhos e dê "Nova versão" na implantação. Depois clique em Salvar de novo.\n\n(Bloqueei pra não criar registro vazio no Sheets.)');
+    else alert('⚠ Servidor não configurado (sem URL).');
+  });
 }
 
 // Preço unitário por ferramenta (global, igual em todas bases)
