@@ -1065,9 +1065,10 @@ const TOOLS_FULL = [
 let TOOLS = TOOLS_FULL;
 // ─── PERFIS DE CARRINHO (config vem do servidor; Mecânico = catálogo completo) ──
 let _perfisCfg = null; // { perfis: {Diagnóstico:[...], Qualidade:[...]}, carrinhos: {cart: perfil} }
+// Perfis ficam no serviço de presença (mesma URL do gestor)
+const PERFIS_URL = 'https://script.google.com/macros/s/AKfycbz-yRCeTwX-zxgUVSTAdaRe6ILlnkYgasqBK_lrTMoDFrRnatFQl7YLSYoHZ774ekmIlA/exec';
 function fetchPerfis() {
-  const url = getConfig().webhookUrl; if (!url) return;
-  gasGet(url, 'action=perfisGet', (d) => { if (d && d.ok && d.config) _perfisCfg = d.config; });
+  gasGet(PERFIS_URL, 'action=perfisGet', (d) => { if (d && d.ok && d.config) _perfisCfg = d.config; });
 }
 function getCartPerfil(nome) {
   if (!_perfisCfg || !_perfisCfg.carrinhos) return 'Mecânico';

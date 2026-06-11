@@ -1945,8 +1945,8 @@ function getPerfilTools(perfil) {
   return (cfg.perfis && cfg.perfis[perfil]) || [];
 }
 function syncPerfisFromGAS() {
-  const cfg = getConfig(); if (!cfg.webhookUrl) return;
-  gasGet(cfg.webhookUrl, 'action=perfisGet', (d) => {
+  const cfg = getConfig(); if (!cfg.presenceUrl) return;
+  gasGet(cfg.presenceUrl, 'action=perfisGet', (d) => {
     if (d && d.ok && d.config) {
       _perfisCfg = d.config;
       try { renderCarrinhos(); } catch(e){}
@@ -1955,12 +1955,12 @@ function syncPerfisFromGAS() {
   });
 }
 function savePerfisToGAS(config, cb) {
-  const cfg = getConfig(); if (!cfg.webhookUrl) { cb && cb(false, 'sem-url'); return; }
-  // Checa se o backend tem o handler de perfis ANTES de postar (evita criar registro vazio via salvar()).
-  gasGet(cfg.webhookUrl, 'action=perfisGet', (d) => {
+  const cfg = getConfig(); if (!cfg.presenceUrl) { cb && cb(false, 'sem-url'); return; }
+  // Perfis ficam no serviço de presença (não no backend dos carrinhos).
+  gasGet(cfg.presenceUrl, 'action=perfisGet', (d) => {
     if (!d || !('config' in d)) { cb && cb(false, 'backend-sem-perfis'); return; }
     _perfisCfg = config;
-    fetch(cfg.webhookUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) })
+    fetch(cfg.presenceUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) })
       .then(() => { cb && cb(true); }).catch(() => { cb && cb(true); });
   });
 }
