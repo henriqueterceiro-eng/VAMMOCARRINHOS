@@ -433,7 +433,7 @@ const PRESENCE_URL = 'https://script.google.com/macros/s/AKfycbz-yRCeTwX-zxgUVST
 let _presDevices = [], _presLoaded = false;
 function _deburr(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,''); }
 function _nameTokens(s){ let v=String(s||''); if(v.indexOf('@')>=0)v=v.split('@')[0].replace(/[._]+/g,' '); return _deburr(v).toLowerCase().replace(/[^a-z\s]/g,' ').trim().split(/\s+/).filter(Boolean); }
-function mecDevice(mec){ const mt=_nameTokens(mec); if(!_presLoaded||!mt.length)return null; const first=mt[0],last=mt[mt.length-1]; for(const d of _presDevices){ if(d.tokens.includes(first)&&d.tokens.includes(last))return d; } return null; }
+function mecDevice(mec){ if(!_presLoaded)return null; const email=String(mec||'').toLowerCase().trim(); if(email.indexOf('@')>=0){ for(const d of _presDevices){ if(d.email&&d.email===email)return d; } } const mt=_nameTokens(mec); if(!mt.length)return null; const first=mt[0],last=mt[mt.length-1]; for(const d of _presDevices){ if(d.tokens.includes(first)&&d.tokens.includes(last))return d; } return null; }
 function batterySvg(lvl){ lvl=Math.max(0,Math.min(100,lvl|0)); const fill=Math.max(2,Math.round(19*lvl/100)); const col=lvl>50?'#22c55e':(lvl>20?'#eab308':'#ef4444'); return `<svg viewBox="0 0 28 16" width="24" height="14"><rect x="1" y="2.5" width="23" height="11" rx="2.5" fill="none" stroke="#aeb6c2" stroke-width="1.6"/><rect x="25" y="5.5" width="2.6" height="5" rx="1" fill="#aeb6c2"/><rect x="3" y="4.5" width="${fill}" height="7" rx="1.4" fill="${col}"/></svg>`; }
 function refreshPresence(){
   const cbName='_pg_'+Date.now()+'_'+Math.floor(Math.random()*9999);
@@ -441,7 +441,7 @@ function refreshPresence(){
   const t=setTimeout(()=>{ if(!done){done=true;clean();} }, 20000);
   window[cbName]=function(data){ if(done)return; done=true; clean();
     if(data&&data.ok&&Array.isArray(data.devices)){
-      _presDevices=data.devices.map(d=>({tokens:_nameTokens(d.number),online:!!d.online,battery:(typeof d.battery==='number'?d.battery:null)}));
+      _presDevices=data.devices.map(d=>({tokens:_nameTokens(d.number),online:!!d.online,battery:(typeof d.battery==='number'?d.battery:null),email:(d.email||'').toLowerCase().trim()}));
       _presLoaded=true; try{render();}catch(e){}
     }
   };

@@ -2219,10 +2219,16 @@ function mecPhoneStatus(mec){
   }
   return null;
 }
-// Device casado (com bateria) do mecânico logado, ou null
+// Device casado do mecânico logado: 1º por e-mail exato (description do Headwind,
+// sem erro de grafia), 2º por nome (tokens). Retorna o device ou null.
 function mecDevice(mec){
+  if (!_presLoaded) return null;
+  const email = String(mec||'').toLowerCase().trim();
+  if (email.indexOf('@') >= 0) {
+    for (const d of _presDevices){ if (d.email && d.email === email) return d; }
+  }
   const mt = _nameTokens(mec);
-  if (!_presLoaded || !mt.length) return null;
+  if (!mt.length) return null;
   const first = mt[0], last = mt[mt.length-1];
   for (const d of _presDevices){
     if (d.tokens.includes(first) && d.tokens.includes(last)) return d;
@@ -2241,7 +2247,7 @@ function refreshPresence(){
   if (!cfg.presenceUrl) return;
   gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
     if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
-    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null) }));
+    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim() }));
     _presLoaded = true;
     try { renderCarrinhos(); } catch(e){}
   });
