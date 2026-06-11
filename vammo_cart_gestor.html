@@ -670,6 +670,9 @@
     .cart-card-v3 .ccv-phone-txt { display: flex; flex-direction: column; line-height: 1.05; text-align: left; }
     .cart-card-v3 .cpb-label  { font-size: 8.5px; letter-spacing: .6px; color: var(--gr); text-transform: uppercase; font-weight: 800; white-space: nowrap; }
     .cart-card-v3 .cpb-status { font-size: 12.5px; font-weight: 900; letter-spacing: .5px; white-space: nowrap; }
+    .cart-card-v3 .cpb-line { display: flex; align-items: center; gap: 6px; }
+    .cart-card-v3 .cpb-batt { font-size: 11px; font-weight: 800; color: #aeb6c2; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+    .cart-card-v3 .cpb-batt svg { display: block; }
     /* online: verde brilhando */
     .cart-card-v3 .ccv-phone-badge.on svg { color: #22c55e; filter: drop-shadow(0 0 4px rgba(34,197,94,.9)) drop-shadow(0 0 9px rgba(34,197,94,.5)); }
     .cart-card-v3 .ccv-phone-badge.on .cpb-status { color: #22c55e; }
@@ -2127,12 +2130,29 @@ function mecPhoneStatus(mec){
   }
   return null;
 }
+// Device casado (com bateria) do mecânico logado, ou null
+function mecDevice(mec){
+  const mt = _nameTokens(mec);
+  if (!_presLoaded || !mt.length) return null;
+  const first = mt[0], last = mt[mt.length-1];
+  for (const d of _presDevices){
+    if (d.tokens.includes(first) && d.tokens.includes(last)) return d;
+  }
+  return null;
+}
+// Ícone de bateria (SVG): preenchimento proporcional + cor por nível
+function batterySvg(lvl){
+  lvl = Math.max(0, Math.min(100, lvl|0));
+  const fill = Math.max(2, Math.round(19*lvl/100));
+  const col = lvl>50 ? '#22c55e' : (lvl>20 ? '#eab308' : '#ef4444');
+  return `<svg viewBox="0 0 28 16" width="24" height="14"><rect x="1" y="2.5" width="23" height="11" rx="2.5" fill="none" stroke="#aeb6c2" stroke-width="1.6"/><rect x="25" y="5.5" width="2.6" height="5" rx="1" fill="#aeb6c2"/><rect x="3" y="4.5" width="${fill}" height="7" rx="1.4" fill="${col}"/></svg>`;
+}
 function refreshPresence(){
   const cfg = getConfig();
   if (!cfg.presenceUrl) return;
   gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
     if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
-    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), online: !!d.online }));
+    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null) }));
     _presLoaded = true;
     try { renderCarrinhos(); } catch(e){}
   });
@@ -2285,12 +2305,16 @@ function renderCarrinhos() {
       const PHONE_SVG_SLASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/><line x1="3.5" y1="2.5" x2="20.5" y2="21.5"/></svg>';
       let phoneBadge = '';
       if (st.status === 'logado' && _presLoaded) {
-        const p = mecPhoneStatus(mec);
-        let bcls, bsvg, btxt;
-        if (p === true)       { bcls='on';    bsvg=PHONE_SVG;       btxt='ONLINE'; }
-        else if (p === false) { bcls='alert'; bsvg=PHONE_SVG;       btxt='OFFLINE'; }
-        else                  { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='NÃO CADASTRADO'; }
-        phoneBadge = `<div class="ccv-phone-badge ${bcls}"><span>${bsvg}</span><span class="ccv-phone-txt"><span class="cpb-label">Celular VAMMO</span><span class="cpb-status">${btxt}</span></span></div>`;
+        const dev = mecDevice(mec); // {online,battery} ou null (sem celular)
+        let bcls, bsvg, btxt, batt='';
+        if (dev) {
+          bcls = dev.online ? 'on' : 'alert';
+          bsvg = PHONE_SVG;
+          btxt = dev.online ? 'ONLINE' : 'OFFLINE';
+          if (dev.battery !== null && dev.battery !== undefined)
+            batt = `<span class="cpb-batt">${batterySvg(dev.battery)} ${dev.battery}%</span>`;
+        } else { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='NÃO CADASTRADO'; }
+        phoneBadge = `<div class="ccv-phone-badge ${bcls}"><span>${bsvg}</span><span class="ccv-phone-txt"><span class="cpb-label">Celular VAMMO</span><span class="cpb-line"><span class="cpb-status">${btxt}</span>${batt}</span></span></div>`;
       }
       return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
