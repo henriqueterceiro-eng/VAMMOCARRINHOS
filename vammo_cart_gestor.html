@@ -1064,6 +1064,7 @@
           <div class="table-head">
             <h2>Status em Tempo Real</h2>
             <div class="spacer"></div>
+            <button class="btn-sm btn-outline" onclick="abrirRelatorioNC()" title="Relatório de NCs abertas por base — ferramentas necessárias">📋 Relatório NC</button>
             <input type="text" class="search-inp" id="cart-search" placeholder="Filtrar carrinho..." oninput="renderCarrinhos()">
           </div>
           <div style="padding:16px;">
@@ -1747,6 +1748,13 @@ function clearAuth() { localStorage.removeItem('vammo_auth'); }
 const BASES = ['Mooca', 'Osasco', 'SBC'];
 // Bases que recebem estoque (inclui overflow do armário Mooca). Carrinhos só usam BASES.
 const ESTOQUE_BASES = ['Mooca', 'Osasco', 'SBC', 'Estoque Mooca'];
+// Encarregados — não deveriam logar em carrinho de mecânico (destacado no log)
+const ENCARREGADOS_EMAILS = [
+  'clebert.silva@vammo.com',
+  'allecio.carvalho@vammo.com',
+  'thiago.santos@vammo.com',
+  'adelino.salome@vammo.com'
+];
 
 // ─── ROLE / SUPERVISOR DE BASE ──────────────────────────────────────────────
 // Modo supervisor: URL ?role=supervisor&base=Mooca → vê só uma base, sem cadastros/dashboard geral
@@ -2053,16 +2061,18 @@ function renderLogs() {
       </tr>
     </thead>
     <tbody>
-      ${filtered.map(l => `
-        <tr style="border-top:1px solid rgba(255,255,255,.04);">
+      ${filtered.map(l => {
+        const enc = (String(l.origem||'').toLowerCase()==='encarregado' || ENCARREGADOS_EMAILS.includes(String(l.email||'').toLowerCase().trim())) && /^cart_/.test(l.acao||'');
+        return `
+        <tr style="border-top:1px solid ${enc?'rgba(239,68,68,.35)':'rgba(255,255,255,.04)'};${enc?'background:rgba(239,68,68,.10);':''}">
           <td style="padding:8px 10px;color:var(--w2);white-space:nowrap;font-family:monospace;font-size:11px;">${l.ts ? new Date(l.ts).toLocaleString('pt-BR') : '—'}</td>
-          <td style="padding:8px 10px;"><span style="background:rgba(46,194,255,.12);color:var(--az);padding:3px 7px;border-radius:4px;font-size:10.5px;font-family:monospace;font-weight:700;">${l.acao}</span></td>
+          <td style="padding:8px 10px;">${enc?'<span title="Encarregado logou em carrinho de mecânico">⚠️ </span>':''}<span style="background:${enc?'rgba(239,68,68,.18)':'rgba(46,194,255,.12)'};color:${enc?'#ef4444':'var(--az)'};padding:3px 7px;border-radius:4px;font-size:10.5px;font-family:monospace;font-weight:700;">${l.acao}</span></td>
           <td style="padding:8px 10px;color:var(--wh);font-size:11.5px;"><div>${l.nome||'—'}</div><div style="color:var(--gr);font-size:10.5px;">${l.email||''}</div></td>
           <td style="padding:8px 10px;color:var(--w2);font-size:11.5px;">${l.base||'—'}</td>
           <td style="padding:8px 10px;color:var(--w2);font-size:11.5px;">${l.detalhes||''}</td>
-          <td style="padding:8px 10px;color:var(--gr);font-size:10.5px;">${l.origem||''}</td>
-        </tr>
-      `).join('')}
+          <td style="padding:8px 10px;font-size:10.5px;color:${enc?'#ef4444':'var(--gr)'};font-weight:${enc?'800':'400'};">${enc?'ENCARREGADO ⚠':(l.origem||'')}</td>
+        </tr>`;
+      }).join('')}
     </tbody>
   </table>
   <div style="padding:10px 12px;background:var(--c2);border-top:1px solid var(--bd);color:var(--gr);font-size:11px;text-align:center;">${filtered.length} de ${_logsCache.length} entradas</div>`;
@@ -2098,6 +2108,85 @@ let _currentBaseTab = 'Mooca';
 function setBaseTab(base) {
   _currentBaseTab = base;
   renderCarrinhos();
+}
+
+// ─── RELATÓRIO DE NC POR BASE ───────────────────────────────────────────────
+function _aggNCporBase() {
+  const map = {}; // base -> ferramenta -> {qtd, carts:Set, motivos:Set}
+  (_serverOpenNCs || []).forEach(nc => {
+    const base = getCartBase(nc.carrinho) || '—';
+    const ferr = nc.ferramenta || '—';
+    (map[base] = map[base] || {});
+    const m = (map[base][ferr] = map[base][ferr] || { qtd: 0, carts: new Set(), motivos: new Set() });
+    m.qtd++; m.carts.add(nc.carrinho); if (nc.motivo) m.motivos.add(nc.motivo);
+  });
+  return map;
+}
+function abrirRelatorioNC() {
+  const map = _aggNCporBase(); window._relncMap = map;
+  const bases = Object.keys(map).sort();
+  let total = 0, bodyHtml = '';
+  if (!bases.length) {
+    bodyHtml = '<div style="padding:30px;text-align:center;color:var(--gr);font-size:14px;">🎉 Nenhuma NC aberta — tudo certo!</div>';
+  } else {
+    bases.forEach(base => {
+      const ferrs = Object.entries(map[base]).sort((a,b)=>b[1].qtd-a[1].qtd);
+      const sub = ferrs.reduce((s,[,m])=>s+m.qtd,0); total += sub;
+      bodyHtml += `<div style="margin-bottom:18px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:1.5px;color:var(--az);margin-bottom:6px;">📍 ${base} <span style="color:var(--gr);font-size:13px;">· ${sub} NC</span></div>
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+          <thead><tr style="color:var(--gr);text-transform:uppercase;font-size:10px;letter-spacing:1px;">
+            <th style="text-align:left;padding:5px 8px;">Ferramenta</th><th style="padding:5px 8px;">Qtd</th><th style="text-align:left;padding:5px 8px;">Carrinhos</th><th style="text-align:left;padding:5px 8px;">Motivo</th></tr></thead>
+          <tbody>${ferrs.map(([f,m])=>`<tr style="border-top:1px solid rgba(255,255,255,.06);">
+            <td style="padding:6px 8px;color:var(--wh);font-weight:700;">${f}</td>
+            <td style="padding:6px 8px;text-align:center;color:var(--yw);font-weight:900;">${m.qtd}</td>
+            <td style="padding:6px 8px;color:var(--w2);font-size:11px;">${[...m.carts].sort().join(', ')}</td>
+            <td style="padding:6px 8px;color:var(--w2);font-size:11px;">${[...m.motivos].join(', ')}</td></tr>`).join('')}</tbody>
+        </table></div>`;
+    });
+  }
+  const ov = document.createElement('div');
+  ov.id = 'relnc-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;';
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:800px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap;">
+      <div style="flex:1;min-width:180px;font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:900;letter-spacing:2px;color:var(--wh);">📋 RELATÓRIO DE NC POR BASE <span style="color:var(--gr);font-size:13px;">· ${total} no total</span></div>
+      <button class="btn-sm btn-outline" onclick="exportRelatorioNCCSV()">⬇ CSV</button>
+      <button class="btn-sm btn-outline" onclick="imprimirRelatorioNC()">🖨 Imprimir</button>
+      <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('relnc-overlay').remove()">✕</button>
+    </div>
+    <div style="padding:16px 18px;overflow-y:auto;">${bodyHtml}</div></div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+function exportRelatorioNCCSV() {
+  const map = window._relncMap || _aggNCporBase();
+  let csv = 'Base;Ferramenta;Quantidade;Carrinhos;Motivos\n';
+  Object.keys(map).sort().forEach(base => {
+    Object.entries(map[base]).sort((a,b)=>b[1].qtd-a[1].qtd).forEach(([f,m]) => {
+      csv += [base, f, m.qtd, [...m.carts].sort().join(' | '), [...m.motivos].join(' | ')]
+        .map(x => `"${String(x).replace(/"/g,'""')}"`).join(';') + '\n';
+    });
+  });
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'relatorio_nc_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function imprimirRelatorioNC() {
+  const map = window._relncMap || _aggNCporBase();
+  let html = '<h1>Relatório de NC por Base</h1><p>Gerado em ' + new Date().toLocaleString('pt-BR') + '</p>';
+  Object.keys(map).sort().forEach(base => {
+    const ferrs = Object.entries(map[base]).sort((a,b)=>b[1].qtd-a[1].qtd);
+    const sub = ferrs.reduce((s,[,m])=>s+m.qtd,0);
+    html += '<h2>' + base + ' — ' + sub + ' NC</h2><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;"><tr><th align="left">Ferramenta</th><th>Qtd</th><th align="left">Carrinhos</th><th align="left">Motivo</th></tr>';
+    ferrs.forEach(([f,m]) => { html += '<tr><td>' + f + '</td><td align="center">' + m.qtd + '</td><td>' + [...m.carts].sort().join(', ') + '</td><td>' + [...m.motivos].join(', ') + '</td></tr>'; });
+    html += '</table>';
+  });
+  const w = window.open('', '_blank');
+  w.document.write('<html><head><title>Relatório NC</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111;}h1{font-size:20px;}h2{font-size:15px;margin-top:18px;color:#0077a3;}th{background:#f0f0f0;}</style></head><body>' + html + '</body></html>');
+  w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch(e){} }, 350);
 }
 
 function ncListFromRec(rec) {

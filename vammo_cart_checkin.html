@@ -1116,6 +1116,47 @@ const GESTORES_EMAILS = [
   'marcelo@vammo.com',
   'billy@vammo.com'
 ];
+// Encarregados — não deveriam logar em carrinho de mecânico (flag no log de auditoria)
+const ENCARREGADOS_EMAILS = [
+  'clebert.silva@vammo.com',
+  'allecio.carvalho@vammo.com',
+  'thiago.santos@vammo.com',
+  'adelino.salome@vammo.com'
+];
+function papelDoEmail(email){
+  email = String(email||'').toLowerCase().trim();
+  if (ENCARREGADOS_EMAILS.includes(email)) return 'encarregado';
+  if (GESTORES_EMAILS.map(e=>e.toLowerCase()).includes(email)) return 'gestor';
+  return 'mecanico';
+}
+function baseDoCarrinho(nome){
+  const up = String(nome||'').toUpperCase().replace(/[\s\-_]+/g,'');
+  if (up.startsWith('MC')) return 'Mooca';
+  if (up.startsWith('OC')) return 'Osasco';
+  if (up.startsWith('SC')) return 'SBC';
+  return '';
+}
+// Registra no log de auditoria (mesmo endpoint do gestor) quem abriu/fechou o carrinho
+function logCheckin(rec){
+  try{
+    const url = getConfig().webhookUrl; if(!url) return;
+    const acao = rec.tipo === 'checkin' ? 'cart_checkin' : 'cart_checkout';
+    const det  = rec.carrinho + (rec.nc_count ? (' · ' + rec.nc_count + ' NC') : '');
+    const sc = document.createElement('script');
+    const cbn = '_lg_' + Date.now() + Math.random().toString(36).slice(2,7);
+    window[cbn] = () => { delete window[cbn]; if (sc.parentNode) sc.parentNode.removeChild(sc); };
+    sc.onerror = window[cbn];
+    sc.src = url + '?action=logAdd'
+      + '&acao='     + encodeURIComponent(acao)
+      + '&email='    + encodeURIComponent(rec.mecanico || '')
+      + '&nome='     + encodeURIComponent(rec.mecanico || '')
+      + '&base='     + encodeURIComponent(baseDoCarrinho(rec.carrinho))
+      + '&detalhes=' + encodeURIComponent(det)
+      + '&origem='   + encodeURIComponent(papelDoEmail(rec.mecanico))
+      + '&callback=' + cbn;
+    document.head.appendChild(sc);
+  }catch(_){}
+}
 
 const SCREENS = ['screen-login','screen-tipo','screen-scan','screen-checklist','screen-fotos','screen-assin','screen-resumo','screen-ok'];
 const STEP_TITLES = ['Login','Operação','Carrinho','Checklist','Fotos','Assinatura','Confirmar','Concluído'];
@@ -2114,6 +2155,7 @@ function submit() {
 
   const saveResult = saveRecord(rec);
   S._saved = rec;
+  logCheckin(rec); // registra no log de auditoria (quem abriu/fechou o carrinho)
   goTo(SCREENS.indexOf('screen-ok'));
 
   if (saveResult === 'slim') {
