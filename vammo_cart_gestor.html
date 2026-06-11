@@ -943,6 +943,9 @@
       <div class="nav-item nav-destaque" data-panel="carrinhos" onclick="showPanel('carrinhos')">
         <span class="nav-icon">🧰</span> Carrinhos
       </div>
+      <div class="nav-item" data-panel="perfis" onclick="showPanel('perfis')">
+        <span class="nav-icon">🏷️</span> Perfis de Carrinho
+      </div>
       <div class="nav-item" data-panel="estoque" onclick="showPanel('estoque')">
         <span class="nav-icon">📦</span> Estoque
       </div>
@@ -1107,6 +1110,20 @@
             <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Carrinhos cadastrados por base</div>
             <div id="cart-chips-by-base"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- ── PERFIS DE CARRINHO ── -->
+      <div class="panel" id="panel-perfis">
+        <div class="config-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px;">
+            <div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);">🏷️ PERFIS DE CARRINHO</div>
+              <div style="font-size:11.5px;color:var(--gr);margin-top:3px;">Defina as ferramentas de cada perfil e atribua um perfil a cada carrinho. O check-in mostra a lista do perfil. A cor do perfil aparece no card quando o carrinho está online.</div>
+            </div>
+            <button class="btn-sm btn-az" onclick="salvarPerfis()">💾 Salvar perfis</button>
+          </div>
+          <div id="perfis-body"><div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando…</div></div>
         </div>
       </div>
 
@@ -1912,6 +1929,93 @@ function getEstoque() {
 }
 function saveEstoque(e) { localStorage.setItem('vammo_estoque', JSON.stringify(e)); }
 
+// ─── PERFIS DE CARRINHO ──────────────────────────────────────────────────────
+const PERFIL_NOMES = ['Mecânico', 'Diagnóstico', 'Qualidade'];
+const PERFIL_CORES = { 'Mecânico': '#22c55e', 'Diagnóstico': '#3b82f6', 'Qualidade': '#a855f7' };
+let _perfisCfg = null; // { perfis: {Diagnóstico:[...], Qualidade:[...]}, carrinhos: {cart: perfil} }
+function getPerfisConfig() {
+  if (_perfisCfg && _perfisCfg.perfis) return _perfisCfg;
+  return { perfis: { 'Diagnóstico': [], 'Qualidade': [] }, carrinhos: {} };
+}
+function getCartPerfil(nome) {
+  const cfg = getPerfisConfig(); const n = normalizeCartName(nome);
+  return (cfg.carrinhos && (cfg.carrinhos[n] || cfg.carrinhos[nome])) || 'Mecânico';
+}
+function getPerfilTools(perfil) {
+  if (perfil === 'Mecânico') return flatTools();
+  const cfg = getPerfisConfig();
+  return (cfg.perfis && cfg.perfis[perfil]) || [];
+}
+function syncPerfisFromGAS() {
+  const cfg = getConfig(); if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=perfisGet', (d) => {
+    if (d && d.ok && d.config) {
+      _perfisCfg = d.config;
+      try { renderCarrinhos(); } catch(e){}
+      if (document.getElementById('panel-perfis')?.classList.contains('active')) { try { renderPerfis(); } catch(e){} }
+    }
+  });
+}
+function savePerfisToGAS(config, cb) {
+  const cfg = getConfig(); if (!cfg.webhookUrl) { cb && cb(false); return; }
+  _perfisCfg = config;
+  fetch(cfg.webhookUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) })
+    .then(() => { cb && cb(true); }).catch(() => { cb && cb(true); });
+}
+function renderPerfis() {
+  const body = document.getElementById('perfis-body'); if (!body) return;
+  let html = '<div style="margin-bottom:8px;color:var(--w2);font-size:12.5px;"><b>1) Ferramentas de cada perfil</b> · <span style="color:var(--gr)">Mecânico = catálogo completo. Marque as do Diagnóstico e Qualidade.</span></div>';
+  ['Diagnóstico','Qualidade'].forEach(perfil => {
+    const sel = new Set(getPerfilTools(perfil)), cor = PERFIL_CORES[perfil];
+    html += `<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+        <span style="width:12px;height:12px;border-radius:3px;background:${cor};display:inline-block;"></span>
+        <b style="color:${cor};font-size:14px;">${perfil}</b>
+        <span style="color:var(--gr);font-size:11px;">(${sel.size} ferramenta(s))</span>
+        <button class="btn-sm btn-outline" style="margin-left:auto;font-size:10px;" onclick="marcarTodasPerfil('${perfil}',true)">Todas</button>
+        <button class="btn-sm btn-outline" style="font-size:10px;" onclick="marcarTodasPerfil('${perfil}',false)">Nenhuma</button>
+      </div>
+      <div style="columns:2;column-gap:18px;">`;
+    TOOLS_CATALOG.forEach(cat => {
+      html += `<div style="break-inside:avoid;margin-bottom:6px;"><div style="color:var(--az);font-size:9.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin:3px 0;">${cat.cat}</div>`;
+      cat.items.forEach(t => {
+        html += `<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--w2);padding:1px 0;cursor:pointer;"><input type="checkbox" class="pf-tool" data-perfil="${perfil}" value="${String(t).replace(/"/g,'&quot;')}" ${sel.has(t)?'checked':''}> ${t}</label>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += '<div style="margin:14px 0 8px;color:var(--w2);font-size:12.5px;"><b>2) Perfil de cada carrinho</b></div>';
+  BASES.forEach(base => {
+    const carts = getCarts().filter(c => c.base === base);
+    if (!carts.length) return;
+    html += `<div style="margin-bottom:10px;"><div style="color:var(--gr);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">${base}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;">`;
+    carts.forEach(c => {
+      const p = getCartPerfil(c.nome);
+      html += `<div style="display:flex;align-items:center;gap:6px;background:var(--c1);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;">
+        <span style="width:9px;height:9px;border-radius:50%;background:${PERFIL_CORES[p]};flex:0 0 auto;"></span>
+        <span style="flex:1;color:var(--wh);font-size:12px;font-weight:700;">${c.nome}</span>
+        <select class="pf-cart" data-cart="${String(c.nome).replace(/"/g,'&quot;')}" onchange="this.previousElementSibling.previousElementSibling.style.background=({'Mecânico':'#22c55e','Diagnóstico':'#3b82f6','Qualidade':'#a855f7'})[this.value]" style="padding:4px 6px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:11.5px;">
+          ${PERFIL_NOMES.map(pn=>`<option ${pn===p?'selected':''}>${pn}</option>`).join('')}
+        </select></div>`;
+    });
+    html += `</div></div>`;
+  });
+  body.innerHTML = html;
+}
+function marcarTodasPerfil(perfil, val){ document.querySelectorAll('.pf-tool[data-perfil="'+perfil+'"]').forEach(cb => cb.checked = val); }
+function salvarPerfis(){
+  const perfis = {};
+  ['Diagnóstico','Qualidade'].forEach(perfil => {
+    perfis[perfil] = Array.from(document.querySelectorAll('.pf-tool[data-perfil="'+perfil+'"]:checked')).map(cb => cb.value);
+  });
+  const carrinhos = {};
+  document.querySelectorAll('.pf-cart').forEach(s => { const p = s.value; if (p && p !== 'Mecânico') carrinhos[normalizeCartName(s.dataset.cart)] = p; });
+  savePerfisToGAS({ perfis, carrinhos }, () => {});
+  alert('✅ Perfis salvos! O check-in e o painel já passam a usar.');
+  try { renderCarrinhos(); } catch(e){}
+}
+
 // Preço unitário por ferramenta (global, igual em todas bases)
 function getPrecos() {
   try { return JSON.parse(localStorage.getItem('vammo_precos')) || {}; } catch { return {}; }
@@ -1944,7 +2048,8 @@ function showPanel(id) {
   if (id === 'dashboard') renderDashboard();
   if (id === 'registros') renderRegistros();
   if (id === 'nc') renderNC();
-  if (id === 'carrinhos') renderCarrinhos();
+  if (id === 'carrinhos') { renderCarrinhos(); syncPerfisFromGAS(); }
+  if (id === 'perfis') { renderPerfis(); syncPerfisFromGAS(); }
   if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); syncGameStartFromGAS(); }
   if (id === 'nc') syncNCsComServidor(true); // silent: alinha local com servidor ao abrir
   if (id === 'colab') renderColab();
@@ -2554,11 +2659,17 @@ function renderCarrinhos() {
         } else { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='NÃO CADASTRADO'; }
         phoneBadge = `<div class="ccv-phone-badge ${bcls}"><span>${bsvg}</span><span class="ccv-phone-txt"><span class="cpb-label">Celular VAMMO</span><span class="cpb-line"><span class="cpb-status">${btxt}</span>${batt}</span></span></div>`;
       }
-      return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
+      // Cor do perfil só quando ONLINE (logado): Mecânico=verde, Diagnóstico=azul, Qualidade=roxo
+      const perfil = getCartPerfil(c.nome);
+      const perfilCor = PERFIL_CORES[perfil] || '#22c55e';
+      const logadoStyle = st.status === 'logado' ? `border-color:${perfilCor};box-shadow:inset 0 0 0 1px ${perfilCor}40;` : '';
+      const perfilTag = st.status === 'logado' ? `<span style="display:inline-block;margin-top:5px;font-size:9.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:1px 8px;border-radius:999px;background:${perfilCor}22;color:${perfilCor};border:1px solid ${perfilCor}66;">${perfil}</span>` : '';
+      return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" style="${logadoStyle}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
         <div>
           <div class="ccv-id">${c.nome}</div>
           <div class="ccv-status">${label}</div>
+          ${perfilTag}
           ${phoneBadge}
         </div>
         <div>
@@ -5842,6 +5953,7 @@ function bootApp() {
   renderDashboard();
   iniciarAutoSync();
   syncEstoqueFromGAS();
+  syncPerfisFromGAS();
   syncNCsComServidor(true);
   syncGameStartFromGAS();
   // Carrega histórico de baixas+estornos do servidor (pra ver gastos em qualquer dispositivo) — IMEDIATAMENTE

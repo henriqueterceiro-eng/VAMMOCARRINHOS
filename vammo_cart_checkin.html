@@ -1051,7 +1051,7 @@
 
 <script>
 // ─── DADOS ───────────────────────────────────────────────────────────────────
-const TOOLS = [
+const TOOLS_FULL = [
   { cat: "ALICATES", items: ["Alicate de bico","Alicate de corte","Alicate universal","Alicate de pressão"] },
   { cat: "ALLEN LONGA", items: ["Allen longa 4mm","Allen longa 5mm","Allen longa 6mm"] },
   { cat: 'SOQUETES 1/2"', items: ["Soquete 10mm","Soquete 12mm","Soquete 13mm","Soquete 14mm","Soquete 17mm","Soquete 19mm","Soquete 22mm"] },
@@ -1061,6 +1061,25 @@ const TOOLS = [
   { cat: "CHAVES DE FENDA", items: ["Chave Philips","Chave de fenda"] },
   { cat: 'CATRACA / EXTENSÃO', items: ['Catraca 1/2" reversível','Extensor longo 1/2"'] }
 ];
+// Catálogo ativo do check-in = perfil do carrinho (default = catálogo completo "Mecânico")
+let TOOLS = TOOLS_FULL;
+// ─── PERFIS DE CARRINHO (config vem do servidor; Mecânico = catálogo completo) ──
+let _perfisCfg = null; // { perfis: {Diagnóstico:[...], Qualidade:[...]}, carrinhos: {cart: perfil} }
+function fetchPerfis() {
+  const url = getConfig().webhookUrl; if (!url) return;
+  gasGet(url, 'action=perfisGet', (d) => { if (d && d.ok && d.config) _perfisCfg = d.config; });
+}
+function getCartPerfil(nome) {
+  if (!_perfisCfg || !_perfisCfg.carrinhos) return 'Mecânico';
+  const n = normalizeCartName(nome);
+  return _perfisCfg.carrinhos[n] || _perfisCfg.carrinhos[nome] || 'Mecânico';
+}
+function toolsForPerfil(perfil) {
+  if (perfil === 'Mecânico' || !_perfisCfg || !_perfisCfg.perfis || !_perfisCfg.perfis[perfil]) return TOOLS_FULL;
+  const allow = new Set(_perfisCfg.perfis[perfil]);
+  return TOOLS_FULL.map(c => ({ cat: c.cat, items: c.items.filter(i => allow.has(i)) })).filter(c => c.items.length);
+}
+function aplicarPerfilCarrinho(nome) { TOOLS = toolsForPerfil(getCartPerfil(nome)); }
 
 // Lista oficial de e-mails autorizados (cadastro flat — sem vínculo a base/turno)
 const DEFAULT_EMAILS = [
@@ -1458,6 +1477,7 @@ function resetScan() {
 
 function setCart(num) {
   S.carrinho = normalizeCartName(num); // garante formato canônico
+  aplicarPerfilCarrinho(S.carrinho);   // checklist = ferramentas do perfil do carrinho
   S.cartLocked = false; // reseta status
   S.cartChecking = false;
   document.getElementById('cart-num-display').textContent = S.carrinho;
@@ -2503,6 +2523,7 @@ function decodeQRConfigFallback(file, st) {
   }
   // Sempre busca lista atualizada do servidor em background — pra próximos logins/check-ins
   syncColabFromGAS();
+  fetchPerfis(); // perfis de carrinho (define a lista de ferramentas por carrinho)
   updateBar();
   updateNextBtn();
 })();
