@@ -1189,10 +1189,13 @@
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);">📜 LOGS DE AUDITORIA</div>
               <div style="font-size:11.5px;color:var(--gr);margin-top:3px;">Tudo que acontece nos apps: logins, reposições, transferências, pedidos, inventários, NCs resolvidas.</div>
             </div>
-            <button class="btn-sm btn-az" onclick="syncLogsFromGAS()">🔄 Atualizar</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button class="btn-sm btn-outline" onclick="abrirEncarregadosEmCarrinho()" title="Todo check-in feito por encarregado — varre TODOS os registros, inclusive antigos" style="border-color:var(--rd);color:var(--rd);">⚠ Encarregados em carrinho</button>
+              <button class="btn-sm btn-az" onclick="syncLogsFromGAS()">🔄 Atualizar</button>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-            <input type="text" id="logs-search" placeholder="🔍 buscar (email, ação, base...)" oninput="renderLogs()" style="flex:1;min-width:220px;padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12.5px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+            <input type="text" id="logs-search" placeholder="🔍 buscar (email, ação, base...)" oninput="renderLogs()" style="flex:1;min-width:200px;padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12.5px;">
             <select id="logs-filt-acao" onchange="renderLogs()" style="padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
               <option value="">Todas as ações</option>
             </select>
@@ -1203,6 +1206,11 @@
               <option value="SBC">SBC</option>
               <option value="Estoque Mooca">Estoque Mooca</option>
             </select>
+            <span style="color:var(--gr);font-size:11px;">de</span>
+            <input type="date" id="logs-filt-de" onchange="renderLogs()" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
+            <span style="color:var(--gr);font-size:11px;">até</span>
+            <input type="date" id="logs-filt-ate" onchange="renderLogs()" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
+            <button class="btn-sm btn-outline" onclick="document.getElementById('logs-filt-de').value='';document.getElementById('logs-filt-ate').value='';renderLogs();" title="Limpar datas">✕</button>
           </div>
           <div id="logs-tbody-wrap" style="background:var(--c1);border:1px solid var(--bd);border-radius:6px;max-height:65vh;overflow-y:auto;">
             <div style="padding:40px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando logs...</div>
@@ -2039,9 +2047,14 @@ function renderLogs() {
   const q = (document.getElementById('logs-search')?.value || '').toLowerCase();
   const filtAcao = document.getElementById('logs-filt-acao')?.value || '';
   const filtBase = document.getElementById('logs-filt-base')?.value || '';
+  const filtDe = document.getElementById('logs-filt-de')?.value || '';
+  const filtAte = document.getElementById('logs-filt-ate')?.value || '';
+  const deMs = filtDe ? new Date(filtDe + 'T00:00:00').getTime() : null;
+  const ateMs = filtAte ? new Date(filtAte + 'T23:59:59').getTime() : null;
   const filtered = _logsCache.filter(l => {
     if (filtAcao && l.acao !== filtAcao) return false;
     if (filtBase && l.base !== filtBase) return false;
+    if (deMs || ateMs) { const t = l.ts ? new Date(l.ts).getTime() : 0; if (deMs && t < deMs) return false; if (ateMs && t > ateMs) return false; }
     if (!q) return true;
     return (l.acao + ' ' + l.email + ' ' + l.nome + ' ' + l.base + ' ' + l.detalhes + ' ' + l.origem).toLowerCase().includes(q);
   });
@@ -2076,6 +2089,40 @@ function renderLogs() {
     </tbody>
   </table>
   <div style="padding:10px 12px;background:var(--c2);border-top:1px solid var(--bd);color:var(--gr);font-size:11px;text-align:center;">${filtered.length} de ${_logsCache.length} entradas</div>`;
+}
+
+// Varre TODOS os registros (inclusive antigos) e lista check-ins feitos por encarregado
+function abrirEncarregadosEmCarrinho() {
+  const encs = ENCARREGADOS_EMAILS.map(e => e.toLowerCase());
+  const recs = (getRecords() || [])
+    .filter(r => encs.includes(String(r.mecanico || '').toLowerCase().trim()))
+    .sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  let body;
+  if (!recs.length) {
+    body = '<div style="padding:30px;text-align:center;color:var(--gr);font-size:14px;">✅ Nenhum check-in de encarregado nos registros.</div>';
+  } else {
+    body = `<table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <thead><tr style="color:var(--gr);text-transform:uppercase;font-size:10px;letter-spacing:1px;">
+        <th style="text-align:left;padding:6px 8px;">Data/Hora</th><th style="text-align:left;padding:6px 8px;">Encarregado</th><th style="text-align:left;padding:6px 8px;">Carrinho</th><th style="padding:6px 8px;">Ação</th><th style="padding:6px 8px;">NC</th></tr></thead>
+      <tbody>${recs.map(r => `<tr style="border-top:1px solid rgba(239,68,68,.22);background:rgba(239,68,68,.07);">
+        <td style="padding:6px 8px;font-family:monospace;font-size:11px;color:var(--w2);white-space:nowrap;">${r.ts ? new Date(r.ts).toLocaleString('pt-BR') : '—'}</td>
+        <td style="padding:6px 8px;color:#ef4444;font-weight:700;">${r.mecanico || ''}</td>
+        <td style="padding:6px 8px;color:var(--wh);font-weight:800;">${r.carrinho || ''}</td>
+        <td style="padding:6px 8px;text-align:center;color:var(--w2);">${r.tipo === 'checkin' ? 'entrou' : 'saiu'}</td>
+        <td style="padding:6px 8px;text-align:center;color:var(--yw);font-weight:700;">${r.nc_count || 0}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const ov = document.createElement('div'); ov.id = 'encarg-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;';
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--rd);border-radius:12px;max-width:760px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);">
+      <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:1.5px;color:#ef4444;">⚠️ ENCARREGADOS EM CARRINHO <span style="color:var(--gr);font-size:12px;">· ${recs.length} registro(s)</span></div>
+      <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('encarg-overlay').remove()">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;">
+      <div style="font-size:11.5px;color:var(--gr);margin-bottom:10px;">Todo check-in/checkout feito por e-mail de <b>encarregado</b> — varre <b>todos os registros</b> (inclusive antigos). Encarregado não deveria operar carrinho de mecânico.</div>
+      ${body}</div></div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
 }
 
 function copiarLink(url, btn) {
