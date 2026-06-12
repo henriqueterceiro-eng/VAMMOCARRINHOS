@@ -82,6 +82,20 @@
     }
     .nav-item.nav-destaque .nav-icon { font-size: 21px; }
     .nav-item.nav-destaque:hover { background: linear-gradient(90deg, rgba(46,194,255,.24), rgba(46,194,255,.05)); color: var(--wh); }
+    /* ─── Restrições do papel SUPERVISOR (esconde ações que ele não pode) ─── */
+    body.role-supervisor [onclick="abrirPedidoModal()"],
+    body.role-supervisor [onclick="zerarContadorGasto()"],
+    body.role-supervisor [onclick="salvarPerfis()"],
+    body.role-supervisor [onclick="deleteSelectedRegistros()"],
+    body.role-supervisor [onclick^="deleteRegistro"],
+    body.role-supervisor #colab-list,
+    body.role-supervisor #colab-count,
+    body.role-supervisor #colab-search,
+    body.role-supervisor [onclick="exportColab()"],
+    body.role-supervisor [onclick="importColabPrompt()"],
+    body.role-supervisor [onclick="resetColabDefault()"],
+    body.role-supervisor [onclick="resetColab()"],
+    body.role-supervisor [onclick="sincronizarColabsAgora()"] { display: none !important; }
 
     .sidebar-footer {
       padding: 16px 20px;
@@ -2027,6 +2041,10 @@ function renderPerfis() {
     html += `</div></div>`;
   });
   body.innerHTML = html;
+  if (isSupervisor()) {
+    body.querySelectorAll('input, select, button').forEach(el => { el.disabled = true; });
+    body.insertAdjacentHTML('afterbegin', '<div style="background:rgba(46,194,255,.1);border:1px solid rgba(46,194,255,.3);border-radius:6px;padding:8px 10px;margin-bottom:10px;color:var(--az);font-size:12.5px;font-weight:700;">👁 Somente leitura — você vê as ferramentas dos perfis, mas não pode alterar.</div>');
+  }
 }
 function marcarTodasPerfil(perfil, val){ document.querySelectorAll('.pf-tool[data-perfil="'+perfil+'"]').forEach(cb => cb.checked = val); }
 function salvarPerfis(){
@@ -2130,9 +2148,13 @@ function renderLinks() {
       ]
     },
   ];
+  let gruposView = grupos;
+  if (isSupervisor()) {
+    gruposView = grupos.map(g => ({ titulo: g.titulo, cor: g.cor, desc: g.desc, links: g.links.filter(l => (l.rotulo + ' ' + l.url).includes(_SUPERVISOR_BASE)) })).filter(g => g.links.length);
+  }
   wrap.innerHTML = `<div style="background:rgba(46,194,255,.08);border:1px solid rgba(46,194,255,.25);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--w2);line-height:1.5;">
-    💡 Links de acesso por perfil. Copie e compartilhe — todos abrem direto (GitHub Pages).
-  </div>` + grupos.map(g => `
+    💡 Links de acesso${isSupervisor() ? ' · base ' + _SUPERVISOR_BASE : ''}. Copie e compartilhe — abrem direto (GitHub Pages).
+  </div>` + gruposView.map(g => `
     <div style="border:1px solid var(--bd);border-radius:8px;padding:14px;background:var(--c1);">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;letter-spacing:1.5px;color:${g.cor};margin-bottom:4px;">${g.titulo}</div>
       <div style="font-size:11.5px;color:var(--gr);margin-bottom:12px;">${g.desc}</div>
@@ -2187,7 +2209,7 @@ function renderLogs() {
   if (!wrap) return;
   const q = (document.getElementById('logs-search')?.value || '').toLowerCase();
   const filtAcao = document.getElementById('logs-filt-acao')?.value || '';
-  const filtBase = document.getElementById('logs-filt-base')?.value || '';
+  const filtBase = isSupervisor() ? _SUPERVISOR_BASE : (document.getElementById('logs-filt-base')?.value || '');
   const filtDe = document.getElementById('logs-filt-de')?.value || '';
   const filtAte = document.getElementById('logs-filt-ate')?.value || '';
   const deMs = filtDe ? new Date(filtDe + 'T00:00:00').getTime() : null;
@@ -5978,14 +6000,15 @@ function checkAuthAndBoot() {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 function aplicarRoleSupervisor() {
   if (!isSupervisor()) return;
+  document.body.classList.add('role-supervisor'); // ativa as restrições de CSS
   // Badge no top
   const badge = document.getElementById('role-badge');
   if (badge) {
     badge.textContent = `Supervisor · ${_SUPERVISOR_BASE}`;
     badge.style.display = 'inline-block';
   }
-  // Esconde abas que supervisor não pode usar
-  ['colab','links','logs','config'].forEach(p => {
+  // Esconde só Configurações (colab/links/logs ele vê, mas com conteúdo restrito)
+  ['config'].forEach(p => {
     const navEl = document.querySelector(`.nav-item[data-panel="${p}"]`);
     if (navEl) navEl.style.display = 'none';
     const panelEl = document.getElementById('panel-' + p);
@@ -6008,7 +6031,7 @@ function aplicarRoleSupervisor() {
   // Bloqueia navegação direta pras abas escondidas
   const originalShowPanel = window.showPanel;
   window.showPanel = function(id) {
-    if (['colab','links','logs','config'].includes(id)) {
+    if (['config'].includes(id)) {
       id = 'dashboard';
     }
     return originalShowPanel.call(this, id);
