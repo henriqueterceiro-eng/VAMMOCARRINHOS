@@ -20,7 +20,7 @@
     const _manifest = {
       name: "Vammo Carrinhos",
       short_name: "Carrinhos",
-      description: "Check-in e Check-out de carrinhos de ferramentas",
+      description: "Entrada e Saída de carrinhos de ferramentas",
       start_url: ".",
       display: "standalone",
       background_color: "#0a0a0a",
@@ -117,7 +117,7 @@
     .app-bar .page-title {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 700; font-size: 15px;
-      letter-spacing: 2px; color: var(--w2);
+      letter-spacing: 2px; color: var(--wh);
       text-transform: uppercase;
     }
     .app-bar .step-badge {
@@ -164,10 +164,11 @@
       transition: all 0.18s; text-align: left;
     }
     .tipo-btn:active { transform: scale(.97); }
-    .tipo-btn.ci { border-color: var(--gn); }
-    .tipo-btn.ci:active { background: rgba(34,197,94,.12); }
-    .tipo-btn.co { border-color: var(--yw); }
-    .tipo-btn.co:active { background: rgba(245,158,11,.12); }
+    .tipo-btn.ci { border-color: var(--az); background: linear-gradient(135deg, var(--az), var(--azd)); box-shadow: 0 6px 22px rgba(46,194,255,.35); }
+    .tipo-btn.ci:active { filter: brightness(.94); }
+    .tipo-btn.ci .tipo-name, .tipo-btn.ci .tipo-desc { color: #fff; }
+    .tipo-btn.co { border-color: var(--az); background: var(--c1); }
+    .tipo-btn.co:active { background: rgba(46,194,255,.12); }
     .tipo-emoji { font-size: 38px; }
     .tipo-text .tipo-name {
       font-family: 'Barlow Condensed', sans-serif;
@@ -872,20 +873,20 @@
   <!-- SCREEN: TIPO -->
   <div class="screen" id="screen-tipo">
     <div class="s-title">O que<br>vamos fazer?</div>
-    <div class="s-sub">Selecione o tipo de operação</div>
+    <div class="s-sub">Você está pegando ou devolvendo o carrinho?</div>
 
     <button class="tipo-btn ci" onclick="selectTipo('checkin')">
-      <span class="tipo-emoji">🔒</span>
+      <span class="tipo-emoji">📥</span>
       <div class="tipo-text">
-        <div class="tipo-name">Check-in</div>
-        <div class="tipo-desc">Receber / assumir o carrinho</div>
+        <div class="tipo-name">Entrada</div>
+        <div class="tipo-desc">Estou PEGANDO o carrinho para trabalhar agora</div>
       </div>
     </button>
     <button class="tipo-btn co" onclick="selectTipo('checkout')">
-      <span class="tipo-emoji">🔓</span>
+      <span class="tipo-emoji">📤</span>
       <div class="tipo-text">
-        <div class="tipo-name">Check-out</div>
-        <div class="tipo-desc">Devolver / finalizar o carrinho</div>
+        <div class="tipo-name">Saída</div>
+        <div class="tipo-desc">TERMINEI o trabalho e vou DEVOLVER o carrinho</div>
       </div>
     </button>
   </div>
@@ -2223,8 +2224,8 @@ function clearSig() {
 function renderResumo() {
   const ncs = Object.entries(S.ferramentas).filter(([,v]) => v.status === 'nao_ok');
   const tipoBadge = S.tipo === 'checkin'
-    ? '<span class="badge bgn">CHECK-IN</span>'
-    : '<span class="badge byw">CHECK-OUT</span>';
+    ? '<span class="badge bgn">ENTRADA</span>'
+    : '<span class="badge byw">SAÍDA</span>';
 
   let ncHtml = '';
   if (ncs.length > 0) {
@@ -2414,7 +2415,7 @@ function compartilharComFotos() {
     const file = new File([blob], nome, { type: 'application/json' });
     navigator.share({
       title: `Vammo – ${rec.carrinho} – ${rec.mecanico}`,
-      text: `Check-in carrinho ${rec.carrinho}`,
+      text: `${rec.tipo === 'checkin' ? 'Entrada' : 'Saída'} – carrinho ${rec.carrinho}`,
       files: [file]
     }).catch(() => baixarJSON(blob, nome));
     return;
