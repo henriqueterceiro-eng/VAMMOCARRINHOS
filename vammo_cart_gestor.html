@@ -2041,10 +2041,6 @@ function renderPerfis() {
     html += `</div></div>`;
   });
   body.innerHTML = html;
-  if (isSupervisor()) {
-    body.querySelectorAll('input, select, button').forEach(el => { el.disabled = true; });
-    body.insertAdjacentHTML('afterbegin', '<div style="background:rgba(46,194,255,.1);border:1px solid rgba(46,194,255,.3);border-radius:6px;padding:8px 10px;margin-bottom:10px;color:var(--az);font-size:12.5px;font-weight:700;">👁 Somente leitura — você vê as ferramentas dos perfis, mas não pode alterar.</div>');
-  }
 }
 function marcarTodasPerfil(perfil, val){ document.querySelectorAll('.pf-tool[data-perfil="'+perfil+'"]').forEach(cb => cb.checked = val); }
 function salvarPerfis(){
@@ -6007,8 +6003,8 @@ function aplicarRoleSupervisor() {
     badge.textContent = `Supervisor · ${_SUPERVISOR_BASE}`;
     badge.style.display = 'inline-block';
   }
-  // Esconde só Configurações (colab/links/logs ele vê, mas com conteúdo restrito)
-  ['config'].forEach(p => {
+  // Esconde Configurações e Perfis de Carrinho (colab/links/logs ele vê, mas restrito)
+  ['config','perfis'].forEach(p => {
     const navEl = document.querySelector(`.nav-item[data-panel="${p}"]`);
     if (navEl) navEl.style.display = 'none';
     const panelEl = document.getElementById('panel-' + p);
@@ -6031,7 +6027,7 @@ function aplicarRoleSupervisor() {
   // Bloqueia navegação direta pras abas escondidas
   const originalShowPanel = window.showPanel;
   window.showPanel = function(id) {
-    if (['config'].includes(id)) {
+    if (['config','perfis'].includes(id)) {
       id = 'dashboard';
     }
     return originalShowPanel.call(this, id);
