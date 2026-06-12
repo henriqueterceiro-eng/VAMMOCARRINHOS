@@ -1130,7 +1130,7 @@
         <div class="config-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px;">
             <div>
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);">🏷️ PERFIS DE CARRINHO</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;color:var(--az);">🏷️ PERFIS DE CARRINHO</div>
               <div style="font-size:11.5px;color:var(--gr);margin-top:3px;">Defina as ferramentas de cada perfil e atribua um perfil a cada carrinho. O check-in mostra a lista do perfil. A cor do perfil aparece no card quando o carrinho está online.</div>
             </div>
             <button class="btn-sm btn-az" onclick="salvarPerfis()">💾 Salvar perfis</button>
@@ -1224,7 +1224,7 @@
         <div class="config-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
             <div>
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);">📜 LOGS DE AUDITORIA</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;color:var(--az);">📜 LOGS DE AUDITORIA</div>
               <div style="font-size:11.5px;color:var(--gr);margin-top:3px;">Tudo que acontece nos apps: logins, reposições, transferências, pedidos, inventários, NCs resolvidas.</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -1259,7 +1259,7 @@
       <!-- ── LINKS DE ACESSO ── -->
       <div class="panel" id="panel-links">
         <div class="config-card">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);margin-bottom:6px;">🔗 LINKS DE ACESSO</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;color:var(--az);margin-bottom:6px;">🔗 LINKS DE ACESSO</div>
           <div style="font-size:12px;color:var(--gr);margin-bottom:18px;">Compartilhe o link certo com cada perfil. Cada um abre uma visão diferente. Clique no botão "Copiar" pra colar onde precisar (Slack, WhatsApp, e-mail).</div>
 
           <div id="links-list" style="display:flex;flex-direction:column;gap:14px;"></div>
@@ -2278,7 +2278,7 @@ function abrirEncarregadosEmCarrinho() {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;';
   ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--rd);border-radius:12px;max-width:760px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
     <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);">
-      <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:1.5px;color:#ef4444;">⚠️ ENCARREGADOS EM CARRINHO <span style="color:var(--gr);font-size:12px;">· ${recs.length} registro(s)</span></div>
+      <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:1.5px;color:#ef4444;">⚠️ ENCARREGADOS EM CARRINHO <span style="color:var(--gr);font-size:12px;">· ${recs.length} registro(s)</span></div>
       <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('encarg-overlay').remove()">✕</button>
     </div>
     <div style="padding:14px 18px;overflow-y:auto;">
@@ -2327,7 +2327,7 @@ function abrirBuscaAparelho(){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100001;display:flex;align-items:flex-start;justify-content:center;padding:40px 18px;';
   ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:620px;width:100%;max-height:82vh;display:flex;flex-direction:column;">
     <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);">
-      <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:1.5px;color:var(--wh);">🔎 BUSCAR APARELHO</div>
+      <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:1.5px;color:var(--wh);">🔎 BUSCAR APARELHO</div>
       <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('busca-ap-overlay').remove()">✕</button>
     </div>
     <div style="padding:14px 18px;overflow-y:auto;">
@@ -2673,31 +2673,31 @@ function renderCarrinhos() {
     // Cards menores por base (não mostra se for supervisor — só vê 1 base)
     const porBaseCards = (visibleBases.length > 1)
       ? `<div style="grid-column:1 / -1;margin-top:4px;">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;margin-bottom:8px;">Detalhe por Base</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;margin-bottom:8px;">Detalhe por Base</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px;">
             ${visibleBases.map(b => {
               const s = porBase[b];
               return `<div style="background:var(--c2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;">
                 <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-                  <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:900;letter-spacing:1.5px;color:var(--az);">📍 ${b.toUpperCase()}</span>
-                  <span style="font-size:10.5px;color:var(--gr);">${s.total} cart${s.total!==1?'s':''}</span>
+                  <span style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:1.5px;color:var(--az);">📍 ${b.toUpperCase()}</span>
+                  <span style="font-size:12px;color:var(--gr);">${s.total} cart${s.total!==1?'s':''}</span>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:4px;text-align:center;">
                   <div title="Logados">
-                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gn);line-height:1;">${s.log}</div>
-                    <div style="font-size:9px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">Log</div>
+                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:var(--gn);line-height:1;">${s.log}</div>
+                    <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">Log</div>
                   </div>
                   <div title="Deslogados">
-                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--w2);line-height:1;">${s.deslog}</div>
-                    <div style="font-size:9px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">Desl</div>
+                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:var(--w2);line-height:1;">${s.deslog}</div>
+                    <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">Desl</div>
                   </div>
                   <div title="Com NC aberta">
-                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:${s.nc>0?'var(--yw)':'var(--gr)'};line-height:1;">${s.nc}</div>
-                    <div style="font-size:9px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">NC</div>
+                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:${s.nc>0?'var(--yw)':'var(--gr)'};line-height:1;">${s.nc}</div>
+                    <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">NC</div>
                   </div>
                   <div title="Sem registro">
-                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gr);line-height:1;">${s.sem}</div>
-                    <div style="font-size:9px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">S/R</div>
+                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:var(--gr);line-height:1;">${s.sem}</div>
+                    <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">S/R</div>
                   </div>
                 </div>
               </div>`;
@@ -4796,7 +4796,7 @@ function renderBaixas() {
             ? '<span class="badge baz" style="background:rgba(46,194,255,.15);color:var(--az);border:1px solid var(--az);">📦 Reposição</span>'
             : '<span class="badge" style="background:rgba(245,158,11,.12);color:var(--yw);border:1px solid var(--yw);">🛠 Ajuste</span>';
         const qtdCell = tipo === 'reposicao'
-          ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:${estornada?'var(--gr)':'var(--az)'};${estornada?'text-decoration:line-through;':''}">${b.qtd}</span>`
+          ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:${estornada?'var(--gr)':'var(--az)'};${estornada?'text-decoration:line-through;':''}">${b.qtd}</span>`
           : `<span style="color:var(--gr);font-size:12px;">—</span>`;
         const obsCell = estornada
           ? `<span style="font-size:11px;color:var(--gr);">${b.obs||'-'} <span style="color:var(--yw);">· estornada ${b.estorno_ts?new Date(b.estorno_ts).toLocaleString('pt-BR'):''}${b.estorno_por?' · por '+b.estorno_por:''}${b.estorno_obs?' · '+b.estorno_obs:''}</span></span>`
