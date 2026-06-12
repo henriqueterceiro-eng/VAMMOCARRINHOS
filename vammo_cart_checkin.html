@@ -811,6 +811,8 @@
     <div class="s-title">Login<br>Vammo</div>
     <div class="s-sub">Entre com sua conta <b>@vammo.com</b></div>
 
+    <div id="resume-box" style="display:none;padding:18px 0 6px;"></div>
+
     <div id="gsi-button-wrap" style="display:flex;justify-content:center;padding:24px 0;min-height:60px;"></div>
 
     <div id="login-status" style="text-align:center;font-size:13px;color:var(--gr);min-height:18px;margin:8px 0 16px;"></div>
@@ -1727,6 +1729,56 @@ function doLogout() {
   // reseta toda a operação atual
   resetApp();
   goTo(SCREENS.indexOf('screen-login'));
+  renderResumeBox();
+}
+
+// Janela da sessão: depois disso, exige login novo (cobre um turno).
+const SESSION_MAX_MS = 10 * 60 * 60 * 1000; // 10h
+
+// Mostra "Continuar como X / trocar" quando há sessão válida e recente;
+// senão, mostra o botão do Google. Evita o auto-login silencioso (celular
+// que troca de dono não pode entrar como o mecânico anterior).
+function renderResumeBox() {
+  const box  = document.getElementById('resume-box');
+  const wrap = document.getElementById('gsi-button-wrap');
+  if (!box) return;
+  const u = getStoredUser();
+  const tsMs = u && u.ts ? new Date(u.ts).getTime() : 0;
+  const fresh = u && u.email && isEmailAllowed(u.email) && tsMs && (Date.now() - tsMs < SESSION_MAX_MS);
+  if (fresh) {
+    box.innerHTML =
+      '<div style="text-align:center;font-size:12px;color:var(--gr);margin-bottom:4px;">Continuar conectado como</div>' +
+      '<div style="text-align:center;font-weight:800;font-size:15px;color:var(--wh);margin-bottom:16px;word-break:break-all;">' + u.email + '</div>' +
+      '<button onclick="continuarComo()" style="display:block;width:100%;max-width:300px;margin:0 auto 10px;padding:14px;border:none;border-radius:12px;background:#00B4E5;color:#001018;font-weight:800;font-size:15px;cursor:pointer;">✓ Sou eu, continuar</button>' +
+      '<button onclick="trocarUsuario()" style="display:block;width:100%;max-width:300px;margin:0 auto;padding:11px;border:1px solid var(--bd);border-radius:12px;background:transparent;color:var(--gr);font-weight:600;font-size:13px;cursor:pointer;">Não sou eu / trocar de usuário</button>';
+    box.style.display = 'block';
+    if (wrap) wrap.style.display = 'none';
+  } else {
+    if (u) setStoredUser(null); // expirou ou inválido — limpa
+    box.style.display = 'none';
+    if (wrap) wrap.style.display = 'flex';
+  }
+}
+
+function continuarComo() {
+  const u = getStoredUser();
+  if (!u || !u.email || !isEmailAllowed(u.email)) { trocarUsuario(); return; }
+  S.mecanico = u.email;
+  setStoredUser({ email: u.email, name: u.name, ts: new Date().toISOString() }); // renova a janela
+  updateUserChip();
+  goTo(SCREENS.indexOf('screen-tipo'));
+}
+
+function trocarUsuario() {
+  setStoredUser(null);
+  S.mecanico = null;
+  if (window.google && google.accounts && google.accounts.id) {
+    try { google.accounts.id.disableAutoSelect(); } catch {}
+  }
+  updateUserChip();
+  renderResumeBox(); // agora mostra o botão do Google
+  const st = document.getElementById('login-status');
+  if (st) { st.textContent = ''; }
 }
 
 // ─── SCREEN: CHECKLIST ────────────────────────────────────────────────────────
@@ -2517,16 +2569,12 @@ function decodeQRConfigFallback(file, st) {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 (function bootstrap() {
-  const u = getStoredUser();
-  if (u && u.email && isEmailAllowed(u.email)) {
-    S.mecanico = u.email;
-    updateUserChip();
-    goTo(SCREENS.indexOf('screen-tipo'));
-  } else {
-    setStoredUser(null);
-    goTo(SCREENS.indexOf('screen-login'));
-    initGoogleAuth();
-  }
+  // Nunca entra automático: sempre cai na tela de login e confirma a identidade.
+  // Se há sessão válida e recente, mostra "Continuar como X / trocar";
+  // senão, mostra o botão do Google.
+  goTo(SCREENS.indexOf('screen-login'));
+  initGoogleAuth();      // deixa o botão do Google pronto
+  renderResumeBox();     // decide entre "continuar como X" e o login do Google
   // Sempre busca lista atualizada do servidor em background — pra próximos logins/check-ins
   syncColabFromGAS();
   fetchPerfis(); // perfis de carrinho (define a lista de ferramentas por carrinho)
