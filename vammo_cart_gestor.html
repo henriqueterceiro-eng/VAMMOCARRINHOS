@@ -2064,6 +2064,14 @@ function getPrecos() {
 }
 function savePrecos(p) { localStorage.setItem('vammo_precos', JSON.stringify(p)); }
 function getPreco(ferr) { return Number(getPrecos()[ferr]) || 0; }
+// Valor das ferramentas que estão NOS CARRINHOS de uma base (1 jogo por carrinho,
+// conforme o perfil de cada carrinho). Usado no patrimônio da base.
+function valorFerramentasEmCarrinho(base) {
+  return getCartsByBase(base).reduce((s, c) => {
+    const tools = getPerfilTools(getCartPerfil(c.nome)) || [];
+    return s + tools.reduce((ss, t) => ss + getPreco(t), 0);
+  }, 0);
+}
 function fmtMoney(n) {
   const v = Number(n) || 0;
   return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -4101,19 +4109,36 @@ function renderEstoque() {
       const zerados = itens.filter(([,v]) => v === 0).length;
       const isReserva = (b === 'Estoque Mooca');
       const label = isReserva ? '📦 Reserva Mooca' : ('Base ' + b);
+      const valorCarrinhos = isReserva ? 0 : valorFerramentasEmCarrinho(b);
+      const patrimonio = valorTotal + valorCarrinhos;
+      const patrimLine = `<div class="sc-sub" style="margin-top:6px;color:var(--az);font-weight:700;">🏛️ Patrimônio: ${fmtMoney(patrimonio)}</div>`
+        + (isReserva ? '' : `<div class="sc-sub" style="font-size:10px;opacity:.85;">${fmtMoney(valorCarrinhos)} em carrinhos + ${fmtMoney(valorTotal)} estoque</div>`);
       const gastoLine = isReserva ? '' : `<div class="sc-sub" style="margin-top:6px;color:var(--yw);">💸 Gasto reposições: ${fmtMoney(gastos[b]||0)}</div>`;
       return `<div class="stat-card" ${isReserva?'style="border-color:var(--w2);"':''}>
         <div class="sc-label">${label}</div>
         <div class="sc-num ${isReserva?'sc-w2':'sc-az'}">${totalQtd}</div>
         <div class="sc-sub">${fmtMoney(valorTotal)} em estoque · ${zerados} zerada(s)</div>
+        ${patrimLine}
         ${gastoLine}
       </div>`;
     }).join('');
-    statsEl.innerHTML = baseCards + (isSupervisor() ? '' : `<div class="stat-card" style="border-color:var(--yw);">
-      <div class="sc-label">💸 Gasto Total Reposições</div>
-      <div class="sc-num sc-yw">${fmtMoney(gastos._total||0)}</div>
-      <div class="sc-sub">soma de todas as bases</div>
-    </div>`);
+    const patrimonioTotal = basesView.reduce((s,b) => {
+      const vEst = Object.entries(est[b]||{}).reduce((ss,[t,v]) => ss + Math.max(0,v)*getPreco(t), 0);
+      const vCar = (b === 'Estoque Mooca') ? 0 : valorFerramentasEmCarrinho(b);
+      return s + vEst + vCar;
+    }, 0);
+    const totalCards = isSupervisor() ? '' :
+      `<div class="stat-card" style="border-color:var(--az);">
+        <div class="sc-label">🏛️ Patrimônio Total</div>
+        <div class="sc-num sc-az">${fmtMoney(patrimonioTotal)}</div>
+        <div class="sc-sub">carrinhos + estoque · todas as bases</div>
+      </div>
+      <div class="stat-card" style="border-color:var(--yw);">
+        <div class="sc-label">💸 Gasto Total Reposições</div>
+        <div class="sc-num sc-yw">${fmtMoney(gastos._total||0)}</div>
+        <div class="sc-sub">soma de todas as bases</div>
+      </div>`;
+    statsEl.innerHTML = baseCards + totalCards;
   }
 
   const tabsEl = document.getElementById('est-base-tabs');
