@@ -1980,9 +1980,26 @@ function syncPerfisFromGAS() {
   gasGet(cfg.presenceUrl, 'action=perfisGet', (d) => {
     if (d && d.ok && d.config) {
       _perfisCfg = d.config;
+      // Lista de carrinhos é compartilhada pelo servidor (entre aparelhos e apps).
+      if (Array.isArray(d.config.cartList) && d.config.cartList.length) {
+        saveCarts(d.config.cartList); // adota a lista do servidor
+      } else if (!isSupervisor()) {
+        pushCartListToGAS(); // servidor ainda sem lista — só o gestor semeia
+      }
       try { renderCarrinhos(); } catch(e){}
       if (document.getElementById('panel-perfis')?.classList.contains('active')) { try { renderPerfis(); } catch(e){} }
     }
+  });
+}
+// Publica a lista de carrinhos local no servidor (dentro do config de perfis).
+// Busca o config atual antes de mesclar pra NUNCA sobrescrever os perfis do servidor.
+function pushCartListToGAS() {
+  const cfg = getConfig(); if (!cfg.presenceUrl) return;
+  gasGet(cfg.presenceUrl, 'action=perfisGet', (d) => {
+    const base = (d && d.config) ? d.config : (_perfisCfg || {});
+    const config = Object.assign({}, base, { cartList: getCarts() });
+    _perfisCfg = config;
+    fetch(cfg.presenceUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) }).catch(()=>{});
   });
 }
 function savePerfisToGAS(config, cb) {
@@ -1990,6 +2007,7 @@ function savePerfisToGAS(config, cb) {
   // Perfis ficam no serviço de presença (não no backend dos carrinhos).
   gasGet(cfg.presenceUrl, 'action=perfisGet', (d) => {
     if (!d || !('config' in d)) { cb && cb(false, 'backend-sem-perfis'); return; }
+    config.cartList = getCarts(); // preserva a lista de carrinhos ao salvar perfis
     _perfisCfg = config;
     fetch(cfg.presenceUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) })
       .then(() => { cb && cb(true); }).catch(() => { cb && cb(true); });
@@ -3024,6 +3042,7 @@ function addCart() {
   carts.push({ nome: val, base });
   carts.sort((a,b) => a.nome.localeCompare(b.nome));
   saveCarts(carts);
+  pushCartListToGAS();
   inp.value = '';
   _currentBaseTab = base;
   renderCarrinhos();
@@ -3034,6 +3053,7 @@ function removeCart(nome) {
   if (!confirm('Remover o carrinho ' + nome + '?')) return;
   const carts = getCarts().filter(c => c.nome !== nome);
   saveCarts(carts);
+  pushCartListToGAS();
   renderCarrinhos();
 }
 
@@ -3046,6 +3066,7 @@ function resetCartsDefault() {
   def.forEach(d => { if (!existingNames.has(d.nome)) existing.push(d); });
   existing.sort((a,b) => a.nome.localeCompare(b.nome));
   saveCarts(existing);
+  pushCartListToGAS();
   renderCarrinhos();
   showAlert('cart-alert-box', 'gn', '✅ Lista padrão restaurada.');
 }

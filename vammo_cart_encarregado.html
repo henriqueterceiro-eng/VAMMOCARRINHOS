@@ -405,6 +405,11 @@ function normalizeCartName(nome) {
 }
 function fmtDateFull(iso) { return new Date(iso).toLocaleString('pt-BR'); }
 function carrinhosDaBase() {
+  // Se o servidor já tem a lista cadastrada no gestor, usa ela (inclui carrinhos novos).
+  if (Array.isArray(_cartListServer) && _cartListServer.length) {
+    const list = _cartListServer.filter(c => c && c.base === _base);
+    if (list.length) return list.slice().sort((a,b) => String(a.nome).localeCompare(String(b.nome)));
+  }
   const arr = []; const pre = BASE_PREFIX[_base];
   for (let i = 1; i <= BASE_COUNT[_base]; i++) {
     arr.push({ nome: pre + ' ' + String(i).padStart(2,'0'), base: _base });
@@ -452,6 +457,23 @@ function refreshPresence(){
   document.head.appendChild(sc);
 }
 
+// Lista de carrinhos vinda do servidor (cadastrada no gestor) — fonte da verdade.
+let _cartListServer = null;
+function fetchCartList(){
+  const cbName='_pc_'+Date.now()+'_'+Math.floor(Math.random()*9999);
+  const sc=document.createElement('script'); let done=false;
+  const t=setTimeout(()=>{ if(!done){done=true;clean();} }, 20000);
+  window[cbName]=function(d){ if(done)return; done=true; clean();
+    if(d&&d.ok&&d.config&&Array.isArray(d.config.cartList)&&d.config.cartList.length){
+      _cartListServer=d.config.cartList; try{render();}catch(e){}
+    }
+  };
+  function clean(){ clearTimeout(t); delete window[cbName]; if(sc.parentNode)sc.parentNode.removeChild(sc); }
+  sc.onerror=function(){ if(!done){done=true;clean();} };
+  sc.src=PRESENCE_URL+'?action=perfisGet&callback='+cbName;
+  document.head.appendChild(sc);
+}
+
 function setSyncStatus(state, msg) {
   const el = document.getElementById('sync-status');
   if (!el) return;
@@ -462,6 +484,7 @@ function setSyncStatus(state, msg) {
 function carregarTudo() {
   setSyncStatus('loading', 'Atualizando...');
   refreshPresence(); // celular online + bateria (Headwind)
+  fetchCartList();   // lista de carrinhos cadastrada no gestor (inclui novos)
   let pending = 2;
   function done() { pending--; if (pending === 0) {
     setSyncStatus('ok', 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
