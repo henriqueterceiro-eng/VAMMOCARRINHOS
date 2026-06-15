@@ -2681,6 +2681,9 @@ function mecDevice(mec){
   const email = String(mec||'').toLowerCase().trim();
   if (email.indexOf('@') >= 0) {
     for (const d of _presDevices){ if (d.email && d.email === email) return d; }
+    // tolera typo de domínio (ex.: @vammo sem .com): casa pelo trecho antes do @
+    const lp = email.split('@')[0];
+    if (lp) for (const d of _presDevices){ if (d.email && d.email.split('@')[0] === lp) return d; }
   }
   const mt = _nameTokens(mec);
   if (!mt.length) return null;
