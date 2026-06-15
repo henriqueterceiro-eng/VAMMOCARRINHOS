@@ -1483,9 +1483,20 @@
       </div>
     </div>
 
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div style="background:var(--c1);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:1px;">Origem tem</div>
+        <div id="transfer-bal-from" style="font-size:16px;font-weight:800;color:var(--wh);margin-top:2px;">–</div>
+      </div>
+      <div style="background:rgba(46,194,255,.10);border:1px solid var(--az);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--az);text-transform:uppercase;letter-spacing:1px;">📦 Base alvo tem</div>
+        <div id="transfer-bal-to" style="font-size:16px;font-weight:800;color:var(--az);margin-top:2px;">–</div>
+      </div>
+    </div>
+
     <div style="margin-bottom:14px;">
       <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Quantidade a transferir *</div>
-      <input type="number" id="transfer-qtd" min="1" value="1" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;">
+      <input type="number" id="transfer-qtd" min="1" value="1" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;" oninput="atualizaTransferEstoque()">
       <div style="font-size:11px;color:var(--gr);margin-top:4px;" id="transfer-saldo-info">–</div>
     </div>
 
@@ -4516,8 +4527,19 @@ function atualizaTransferEstoque() {
   const est = getEstoque();
   const qF = (est[from] && est[from][_transferCtx.ferramenta]) || 0;
   const qT = (est[to] && est[to][_transferCtx.ferramenta]) || 0;
-  document.getElementById('transfer-saldo-info').innerHTML =
-    `${from}: <strong>${qF}</strong> · ${to}: <strong>${qT}</strong>`;
+  const balFrom = document.getElementById('transfer-bal-from');
+  const balTo = document.getElementById('transfer-bal-to');
+  if (balFrom) balFrom.innerHTML = `${from}: ${qF} un.`;
+  if (balTo) balTo.innerHTML = `${to}: ${qT} un.`;
+  const qtd = Math.max(0, parseInt(document.getElementById('transfer-qtd').value, 10) || 0);
+  const info = document.getElementById('transfer-saldo-info');
+  if (info) {
+    if (from === to) {
+      info.innerHTML = '<span style="color:var(--yw);">⚠ Origem e destino são a mesma base.</span>';
+    } else {
+      info.innerHTML = `Após transferir <strong>${qtd}</strong>: ${from} fica com <strong>${Math.max(0, qF - qtd)}</strong> · <span style="color:var(--az);">${to} fica com <strong>${qT + qtd}</strong></span>`;
+    }
+  }
 }
 
 function confirmTransfer() {
