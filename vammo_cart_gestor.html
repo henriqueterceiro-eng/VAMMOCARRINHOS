@@ -2557,18 +2557,19 @@ function _estMinBody(base){
     + `</div>`).join('');
 }
 function abrirEstoqueMinimo(){
+  const _emBases = isSupervisor() ? viewableBases() : BASES; // supervisor: só a base dele
   const ov = document.createElement('div'); ov.id='estmin-overlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:100002;display:flex;align-items:center;justify-content:center;padding:18px;';
   ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:560px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
     <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap;">
       <div style="flex:1;min-width:140px;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:1.5px;color:var(--wh);">⚙ ESTOQUE MÍNIMO</div>
-      <select id="estmin-base" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">${BASES.map(b=>`<option>${b}</option>`).join('')}</select>
+      <select id="estmin-base" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">${_emBases.map(b=>`<option>${b}</option>`).join('')}</select>
       <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('estmin-overlay').remove()">✕</button>
     </div>
-    <div id="estmin-body" style="padding:14px 18px;overflow-y:auto;">${_estMinBody(BASES[0])}</div>
+    <div id="estmin-body" style="padding:14px 18px;overflow-y:auto;">${_estMinBody(_emBases[0])}</div>
     <div style="padding:12px 18px;border-top:1px solid var(--bd);text-align:right;"><button class="btn-sm btn-az" onclick="salvarEstoqueMinModal(false)">💾 Salvar</button></div></div>`;
   document.body.appendChild(ov);
-  const sel = document.getElementById('estmin-base'); sel._base = BASES[0];
+  const sel = document.getElementById('estmin-base'); sel._base = _emBases[0];
   sel.addEventListener('change', () => { salvarEstoqueMinModal(true); sel._base = sel.value; document.getElementById('estmin-body').innerHTML = _estMinBody(sel.value); });
 }
 function salvarEstoqueMinModal(silent){
@@ -4087,12 +4088,13 @@ function renderEstoque() {
   }
   const est = getEstoque();
   const q = (document.getElementById('est-search')?.value || '').toLowerCase();
+  const basesView = viewableEstoqueBases(); // supervisor: só a base dele
 
   // Stats: totais por base + indicador de gasto financeiro
   const gastos = gastoPorBase();
   const statsEl = document.getElementById('est-stats');
   if (statsEl) {
-    const baseCards = ESTOQUE_BASES.map(b => {
+    const baseCards = basesView.map(b => {
       const itens = Object.entries(est[b] || {});
       const totalQtd = itens.reduce((s,[,v]) => s + Math.max(0,v), 0);
       const valorTotal = itens.reduce((s,[t,v]) => s + Math.max(0,v) * getPreco(t), 0);
@@ -4107,23 +4109,23 @@ function renderEstoque() {
         ${gastoLine}
       </div>`;
     }).join('');
-    statsEl.innerHTML = baseCards + `<div class="stat-card" style="border-color:var(--yw);">
+    statsEl.innerHTML = baseCards + (isSupervisor() ? '' : `<div class="stat-card" style="border-color:var(--yw);">
       <div class="sc-label">💸 Gasto Total Reposições</div>
       <div class="sc-num sc-yw">${fmtMoney(gastos._total||0)}</div>
       <div class="sc-sub">soma de todas as bases</div>
-    </div>`;
+    </div>`);
   }
 
   const tabsEl = document.getElementById('est-base-tabs');
   const sectEl = document.getElementById('est-base-sections');
   if (!tabsEl || !sectEl) return;
 
-  tabsEl.innerHTML = ESTOQUE_BASES.map(b => {
+  tabsEl.innerHTML = basesView.map(b => {
     const label = (b === 'Estoque Mooca') ? '📦 Estoque Mooca' : b;
     return `<button class="base-tab ${b===_currentEstBaseTab?'active':''}" onclick="setEstBaseTab('${b}')">${label}</button>`;
   }).join('');
 
-  sectEl.innerHTML = ESTOQUE_BASES.map(b => {
+  sectEl.innerHTML = basesView.map(b => {
     const baseEst = est[b] || {};
     const catsHtml = TOOLS_CATALOG.map(cat => {
       const items = cat.items.filter(t => !q || t.toLowerCase().includes(q));
@@ -4350,7 +4352,11 @@ function confirmarPedido() {
 
 // ─── INVENTÁRIO ──────────────────────────────────────────────────────────
 function abrirInventarioModal() {
-  document.getElementById('invent-base').value = _currentEstBaseTab || 'Mooca';
+  if (isSupervisor()) {
+    const sel = document.getElementById('invent-base');
+    if (sel) sel.innerHTML = viewableEstoqueBases().map(b => `<option value="${b}">${b === 'Estoque Mooca' ? '📦 Estoque Mooca (reserva)' : b}</option>`).join('');
+  }
+  document.getElementById('invent-base').value = _currentEstBaseTab || (isSupervisor() ? _SUPERVISOR_BASE : 'Mooca');
   document.getElementById('invent-por').value = '';
   document.getElementById('invent-alert').innerHTML = '';
   renderInventarioItems();
