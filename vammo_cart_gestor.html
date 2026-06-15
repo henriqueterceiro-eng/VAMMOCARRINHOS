@@ -4118,6 +4118,8 @@ function renderEstoque() {
   const est = getEstoque();
   const q = (document.getElementById('est-search')?.value || '').toLowerCase();
   const basesView = viewableEstoqueBases(); // supervisor: só a base dele
+  // garante que a aba ativa é uma base visível (senão a seção fica escondida e o estoque "some")
+  if (!basesView.includes(_currentEstBaseTab)) _currentEstBaseTab = basesView[0];
 
   // Stats: totais por base + indicador de gasto financeiro
   const gastos = gastoPorBase();
