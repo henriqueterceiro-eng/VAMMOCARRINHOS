@@ -1856,12 +1856,15 @@ function normalizeCartName(nome) {
   if (!m) return String(nome || '').trim().toUpperCase();
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
+let _cartsCache = null;
 function getCarts() {
+  if (_cartsCache) return _cartsCache;
   let raw;
   try { raw = JSON.parse(localStorage.getItem('vammo_carts')); } catch { raw = null; }
   if (!raw || !Array.isArray(raw) || raw.length === 0) {
     const def = defaultCarts();
     localStorage.setItem('vammo_carts', JSON.stringify(def));
+    _cartsCache = def;
     return def;
   }
   // migra formato antigo (array de strings) → array de objetos + injeta defaults novos
@@ -1871,6 +1874,7 @@ function getCarts() {
     defaultCarts().forEach(d => { if (!nomes.has(d.nome)) migrados.push(d); });
     migrados.sort((a,b) => a.nome.localeCompare(b.nome));
     localStorage.setItem('vammo_carts', JSON.stringify(migrados));
+    _cartsCache = migrados;
     return migrados;
   }
   // v4: padroniza nomes para "MC 01" (prefixo + espaço + 2 dígitos)
@@ -1906,9 +1910,10 @@ function getCarts() {
     }
     localStorage.setItem('vammo_carts_seeded_v4', '1');
   }
+  _cartsCache = raw;
   return raw;
 }
-function saveCarts(a) { localStorage.setItem('vammo_carts', JSON.stringify(a)); }
+function saveCarts(a) { _cartsCache = a; localStorage.setItem('vammo_carts', JSON.stringify(a)); }
 function getCartsByBase(base) { return getCarts().filter(c => c.base === base); }
 function getCartBase(nome) {
   const norm = normalizeCartName(nome);
@@ -2070,10 +2075,15 @@ function salvarPerfis(){
 }
 
 // Preço unitário por ferramenta (global, igual em todas bases)
+// Cacheado em memória: getPreco é chamado milhares de vezes por render (estoque
+// + patrimônio); sem cache, fazia JSON.parse a cada chamada e travava.
+let _precosCache = null;
 function getPrecos() {
-  try { return JSON.parse(localStorage.getItem('vammo_precos')) || {}; } catch { return {}; }
+  if (_precosCache) return _precosCache;
+  try { _precosCache = JSON.parse(localStorage.getItem('vammo_precos')) || {}; } catch { _precosCache = {}; }
+  return _precosCache;
 }
-function savePrecos(p) { localStorage.setItem('vammo_precos', JSON.stringify(p)); }
+function savePrecos(p) { _precosCache = p; localStorage.setItem('vammo_precos', JSON.stringify(p)); }
 function getPreco(ferr) { return Number(getPrecos()[ferr]) || 0; }
 // Valor das ferramentas que estão NOS CARRINHOS de uma base (1 jogo por carrinho,
 // conforme o perfil de cada carrinho). Usado no patrimônio da base.
@@ -5317,8 +5327,9 @@ function log(msg) {
 
 // JSONP via <script src> — único método que funciona com GAS (sem CORS)
 // Funciona em localhost:8080 e no Android. NÃO funciona em file://
+let _gasSeq = 0;
 function gasGet(url, params, callback) {
-  const cbName = '_gas_' + Date.now();
+  const cbName = '_gas_' + Date.now() + '_' + (++_gasSeq);
   const script = document.createElement('script');
   let done = false;
 
