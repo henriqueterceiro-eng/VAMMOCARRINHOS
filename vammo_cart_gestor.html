@@ -2430,24 +2430,60 @@ function exportRelatorioNCCSV() {
   a.download = 'relatorio_nc_' + new Date().toISOString().slice(0,10) + '.csv';
   document.body.appendChild(a); a.click(); a.remove();
 }
-// LISTA PADRÃO DE FERRAMENTAS — PDF simples pra imprimir e conferir
+// LISTA PADRÃO DE FERRAMENTAS — escolhe o perfil, depois gera o PDF
 function imprimirListaFerramentas() {
-  const totalTools = flatTools().length;
+  const old = document.getElementById('pdf-perfil-ov'); if (old) old.remove();
+  const cores = (typeof PERFIL_CORES !== 'undefined') ? PERFIL_CORES : {};
+  const btns = PERFIL_NOMES.map(p => {
+    const n = getPerfilTools(p).length;
+    const c = cores[p] || '#00B4E5';
+    return '<button onclick="_gerarPdfFerramentas(\'' + p + '\')" ' +
+      'style="display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:16px 18px;margin-bottom:10px;border:1px solid #2e2e2e;border-left:6px solid ' + c + ';border-radius:12px;background:#1a1a1a;color:#fff;cursor:pointer;font-family:\'Barlow Condensed\',sans-serif;font-size:18px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">' +
+      p + '<span style="font-size:12px;font-weight:600;color:#888;letter-spacing:0;text-transform:none;">' + n + ' ferramentas</span></button>';
+  }).join('');
+  const ov = document.createElement('div');
+  ov.id = 'pdf-perfil-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML = '<div style="background:#111;border:1px solid #2e2e2e;border-radius:18px;padding:24px;max-width:380px;width:100%;">' +
+    '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:22px;font-weight:900;letter-spacing:1px;color:var(--az);margin-bottom:4px;">🛠 Lista Padrão de Ferramentas</div>' +
+    '<div style="font-size:13px;color:#888;margin-bottom:18px;">Escolha o perfil do carrinho que quer conferir</div>' +
+    btns +
+    '<button onclick="document.getElementById(\'pdf-perfil-ov\').remove()" style="width:100%;padding:11px;margin-top:4px;border:none;border-radius:12px;background:transparent;color:#888;cursor:pointer;font-size:13px;">Cancelar</button>' +
+    '</div>';
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+function _gerarPdfFerramentas(perfil) {
+  const ovEl = document.getElementById('pdf-perfil-ov'); if (ovEl) ovEl.remove();
+  const tools = getPerfilTools(perfil) || [];
+  if (!tools.length) {
+    alert('O perfil "' + perfil + '" ainda não tem ferramentas definidas.\n\nDefina as ferramentas dele na aba "Perfis de Carrinho" e tente de novo.');
+    return;
+  }
+  const toolSet = new Set(tools);
   const hoje = new Date().toLocaleDateString('pt-BR');
   const logoEl = document.querySelector('img[src^="data:image"]');
   const logo = logoEl ? logoEl.src : '';
+  const cor = (typeof PERFIL_CORES !== 'undefined' && PERFIL_CORES[perfil]) || '#00B4E5';
+  // só as categorias/itens que pertencem ao perfil, mantendo a ordem do catálogo
+  let total = 0;
   const cats = TOOLS_CATALOG.map(cat => {
-    const itens = cat.items.map(t => '<li><span class="bx"></span>' + t + '</li>').join('');
-    return '<section class="cat"><h2>' + cat.cat + ' <em>' + cat.items.length + '</em></h2><ul>' + itens + '</ul></section>';
+    const itens = cat.items.filter(t => toolSet.has(t));
+    if (!itens.length) return '';
+    total += itens.length;
+    const li = itens.map(t => '<li><span class="bx"></span>' + t + '</li>').join('');
+    return '<section class="cat"><h2>' + cat.cat + ' <em>' + itens.length + '</em></h2><ul>' + li + '</ul></section>';
   }).join('');
   const css =
     '@page { size: A4; margin: 12mm; }' +
     '*{box-sizing:border-box;}' +
     'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;}' +
-    '.hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid #00B4E5;padding-bottom:10px;margin-bottom:6px;}' +
+    '.hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid ' + cor + ';padding-bottom:10px;margin-bottom:6px;}' +
     '.hd img{height:40px;}' +
     '.hd h1{font-size:20px;margin:0;letter-spacing:1px;text-transform:uppercase;}' +
     '.hd .sub{font-size:12px;color:#555;}' +
+    '.hd .tag{margin-left:auto;font-size:13px;font-weight:700;color:#fff;background:' + cor + ';padding:5px 14px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;}' +
     '.meta{font-size:11px;color:#666;margin-bottom:14px;display:flex;justify-content:space-between;}' +
     '.grid{column-count:2;column-gap:18px;}' +
     '.cat{break-inside:avoid;margin-bottom:12px;}' +
@@ -2460,12 +2496,13 @@ function imprimirListaFerramentas() {
     '.sig div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center;font-size:11px;color:#333;}';
   const html =
     '<div class="hd">' + (logo ? '<img src="' + logo + '">' : '') +
-      '<div><h1>Lista Padrão de Ferramentas</h1><div class="sub">Carrinhos de ferramentas · conferência</div></div></div>' +
-    '<div class="meta"><span>Gerado em ' + hoje + '</span><span><b>' + totalTools + '</b> ferramentas · ' + TOOLS_CATALOG.length + ' categorias</span></div>' +
+      '<div><h1>Lista Padrão de Ferramentas</h1><div class="sub">Carrinhos de ferramentas · conferência</div></div>' +
+      '<span class="tag">' + perfil + '</span></div>' +
+    '<div class="meta"><span>Gerado em ' + hoje + '</span><span>Perfil <b>' + perfil + '</b> · <b>' + total + '</b> ferramentas</span></div>' +
     '<div class="grid">' + cats + '</div>' +
     '<div class="sig"><div>Conferido por</div><div>Carrinho / Base</div><div>Data</div></div>';
   const w = window.open('', '_blank');
-  w.document.write('<html><head><title>Lista Padrão de Ferramentas — VAMMO</title><style>' + css + '</style></head><body>' + html + '</body></html>');
+  w.document.write('<html><head><title>Ferramentas ' + perfil + ' — VAMMO</title><style>' + css + '</style></head><body>' + html + '</body></html>');
   w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch(e){} }, 350);
 }
 
