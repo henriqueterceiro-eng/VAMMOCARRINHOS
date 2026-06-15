@@ -1154,6 +1154,7 @@
             <button class="btn-sm btn-outline" onclick="abrirInventarioModal()" title="Conferência física × sistema (mensal)">📋 Inventário</button>
             <button class="btn-sm btn-outline" onclick="zerarContadorGasto()" title="Zerar contador de gasto (game start)">🎮 Zerar gasto</button>
             <button class="btn-sm btn-outline" onclick="exportEstoqueCSV()" title="Exportar estoque em CSV">⬇ CSV</button>
+            <button class="btn-sm btn-az" onclick="imprimirListaFerramentas()" title="Imprimir a lista padrão de ferramentas dos carrinhos para conferência">🛠 Lista Padrão (PDF)</button>
           </div>
           <div style="padding:16px;">
             <div class="base-tabs" id="est-base-tabs"></div>
@@ -2429,6 +2430,45 @@ function exportRelatorioNCCSV() {
   a.download = 'relatorio_nc_' + new Date().toISOString().slice(0,10) + '.csv';
   document.body.appendChild(a); a.click(); a.remove();
 }
+// LISTA PADRÃO DE FERRAMENTAS — PDF simples pra imprimir e conferir
+function imprimirListaFerramentas() {
+  const totalTools = flatTools().length;
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const logoEl = document.querySelector('img[src^="data:image"]');
+  const logo = logoEl ? logoEl.src : '';
+  const cats = TOOLS_CATALOG.map(cat => {
+    const itens = cat.items.map(t => '<li><span class="bx"></span>' + t + '</li>').join('');
+    return '<section class="cat"><h2>' + cat.cat + ' <em>' + cat.items.length + '</em></h2><ul>' + itens + '</ul></section>';
+  }).join('');
+  const css =
+    '@page { size: A4; margin: 12mm; }' +
+    '*{box-sizing:border-box;}' +
+    'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;}' +
+    '.hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid #00B4E5;padding-bottom:10px;margin-bottom:6px;}' +
+    '.hd img{height:40px;}' +
+    '.hd h1{font-size:20px;margin:0;letter-spacing:1px;text-transform:uppercase;}' +
+    '.hd .sub{font-size:12px;color:#555;}' +
+    '.meta{font-size:11px;color:#666;margin-bottom:14px;display:flex;justify-content:space-between;}' +
+    '.grid{column-count:2;column-gap:18px;}' +
+    '.cat{break-inside:avoid;margin-bottom:12px;}' +
+    '.cat h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.5px;color:#0077a3;margin:0 0 5px;border-bottom:1px solid #ddd;padding-bottom:3px;}' +
+    '.cat h2 em{float:right;font-style:normal;color:#999;font-weight:400;}' +
+    '.cat ul{list-style:none;margin:0;padding:0;}' +
+    '.cat li{font-size:12px;padding:3px 0;display:flex;align-items:center;gap:8px;}' +
+    '.bx{width:13px;height:13px;border:1.5px solid #333;border-radius:3px;display:inline-block;flex-shrink:0;}' +
+    '.sig{margin-top:34px;display:flex;gap:40px;}' +
+    '.sig div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center;font-size:11px;color:#333;}';
+  const html =
+    '<div class="hd">' + (logo ? '<img src="' + logo + '">' : '') +
+      '<div><h1>Lista Padrão de Ferramentas</h1><div class="sub">Carrinhos de ferramentas · conferência</div></div></div>' +
+    '<div class="meta"><span>Gerado em ' + hoje + '</span><span><b>' + totalTools + '</b> ferramentas · ' + TOOLS_CATALOG.length + ' categorias</span></div>' +
+    '<div class="grid">' + cats + '</div>' +
+    '<div class="sig"><div>Conferido por</div><div>Carrinho / Base</div><div>Data</div></div>';
+  const w = window.open('', '_blank');
+  w.document.write('<html><head><title>Lista Padrão de Ferramentas — VAMMO</title><style>' + css + '</style></head><body>' + html + '</body></html>');
+  w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch(e){} }, 350);
+}
+
 function imprimirRelatorioNC() {
   const map = window._relncMap || _aggNCporBase();
   let html = '<h1>Relatório de NC por Base</h1><p>Gerado em ' + new Date().toLocaleString('pt-BR') + '</p>';
