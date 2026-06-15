@@ -1981,10 +1981,12 @@ function syncPerfisFromGAS() {
     if (d && d.ok && d.config) {
       _perfisCfg = d.config;
       // Lista de carrinhos é compartilhada pelo servidor (entre aparelhos e apps).
-      if (Array.isArray(d.config.cartList) && d.config.cartList.length) {
-        saveCarts(d.config.cartList); // adota a lista do servidor
-      } else if (!isSupervisor()) {
-        pushCartListToGAS(); // servidor ainda sem lista — só o gestor semeia
+      if (isSupervisor()) {
+        // supervisor adota a lista do servidor (fonte = gestor)
+        if (Array.isArray(d.config.cartList) && d.config.cartList.length) saveCarts(d.config.cartList);
+      } else {
+        // gestor é a fonte da verdade: publica a lista local em todo sync
+        pushCartListToGAS();
       }
       try { renderCarrinhos(); } catch(e){}
       if (document.getElementById('panel-perfis')?.classList.contains('active')) { try { renderPerfis(); } catch(e){} }
