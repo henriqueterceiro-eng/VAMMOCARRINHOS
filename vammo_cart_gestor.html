@@ -2105,10 +2105,19 @@ function getPrecos() {
 }
 function savePrecos(p) { _precosCache = p; localStorage.setItem('vammo_precos', JSON.stringify(p)); }
 function getPreco(ferr) { return Number(getPrecos()[ferr]) || 0; }
+// Conjunto de carrinhos que JÁ tiveram registro (check-in/out).
+function cartsComRegistro() {
+  const set = new Set();
+  (getRecords() || []).forEach(r => { if (r && r.carrinho) set.add(normalizeCartName(r.carrinho)); });
+  return set;
+}
 // Valor das ferramentas que estão NOS CARRINHOS de uma base (1 jogo por carrinho,
-// conforme o perfil de cada carrinho). Usado no patrimônio da base.
-function valorFerramentasEmCarrinho(base) {
+// conforme o perfil). Só conta carrinhos que já tiveram registro — carrinho
+// cadastrado pro futuro (sem uso) não entra no patrimônio.
+function valorFerramentasEmCarrinho(base, comReg) {
+  const reg = comReg || cartsComRegistro();
   return getCartsByBase(base).reduce((s, c) => {
+    if (!reg.has(normalizeCartName(c.nome))) return s;
     const tools = getPerfilTools(getCartPerfil(c.nome)) || [];
     return s + tools.reduce((ss, t) => ss + getPreco(t), 0);
   }, 0);
@@ -4146,6 +4155,7 @@ function renderEstoque() {
   const basesView = viewableEstoqueBases(); // supervisor: só a base dele
   // garante que a aba ativa é uma base visível (senão a seção fica escondida e o estoque "some")
   if (!basesView.includes(_currentEstBaseTab)) _currentEstBaseTab = basesView[0];
+  const _comReg = cartsComRegistro(); // patrimônio: só carrinhos que já tiveram registro
 
   // Stats: totais por base + indicador de gasto financeiro
   const gastos = gastoPorBase();
@@ -4158,7 +4168,7 @@ function renderEstoque() {
       const zerados = itens.filter(([,v]) => v === 0).length;
       const isReserva = (b === 'Estoque Mooca');
       const label = isReserva ? '📦 Reserva Mooca' : ('Base ' + b);
-      const valorCarrinhos = isReserva ? 0 : valorFerramentasEmCarrinho(b);
+      const valorCarrinhos = isReserva ? 0 : valorFerramentasEmCarrinho(b, _comReg);
       const patrimonio = valorTotal + valorCarrinhos;
       const patrimLine = `<div class="sc-sub" style="margin-top:6px;color:var(--az);font-weight:700;">🏛️ Patrimônio: ${fmtMoney(patrimonio)}</div>`
         + (isReserva ? '' : `<div class="sc-sub" style="font-size:10px;opacity:.85;">${fmtMoney(valorCarrinhos)} em carrinhos + ${fmtMoney(valorTotal)} estoque</div>`);
@@ -4173,7 +4183,7 @@ function renderEstoque() {
     }).join('');
     const patrimonioTotal = basesView.reduce((s,b) => {
       const vEst = Object.entries(est[b]||{}).reduce((ss,[t,v]) => ss + Math.max(0,v)*getPreco(t), 0);
-      const vCar = (b === 'Estoque Mooca') ? 0 : valorFerramentasEmCarrinho(b);
+      const vCar = (b === 'Estoque Mooca') ? 0 : valorFerramentasEmCarrinho(b, _comReg);
       return s + vEst + vCar;
     }, 0);
     const totalCards = isSupervisor() ? '' :
