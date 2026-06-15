@@ -4271,12 +4271,14 @@ let _estoqueSynced = false;
 let _estoqueSyncing = false;
 
 let _estoqueLastErr = null;
+let _estoqueSig = null, _precosSig = null; // só re-renderiza quando os dados mudam
 function syncEstoqueFromGAS(attempt) {
   attempt = attempt || 1;
   const cfg = getConfig();
   if (!cfg.webhookUrl) { _estoqueSynced = true; _estoqueLastErr = 'Sem URL de servidor configurada'; return; }
   _estoqueSyncing = true;
-  if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+  // só mostra estado "sincronizando" no 1º carregamento (evita repaint a cada 30s)
+  if (!_estoqueSynced && document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
   gasGet(cfg.webhookUrl, 'action=estoqueGet', (data, err) => {
     _estoqueSyncing = false;
     if (err || !data?.estoque) {
@@ -4302,8 +4304,12 @@ function syncEstoqueFromGAS(attempt) {
     });
     saveEstoque(est);
     _estoqueSynced = true;
-    if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
-    if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
+    const _sig = JSON.stringify(est);
+    if (_sig !== _estoqueSig) {
+      _estoqueSig = _sig;
+      if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+      if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
+    }
   });
   syncPrecosFromGAS();
 }
@@ -4601,10 +4607,17 @@ function syncPrecosFromGAS(cb) {
   const cfg = getConfig();
   if (!cfg.webhookUrl) { if (cb) cb(); return; }
   gasGet(cfg.webhookUrl, 'action=precosGet', (data, err) => {
-    if (!err && data?.precos) savePrecos(data.precos);
-    if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
-    if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
-    if (document.getElementById('modal-pedido') && !document.getElementById('modal-pedido').classList.contains('hidden')) renderPedidoItems();
+    let _changed = false;
+    if (!err && data?.precos) {
+      savePrecos(data.precos);
+      const s = JSON.stringify(data.precos);
+      if (s !== _precosSig) { _precosSig = s; _changed = true; }
+    }
+    if (_changed) {
+      if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+      if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
+      if (document.getElementById('modal-pedido') && !document.getElementById('modal-pedido').classList.contains('hidden')) renderPedidoItems();
+    }
     if (cb) cb();
   });
 }
