@@ -5811,18 +5811,21 @@ function openDetail(id) {
   })() : '';
 
   const cartEscDetail = (rec.carrinho || '').replace(/'/g,'');
-  const ncHtml = ncs.length ? `
+  const recIdEsc = (rec.id || '').replace(/'/g,'');
+  const cartEsc = (rec.carrinho || '').replace(/'/g,'');
+  const recNCkeys = new Set(ncs.map(([k]) => k));
+  // NCs abertas no servidor que NÃO estão neste registro (vieram de check-ins anteriores)
+  const orfas = ncsAbertas.filter(nc => !recNCkeys.has(nc.ferramenta));
+  const ncHtml = (ncs.length || orfas.length) ? `
     <div class="detail-section">
       <h4 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span>Não Conformidades (${ncs.length})</span>
-        ${ncsAbertas.length ? `<span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;">${ncsAbertas.length} ainda abertas</span>` : ''}
+        <span>Não Conformidades${ncs.length ? ` (${ncs.length})` : ''}</span>
+        ${ncsAbertas.length ? `<span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;">${ncsAbertas.length} aberta(s)</span>` : ''}
         ${ncsAbertas.length >= 2 ? `<button class="btn-sm btn-az" style="margin-left:auto;padding:6px 12px;font-size:11px;font-weight:800;" onclick="abrirResolverTodosModal('${cartEscDetail}')">↻ Resolver Todas (${ncsAbertas.length})</button>` : ''}
       </h4>
       ${ncs.map(([k,v]) => {
         const aindaAberta = abertasSet.has(k);
         const ferrEsc = JSON.stringify(k).replace(/"/g,'&quot;');
-        const recIdEsc = (rec.id || '').replace(/'/g,'');
-        const cartEsc = (rec.carrinho || '').replace(/'/g,'');
         const motivoEsc = (v.motivo || 'nc').replace(/'/g,'');
         return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;flex-wrap:wrap;">
           <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
@@ -5831,6 +5834,15 @@ function openDetail(id) {
             ? `<button class="btn-repor" style="padding:6px 14px;font-size:11.5px;font-weight:800;" onclick="reporFerramenta('${recIdEsc}', ${ferrEsc}, '${cartEsc}', '${motivoEsc}')">↻ Resolver</button>`
             : `<span style="color:var(--gn);font-size:11px;font-weight:700;">✅ Resolvida</span>`
           }
+        </div>`;
+      }).join('')}
+      ${orfas.map(nc => {
+        const ferrEsc = JSON.stringify(nc.ferramenta).replace(/"/g,'&quot;');
+        const motivoEsc = (nc.motivo || 'nc').replace(/'/g,'');
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;flex-wrap:wrap;">
+          <span class="badge ${nc.motivo === 'faltando' ? 'byw' : 'brd'}">${nc.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
+          <span style="flex:1;min-width:120px;">${nc.ferramenta} <span style="color:var(--gr);font-size:10px;">· check-in anterior</span></span>
+          <button class="btn-repor" style="padding:6px 14px;font-size:11.5px;font-weight:800;" onclick="reporFerramenta('${recIdEsc}', ${ferrEsc}, '${cartEsc}', '${motivoEsc}')">↻ Resolver</button>
         </div>`;
       }).join('')}
     </div>
