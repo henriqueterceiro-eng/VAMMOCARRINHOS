@@ -879,7 +879,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v3';
+      const CACHE = 'vammo-gestor-v4';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -892,7 +892,7 @@
         if (e.request.method !== 'GET') return;
         // Network-first: sempre tenta rede; cache é só fallback offline
         e.respondWith(
-          fetch(e.request).then(resp => {
+          fetch(e.request, { cache: 'no-store' }).then(resp => {
             const copy = resp.clone();
             caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
             return resp;
