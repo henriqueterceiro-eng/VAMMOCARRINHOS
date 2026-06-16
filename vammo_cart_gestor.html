@@ -2728,18 +2728,34 @@ function refreshPresence(){
   });
 }
 
-// ─── STATUS DE OS (em moto / ocioso) via Metabase, servido pelo presence ───
-let _osByEmail = {};
+// ─── STATUS DE OS: em moto (IN_PROGRESS via Metabase) · ocioso = timer no app ───
+let _osByEmail = {};   // só in_progress: { email: {placa, since} }
+let _wasInProg = {};   // quem estava em moto (p/ detectar a saída)
+let _idleStart = {};   // email -> ms em que a ociosidade começou (persistido)
+try { _idleStart = JSON.parse(localStorage.getItem('vammo_idle_start') || '{}'); } catch(e){ _idleStart = {}; }
+function _saveIdleStart(){ try { localStorage.setItem('vammo_idle_start', JSON.stringify(_idleStart)); } catch(e){} }
+
 function refreshOsStatus(){
   const cfg = getConfig();
   if (!cfg.presenceUrl) return;
   gasGet(cfg.presenceUrl, 'action=osStatus', (d) => {
-    if (d && d.ok && d.os) { _osByEmail = d.os; try { renderCarrinhos(); } catch(e){} }
+    if (!d || !d.ok || !d.os) return;
+    const inprog = {};
+    Object.keys(d.os).forEach(e => { if (d.os[e] && d.os[e].status === 'in_progress') inprog[e] = d.os[e]; });
+    let changed = false;
+    // está em moto agora: zera o timer de ocioso
+    Object.keys(inprog).forEach(e => { _wasInProg[e] = true; if (_idleStart[e]) { delete _idleStart[e]; changed = true; } });
+    // acabou de sair do in_progress: começa a contar a ociosidade
+    Object.keys(_wasInProg).forEach(e => {
+      if (_wasInProg[e] && !inprog[e]) { _wasInProg[e] = false; if (!_idleStart[e]) { _idleStart[e] = Date.now(); changed = true; } }
+    });
+    if (changed) _saveIdleStart();
+    _osByEmail = inprog;
+    try { renderCarrinhos(); } catch(e){}
   });
 }
-function fmtElapsed(iso){
-  const t = Date.parse(iso); if (!t) return '';
-  let s = Math.max(0, Math.floor((Date.now()-t)/1000));
+function fmtElapsedMs(ms){
+  let s = Math.max(0, Math.floor((Date.now()-ms)/1000));
   const d = Math.floor(s/86400); s -= d*86400;
   const h = Math.floor(s/3600); s -= h*3600;
   const m = Math.floor(s/60);
@@ -2747,12 +2763,18 @@ function fmtElapsed(iso){
   if (h > 0) return h+'h '+m+'min';
   return m+'min';
 }
-function osBadgeHtml(mec){
-  const o = _osByEmail[String(mec||'').toLowerCase().trim()];
-  if (!o) return '';
-  if (o.status === 'in_progress')
-    return '<div class="ccv-os on" title="Mecânico executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+(o.since?'<span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span>':'')+'</div>';
-  return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso'+(o.since?'<span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span>':'')+'</div>';
+// mec = e-mail do mecânico logado; cartTs = ISO do check-in (fallback p/ início do ocioso)
+function osBadgeHtml(mec, cartTs){
+  const email = String(mec||'').toLowerCase().trim();
+  if (!email) return '';
+  const o = _osByEmail[email];
+  if (o) { // em moto
+    const ms = Date.parse(o.since) || Date.now();
+    return '<div class="ccv-os on" title="Executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+'<span class="ccv-os-t">há '+fmtElapsedMs(ms)+'</span></div>';
+  }
+  // ocioso: desde que saiu do in_progress (se observado) ou desde que pegou o carrinho
+  const sinceMs = _idleStart[email] || Date.parse(cartTs) || Date.now();
+  return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso<span class="ccv-os-t">há '+fmtElapsedMs(sinceMs)+'</span></div>';
 }
 
 function computeCartState(nome, recs) {
@@ -2925,7 +2947,7 @@ function renderCarrinhos() {
           <div class="ccv-status">${label}</div>
           ${perfilTag}
           ${phoneBadge}
-          ${st.status === 'logado' ? osBadgeHtml(mec) : ''}
+          ${st.status === 'logado' ? osBadgeHtml(mec, st.last ? st.last.ts : '') : ''}
         </div>
         <div>
           ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}

@@ -478,11 +478,14 @@ function fetchCartList(){
   document.head.appendChild(sc);
 }
 
-// Status de OS (em moto / ocioso) por mecânico — vem do presence (Metabase).
-let _osByEmail = {};
-function fmtElapsed(iso){
-  const t = Date.parse(iso); if (!t) return '';
-  let s = Math.max(0, Math.floor((Date.now()-t)/1000));
+// Em moto (IN_PROGRESS via Metabase) · ociosidade = timer no app.
+let _osByEmail = {};   // só in_progress: { email: {placa, since} }
+let _wasInProg = {};
+let _idleStart = {};
+try { _idleStart = JSON.parse(localStorage.getItem('vammo_idle_start') || '{}'); } catch(e){ _idleStart = {}; }
+function _saveIdleStart(){ try { localStorage.setItem('vammo_idle_start', JSON.stringify(_idleStart)); } catch(e){} }
+function fmtElapsedMs(ms){
+  let s = Math.max(0, Math.floor((Date.now()-ms)/1000));
   const d = Math.floor(s/86400); s -= d*86400;
   const h = Math.floor(s/3600); s -= h*3600;
   const m = Math.floor(s/60);
@@ -490,19 +493,30 @@ function fmtElapsed(iso){
   if (h > 0) return h+'h '+m+'min';
   return m+'min';
 }
-function osBadgeHtml(mec){
-  const o = _osByEmail[String(mec||'').toLowerCase().trim()];
-  if (!o) return '';
-  if (o.status === 'in_progress')
-    return '<div class="ccv-os on" title="Executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+(o.since?'<span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span>':'')+'</div>';
-  return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso'+(o.since?'<span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span>':'')+'</div>';
+function osBadgeHtml(mec, cartTs){
+  const email = String(mec||'').toLowerCase().trim();
+  if (!email) return '';
+  const o = _osByEmail[email];
+  if (o) {
+    const ms = Date.parse(o.since) || Date.now();
+    return '<div class="ccv-os on" title="Executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+'<span class="ccv-os-t">há '+fmtElapsedMs(ms)+'</span></div>';
+  }
+  const sinceMs = _idleStart[email] || Date.parse(cartTs) || Date.now();
+  return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso<span class="ccv-os-t">há '+fmtElapsedMs(sinceMs)+'</span></div>';
 }
 function refreshOsStatus(){
   const cbName='_os_'+Date.now()+'_'+Math.floor(Math.random()*9999);
   const sc=document.createElement('script'); let done=false;
   const t=setTimeout(()=>{ if(!done){done=true;clean();} }, 20000);
   window[cbName]=function(d){ if(done)return; done=true; clean();
-    if(d&&d.ok&&d.os){ _osByEmail=d.os; try{render();}catch(e){} }
+    if(!d||!d.ok||!d.os) return;
+    const inprog={};
+    Object.keys(d.os).forEach(e=>{ if(d.os[e] && d.os[e].status==='in_progress') inprog[e]=d.os[e]; });
+    let changed=false;
+    Object.keys(inprog).forEach(e=>{ _wasInProg[e]=true; if(_idleStart[e]){ delete _idleStart[e]; changed=true; } });
+    Object.keys(_wasInProg).forEach(e=>{ if(_wasInProg[e] && !inprog[e]){ _wasInProg[e]=false; if(!_idleStart[e]){ _idleStart[e]=Date.now(); changed=true; } } });
+    if(changed) _saveIdleStart();
+    _osByEmail=inprog; try{render();}catch(e){}
   };
   function clean(){ clearTimeout(t); delete window[cbName]; if(sc.parentNode)sc.parentNode.removeChild(sc); }
   sc.onerror=function(){ if(!done){done=true;clean();} };
@@ -619,7 +633,7 @@ function render() {
         <div class="ccv-id">${c.nome}</div>
         <div class="ccv-status">${label}</div>
         ${phoneBadge}
-        ${st.status === 'logado' ? osBadgeHtml(mec) : ''}
+        ${st.status === 'logado' ? osBadgeHtml(mec, st.last ? st.last.ts : '') : ''}
       </div>
       <div>
         ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
