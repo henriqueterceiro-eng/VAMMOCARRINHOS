@@ -3804,10 +3804,29 @@ function syncNCsComServidor(silent) {
       if (!silent) showAlert('nc-alert-box','rd','❌ ' + (err || 'sem resposta'));
       return;
     }
-    _serverOpenNCs = data.ncs; // cache
-    const abertas = new Set(data.ncs.map(nc => normalizeCartName(nc.carrinho) + '|' + nc.ferramenta));
     const recs = getRecords();
     const rep = getNCRepostas();
+    // (carrinho|ferramenta) -> ts (ms) da resolução local mais recente
+    const repByCF = {};
+    recs.forEach(r => {
+      Object.keys(r.ferramentas || {}).forEach(f => {
+        const k = ncKey(r.id, f);
+        if (rep[k] && rep[k].ts) {
+          const ck = normalizeCartName(r.carrinho) + '|' + f;
+          const tms = Date.parse(rep[k].ts) || 0;
+          if (tms > (repByCF[ck] || 0)) repByCF[ck] = tms;
+        }
+      });
+    });
+    // Fonte: servidor MENOS o que já foi resolvido localmente (evita a NC reaparecer
+    // e ser baixada 2x enquanto o servidor não propaga a resolução). Só esconde se a
+    // resolução foi DEPOIS da criação da NC — NC nova do mesmo item continua aparecendo.
+    _serverOpenNCs = (data.ncs || []).filter(nc => {
+      const ck = normalizeCartName(nc.carrinho) + '|' + nc.ferramenta;
+      const resTs = repByCF[ck], ncTs = Date.parse(nc.ts) || 0;
+      return !(resTs && resTs >= ncTs);
+    });
+    const abertas = new Set(_serverOpenNCs.map(nc => normalizeCartName(nc.carrinho) + '|' + nc.ferramenta));
     let marcadas = 0;
     recs.forEach(r => {
       Object.entries(r.ferramentas || {}).forEach(([f, v]) => {
