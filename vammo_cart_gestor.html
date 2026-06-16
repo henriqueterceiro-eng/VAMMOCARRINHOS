@@ -3300,28 +3300,21 @@ function gastoDiarioBase(base, dias) {
     const inicio = d.getTime();
     const fim = inicio + 86400000;
     let gasto = 0, ncCount = 0;
-    const chaves = new Set();
-    baixasLocais.forEach(b => {
-      if (b.base !== base) return;
-      if (b.tipo === 'ajuste') return;
-      if (b.estornada) return;
+    const seen = new Set();
+    const add = (b) => {
+      if (!b || b.base !== base || b.tipo === 'ajuste') return;
+      if (b.estornada || b._estornada) return;
       const ts = new Date(b.ts).getTime();
       if (ts < inicio || ts >= fim) return;
-      chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
-      gasto += (Number(b.qtd)||0) * getPreco(b.ferramenta);
-      ncCount++;
-    });
-    _serverBaixas.forEach(b => {
-      if (b.base !== base) return;
-      if (b.tipo === 'ajuste') return;
-      if (b._estornada) return;
-      const ts = new Date(b.ts).getTime();
-      if (ts < inicio || ts >= fim) return;
-      const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
-      if (chaves.has(k)) return;
+      const key = b.recId ? (b.recId + '|' + b.ferramenta)
+                          : (b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+      if (seen.has(key)) return;
+      seen.add(key);
       gasto += (Number(b.qtd)||1) * getPreco(b.ferramenta);
       ncCount++;
-    });
+    };
+    _serverBaixas.forEach(add);
+    baixasLocais.forEach(add);
     out.push({
       label: d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}),
       dataIso: d.toISOString().slice(0,10),
@@ -4795,33 +4788,25 @@ function startOfMonth(d) { const x = startOfDay(d); x.setDate(1); return x; }
 
 // Gasto em qualquer intervalo [start, end). Sempre respeita gameStartTs como floor.
 function gastoNoPeriodo(startTs, endTs) {
-  const baixas = getBaixas();
   const game = getGameStartTs();
   const startMs = startTs ? new Date(startTs).getTime() : 0;
   const endMs = endTs ? new Date(endTs).getTime() : Infinity;
   const gameMs = game ? new Date(game).getTime() : 0;
   let total = 0;
-  const chaves = new Set();
-  baixas.forEach(b => {
-    if (b.tipo === 'ajuste') return;
-    if (b.estornada) return;
-    const ts = new Date(b.ts).getTime();
-    if (ts < gameMs) return;
-    if (ts < startMs) return;
-    if (ts >= endMs) return;
-    chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
-    total += (Number(b.qtd) || 0) * getPreco(b.ferramenta);
-  });
-  // Mescla baixas do servidor (qualquer dispositivo)
-  _serverBaixas.forEach(b => {
-    if (b.tipo === 'ajuste') return;
-    if (b._estornada) return;
+  const seen = new Set();
+  const add = (b) => {
+    if (!b || b.tipo === 'ajuste') return;
+    if (b.estornada || b._estornada) return;
     const ts = new Date(b.ts).getTime();
     if (ts < gameMs || ts < startMs || ts >= endMs) return;
-    const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
-    if (chaves.has(k)) return;
+    const key = b.recId ? (b.recId + '|' + b.ferramenta)
+                        : (b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+    if (seen.has(key)) return;
+    seen.add(key);
     total += (Number(b.qtd) || 1) * getPreco(b.ferramenta);
-  });
+  };
+  _serverBaixas.forEach(add);
+  getBaixas().forEach(add);
   return total;
 }
 
@@ -4862,6 +4847,7 @@ function syncBaixasFromGAS(retry) {
         base,
         carrinho: nc.carrinho,
         ferramenta: nc.ferramenta,
+        recId: nc.recId || '',
         tipo: isAjuste ? 'ajuste' : 'reposicao',
         qtd: 1,
         por: por.replace(/\s*\((Reposição|Ajuste)\)\s*$/i, ''),
@@ -4907,27 +4893,23 @@ function gastoPorBase() {
   const game = getGameStartTs();
   const gameMs = game ? new Date(game).getTime() : 0;
   const out = { Mooca: 0, Osasco: 0, SBC: 0, _total: 0 };
-  const baixasLocais = getBaixas();
-  const chaves = new Set();
-  baixasLocais.forEach(b => {
-    if (b.tipo === 'ajuste') return;
-    if (b.estornada) return;
+  // Dedup por recId+ferramenta (chave única da NC) — evita contar 2× quando havia
+  // baixa local duplicada (bug da NC reaparecendo) ou local+servidor da mesma resolução.
+  const seen = new Set();
+  const add = (b) => {
+    if (!b || b.tipo === 'ajuste') return;
+    if (b.estornada || b._estornada) return;
     if (new Date(b.ts).getTime() < gameMs) return;
-    chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
-    const v = (Number(b.qtd) || 0) * getPreco(b.ferramenta);
-    if (out[b.base] != null) out[b.base] += v;
-    out._total += v;
-  });
-  _serverBaixas.forEach(b => {
-    if (b.tipo === 'ajuste') return;
-    if (b._estornada) return;
-    if (new Date(b.ts).getTime() < gameMs) return;
-    const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
-    if (chaves.has(k)) return;
+    const key = b.recId ? (b.recId + '|' + b.ferramenta)
+                        : (b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+    if (seen.has(key)) return;
+    seen.add(key);
     const v = (Number(b.qtd) || 1) * getPreco(b.ferramenta);
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
-  });
+  };
+  _serverBaixas.forEach(add);   // servidor primeiro (fonte deduplicada por recId)
+  getBaixas().forEach(add);     // local só conta se ainda não veio do servidor
   return out;
 }
 
