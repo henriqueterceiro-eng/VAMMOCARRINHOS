@@ -4835,7 +4835,9 @@ function syncBaixasFromGAS(retry) {
     }
     _serverBaixas = data.ncs.map(nc => {
       const por = String(nc.reposta_por||'');
-      const isAjuste = /\(Ajuste\)/i.test(por);
+      // Só conta como reposição (custo de estoque) quando foi REPOSIÇÃO de verdade.
+      // "Resolvido pelo mecânico" / Ajuste / sem tag = não gastou → não entra no gasto.
+      const isReposicao = /reposi/i.test(por);
       const cart = String(nc.carrinho||'').toUpperCase().replace(/\s+/g,'');
       const base = cart.startsWith('MC') ? 'Mooca' :
                    (cart.startsWith('OC') || cart.startsWith('0C')) ? 'Osasco' :
@@ -4846,7 +4848,7 @@ function syncBaixasFromGAS(retry) {
         carrinho: nc.carrinho,
         ferramenta: nc.ferramenta,
         recId: nc.recId || '',
-        tipo: isAjuste ? 'ajuste' : 'reposicao',
+        tipo: isReposicao ? 'reposicao' : 'ajuste',
         qtd: 1,
         por: por.replace(/\s*\((Reposição|Ajuste)\)\s*$/i, ''),
       };
