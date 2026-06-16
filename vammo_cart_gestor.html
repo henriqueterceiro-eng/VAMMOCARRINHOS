@@ -659,7 +659,7 @@
       background: var(--c1); border-radius: 12px;
       border: 2px solid var(--bd); padding: 14px 16px;
       transition: transform .15s, border-color .2s, box-shadow .2s;
-      min-height: 110px;
+      min-height: 96px;
       display: flex; flex-direction: column; justify-content: space-between;
     }
     .cart-card-v3:hover { transform: translateY(-2px); }
@@ -684,17 +684,17 @@
     .cart-card-v3 .ccv-mec { font-size: 12px; color: var(--w2); margin-top: 4px; line-height: 1.3; }
     .cart-card-v3 .ccv-time { font-size: 10px; color: var(--gr); margin-top: 2px; }
 
-    /* Badge de celular (presença Headwind): ícone + "Celular VAMMO" + status */
+    /* Badge de celular (presença Headwind): compacto no canto superior direito */
     .cart-card-v3 .ccv-phone-badge {
-      display: flex; align-items: center; justify-content: center; gap: 7px;
-      margin-top: 8px;
+      position: absolute; top: 11px; right: 12px;
+      display: flex; align-items: center; gap: 5px;
     }
-    .cart-card-v3 .ccv-phone-badge svg { width: 23px; height: 23px; display: block; }
-    .cart-card-v3 .ccv-phone-txt { display: flex; flex-direction: column; line-height: 1.05; text-align: left; }
-    .cart-card-v3 .cpb-label  { font-size: 8.5px; letter-spacing: .6px; color: var(--gr); text-transform: uppercase; font-weight: 800; white-space: nowrap; }
-    .cart-card-v3 .cpb-status { font-size: 12.5px; font-weight: 900; letter-spacing: .5px; white-space: nowrap; }
-    .cart-card-v3 .cpb-line { display: flex; align-items: center; gap: 6px; }
-    .cart-card-v3 .cpb-batt { font-size: 11px; font-weight: 800; color: #aeb6c2; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+    .cart-card-v3 .ccv-phone-badge svg { width: 18px; height: 18px; display: block; }
+    .cart-card-v3 .ccv-phone-txt { display: flex; align-items: center; gap: 5px; line-height: 1; }
+    .cart-card-v3 .cpb-label  { display: none; }
+    .cart-card-v3 .cpb-status { font-size: 10.5px; font-weight: 900; letter-spacing: .3px; white-space: nowrap; }
+    .cart-card-v3 .cpb-line { display: flex; align-items: center; gap: 5px; }
+    .cart-card-v3 .cpb-batt { font-size: 10px; font-weight: 800; color: #aeb6c2; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
     .cart-card-v3 .cpb-batt svg { display: block; }
     /* online: verde brilhando */
     .cart-card-v3 .ccv-phone-badge.on svg { color: #22c55e; filter: drop-shadow(0 0 4px rgba(34,197,94,.9)) drop-shadow(0 0 9px rgba(34,197,94,.5)); }
@@ -2910,7 +2910,7 @@ function renderCarrinhos() {
           btxt = dev.online ? 'ONLINE' : 'OFFLINE';
           if (dev.battery !== null && dev.battery !== undefined)
             batt = `<span class="cpb-batt">${batterySvg(dev.battery)} ${dev.battery}%</span>`;
-        } else { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='NÃO CADASTRADO'; }
+        } else { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='S/ CADASTRO'; }
         phoneBadge = `<div class="ccv-phone-badge ${bcls}"><span>${bsvg}</span><span class="ccv-phone-txt"><span class="cpb-label">Celular VAMMO</span><span class="cpb-line"><span class="cpb-status">${btxt}</span>${batt}</span></span></div>`;
       }
       // Cor do perfil só quando ONLINE (logado): Mecânico=verde, Diagnóstico=azul, Qualidade=roxo
