@@ -705,10 +705,10 @@
     /* sem celular cadastrado: cinza */
     .cart-card-v3 .ccv-phone-badge.nodev svg,
     .cart-card-v3 .ccv-phone-badge.nodev .cpb-status { color: #9aa0a6; }
-    .cart-card-v3 .ccv-os { margin-top:6px; font-size:11px; font-weight:800; letter-spacing:.3px; padding:3px 9px; border-radius:999px; display:inline-block; }
-    .cart-card-v3 .ccv-os.on { background:rgba(46,194,255,.14); color:#2EC2FF; border:1px solid rgba(46,194,255,.5); }
-    .cart-card-v3 .ccv-os.idle { background:rgba(154,160,166,.14); color:#9aa0a6; border:1px solid rgba(154,160,166,.4); }
-    .cart-card-v3 .ccv-os-t { font-weight:600; opacity:.85; }
+    .cart-card-v3 .ccv-os { margin-top:8px; font-size:13.5px; font-weight:800; letter-spacing:.3px; padding:7px 12px; border-radius:10px; display:flex; align-items:center; gap:6px; }
+    .cart-card-v3 .ccv-os.on { background:rgba(46,194,255,.18); color:#2EC2FF; border:1px solid rgba(46,194,255,.65); box-shadow:0 0 12px rgba(46,194,255,.28); }
+    .cart-card-v3 .ccv-os.idle { background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.6); box-shadow:0 0 12px rgba(245,158,11,.18); }
+    .cart-card-v3 .ccv-os-t { font-weight:700; font-size:12.5px; margin-left:auto; opacity:.95; }
     @keyframes phoneAlert {
       0%, 100% { opacity: .55; filter: drop-shadow(0 0 2px rgba(239,68,68,.5)); }
       50%      { opacity: 1;   filter: drop-shadow(0 0 8px rgba(239,68,68,.95)); }
@@ -2751,8 +2751,8 @@ function osBadgeHtml(mec){
   const o = _osByEmail[String(mec||'').toLowerCase().trim()];
   if (!o) return '';
   if (o.status === 'in_progress')
-    return '<div class="ccv-os on" title="Mecânico executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+' <span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span></div>';
-  return '<div class="ccv-os idle" title="Sem OS em andamento">💤 Ocioso <span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span></div>';
+    return '<div class="ccv-os on" title="Mecânico executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+(o.since?'<span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span>':'')+'</div>';
+  return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso'+(o.since?'<span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span>':'')+'</div>';
 }
 
 function computeCartState(nome, recs) {
