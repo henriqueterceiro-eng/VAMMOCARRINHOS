@@ -2152,7 +2152,7 @@ function showPanel(id) {
   if (id === 'dashboard') renderDashboard();
   if (id === 'registros') renderRegistros();
   if (id === 'nc') renderNC();
-  if (id === 'carrinhos') { renderCarrinhos(); syncPerfisFromGAS(); }
+  if (id === 'carrinhos') { renderCarrinhos(); syncPerfisFromGAS(); refreshOsStatus(); }
   if (id === 'perfis') { renderPerfis(); syncPerfisFromGAS(); }
   if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); syncGameStartFromGAS(); }
   if (id === 'nc') syncNCsComServidor(true); // silent: alinha local com servidor ao abrir
