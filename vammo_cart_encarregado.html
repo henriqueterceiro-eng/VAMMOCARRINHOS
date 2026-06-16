@@ -501,7 +501,8 @@ function osBadgeHtml(mec, cartTs){
     const ms = Date.parse(o.since) || Date.now();
     return '<div class="ccv-os on" title="Executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+'<span class="ccv-os-t">há '+fmtElapsedMs(ms)+'</span></div>';
   }
-  const sinceMs = _idleStart[email] || Date.parse(cartTs) || Date.now();
+  let sinceMs = _idleStart[email];
+  if (!sinceMs || (Date.now() - sinceMs) > 12*3600*1000) { sinceMs = Date.now(); _idleStart[email] = sinceMs; _saveIdleStart(); }
   return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso<span class="ccv-os-t">há '+fmtElapsedMs(sinceMs)+'</span></div>';
 }
 function refreshOsStatus(){

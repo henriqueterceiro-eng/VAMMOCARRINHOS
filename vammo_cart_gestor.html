@@ -2772,8 +2772,10 @@ function osBadgeHtml(mec, cartTs){
     const ms = Date.parse(o.since) || Date.now();
     return '<div class="ccv-os on" title="Executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+'<span class="ccv-os-t">há '+fmtElapsedMs(ms)+'</span></div>';
   }
-  // ocioso: desde que saiu do in_progress (se observado) ou desde que pegou o carrinho
-  const sinceMs = _idleStart[email] || Date.parse(cartTs) || Date.now();
+  // ocioso: conta desde que saiu do in_progress (ou desde que o app o viu ocioso).
+  // Teto de 12h pra não arrastar madrugada/carrinho preso logado.
+  let sinceMs = _idleStart[email];
+  if (!sinceMs || (Date.now() - sinceMs) > 12*3600*1000) { sinceMs = Date.now(); _idleStart[email] = sinceMs; _saveIdleStart(); }
   return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso<span class="ccv-os-t">há '+fmtElapsedMs(sinceMs)+'</span></div>';
 }
 
