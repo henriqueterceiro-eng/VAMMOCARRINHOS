@@ -3313,8 +3313,7 @@ function gastoDiarioBase(base, dias) {
       gasto += (Number(b.qtd)||1) * getPreco(b.ferramenta);
       ncCount++;
     };
-    _serverBaixas.forEach(add);
-    baixasLocais.forEach(add);
+    _serverBaixas.forEach(add); // só servidor (sem baixas locais que inflavam)
     out.push({
       label: d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}),
       dataIso: d.toISOString().slice(0,10),
@@ -4805,8 +4804,7 @@ function gastoNoPeriodo(startTs, endTs) {
     seen.add(key);
     total += (Number(b.qtd) || 1) * getPreco(b.ferramenta);
   };
-  _serverBaixas.forEach(add);
-  getBaixas().forEach(add);
+  _serverBaixas.forEach(add); // só servidor (sem baixas locais que inflavam)
   return total;
 }
 
@@ -4908,9 +4906,8 @@ function gastoPorBase() {
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
   };
-  _serverBaixas.forEach(add);   // servidor primeiro (fonte deduplicada por recId)
-  getBaixas().forEach(add);     // local só conta se ainda não veio do servidor
-  return out;
+  _serverBaixas.forEach(add);   // SÓ servidor: fonte da verdade, deduplicada por recId.
+  return out;                   // (não soma baixas locais — inflavam com duplicatas do bug)
 }
 
 // Resumo dos 3 períodos
