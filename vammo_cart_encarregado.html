@@ -138,6 +138,10 @@
   .cart-card-v3.st-deslogado .ccv-status { color:var(--w2); }
   .cart-card-v3.st-sem-reg .ccv-status { color:var(--gr); }
   .cart-card-v3 .ccv-mec { font-size:13px; color:var(--wh); margin-top:6px; line-height:1.3; word-break:break-word; font-weight:600; }
+  .cart-card-v3 .ccv-os { margin-top:6px; font-size:11px; font-weight:800; letter-spacing:.3px; padding:3px 9px; border-radius:999px; display:inline-block; }
+  .cart-card-v3 .ccv-os.on { background:rgba(46,194,255,.14); color:#2EC2FF; border:1px solid rgba(46,194,255,.5); }
+  .cart-card-v3 .ccv-os.idle { background:rgba(154,160,166,.14); color:#9aa0a6; border:1px solid rgba(154,160,166,.4); }
+  .cart-card-v3 .ccv-os-t { font-weight:600; opacity:.85; }
   .cart-card-v3 .ccv-time { font-size:11px; color:var(--w2); margin-top:3px; }
   /* Badge de celular (presença Headwind) */
   .cart-card-v3 .ccv-phone-badge { display:flex; align-items:center; justify-content:center; gap:7px; margin-top:8px; }
@@ -474,6 +478,38 @@ function fetchCartList(){
   document.head.appendChild(sc);
 }
 
+// Status de OS (em moto / ocioso) por mecânico — vem do presence (Metabase).
+let _osByEmail = {};
+function fmtElapsed(iso){
+  const t = Date.parse(iso); if (!t) return '';
+  let s = Math.max(0, Math.floor((Date.now()-t)/1000));
+  const d = Math.floor(s/86400); s -= d*86400;
+  const h = Math.floor(s/3600); s -= h*3600;
+  const m = Math.floor(s/60);
+  if (d > 0) return d+'d '+h+'h';
+  if (h > 0) return h+'h '+m+'min';
+  return m+'min';
+}
+function osBadgeHtml(mec){
+  const o = _osByEmail[String(mec||'').toLowerCase().trim()];
+  if (!o) return '';
+  if (o.status === 'in_progress')
+    return '<div class="ccv-os on" title="Executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+' <span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span></div>';
+  return '<div class="ccv-os idle" title="Sem OS em andamento">💤 Ocioso <span class="ccv-os-t">há '+fmtElapsed(o.since)+'</span></div>';
+}
+function refreshOsStatus(){
+  const cbName='_os_'+Date.now()+'_'+Math.floor(Math.random()*9999);
+  const sc=document.createElement('script'); let done=false;
+  const t=setTimeout(()=>{ if(!done){done=true;clean();} }, 20000);
+  window[cbName]=function(d){ if(done)return; done=true; clean();
+    if(d&&d.ok&&d.os){ _osByEmail=d.os; try{render();}catch(e){} }
+  };
+  function clean(){ clearTimeout(t); delete window[cbName]; if(sc.parentNode)sc.parentNode.removeChild(sc); }
+  sc.onerror=function(){ if(!done){done=true;clean();} };
+  sc.src=PRESENCE_URL+'?action=osStatus&callback='+cbName;
+  document.head.appendChild(sc);
+}
+
 function setSyncStatus(state, msg) {
   const el = document.getElementById('sync-status');
   if (!el) return;
@@ -485,6 +521,7 @@ function carregarTudo() {
   setSyncStatus('loading', 'Atualizando...');
   refreshPresence(); // celular online + bateria (Headwind)
   fetchCartList();   // lista de carrinhos cadastrada no gestor (inclui novos)
+  refreshOsStatus(); // em moto / ocioso por mecânico
   let pending = 2;
   function done() { pending--; if (pending === 0) {
     setSyncStatus('ok', 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
@@ -582,6 +619,7 @@ function render() {
         <div class="ccv-id">${c.nome}</div>
         <div class="ccv-status">${label}</div>
         ${phoneBadge}
+        ${st.status === 'logado' ? osBadgeHtml(mec) : ''}
       </div>
       <div>
         ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
