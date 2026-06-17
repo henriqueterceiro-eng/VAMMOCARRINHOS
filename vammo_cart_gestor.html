@@ -958,6 +958,9 @@
       <div class="nav-item nav-destaque" data-panel="carrinhos" onclick="showPanel('carrinhos')">
         <span class="nav-icon">🧰</span> Carrinhos
       </div>
+      <div class="nav-item" onclick="abrirHistoricoNCs()" title="Reposições resolvidas — com detecção de reincidência">
+        <span class="nav-icon">📋</span> Histórico Reposições
+      </div>
       <div class="nav-item" data-panel="perfis" onclick="showPanel('perfis')">
         <span class="nav-icon">🏷️</span> Perfis de Carrinho
       </div>
@@ -3808,8 +3811,10 @@ let _serverOpenNCs = [];
 // Cache do histórico de NCs resolvidas
 let _historicoNCs = [];
 
-function abrirHistoricoNCs() {
-  document.getElementById('histo-search').value = '';
+function abrirHistoricoNCs(filtroCarrinho, filtroMecanico) {
+  // Filtros opcionais — quando vier do detail do carrinho, pré-popula a busca
+  const filtro = filtroCarrinho || filtroMecanico || '';
+  document.getElementById('histo-search').value = filtro;
   document.getElementById('histo-alert').innerHTML = '';
   document.getElementById('histo-body').innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);">⏳ Carregando...</div>';
   document.getElementById('modal-historico-ncs').classList.remove('hidden');
@@ -3831,13 +3836,44 @@ function closeHistoricoNCs() {
 
 function renderHistoricoNCs() {
   const q = (document.getElementById('histo-search')?.value || '').toLowerCase().trim();
-  const filtered = _historicoNCs.filter(nc => {
+
+  // Filtro automático por base do supervisor (se aplicável)
+  let baseFiltro = null;
+  if (typeof isSupervisor === 'function' && isSupervisor() && _SUPERVISOR_BASE) {
+    baseFiltro = _SUPERVISOR_BASE;
+  }
+  function baseDoCarrinho(cart) {
+    const c = String(cart||'').toUpperCase().replace(/\s+/g,'');
+    if (c.startsWith('MC')) return 'Mooca';
+    if (c.startsWith('OC') || c.startsWith('0C')) return 'Osasco';
+    if (c.startsWith('SC')) return 'SBC';
+    return '';
+  }
+
+  // Ordena por data desc (mais recente primeiro)
+  const sortedNCs = _historicoNCs.slice().sort((a,b) => new Date(b.reposta_ts||0) - new Date(a.reposta_ts||0));
+
+  // Calcula reincidência: quantas vezes a mesma ferramenta foi reposta no mesmo carrinho
+  const recorrencia = {};
+  sortedNCs.forEach(nc => {
+    const k = normalizeCartName(nc.carrinho) + '|' + nc.ferramenta;
+    recorrencia[k] = (recorrencia[k] || 0) + 1;
+  });
+  // Reincidência por carrinho+mecânico
+  const recorrenciaMec = {};
+  sortedNCs.forEach(nc => {
+    const k = normalizeCartName(nc.carrinho) + '|' + (nc.mecanico || '').toLowerCase();
+    recorrenciaMec[k] = (recorrenciaMec[k] || 0) + 1;
+  });
+
+  const filtered = sortedNCs.filter(nc => {
+    if (baseFiltro && baseDoCarrinho(nc.carrinho) !== baseFiltro) return false;
     if (!q) return true;
     return (nc.carrinho + ' ' + nc.ferramenta + ' ' + nc.motivo + ' ' + nc.mecanico + ' ' + nc.reposta_por).toLowerCase().includes(q);
   });
   const body = document.getElementById('histo-body');
   if (!filtered.length) {
-    body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);">Nenhuma NC resolvida' + (q?' encontrada':'') + '.</div>';
+    body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);">Nenhuma reposição' + (q?' encontrada':'') + '.</div>';
   } else {
     body.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
       <thead><tr style="text-align:left;color:var(--gr);font-size:10px;text-transform:uppercase;letter-spacing:1px;">
@@ -3845,26 +3881,37 @@ function renderHistoricoNCs() {
         <th style="padding:6px;border-bottom:1px solid var(--bd);">Carrinho</th>
         <th style="padding:6px;border-bottom:1px solid var(--bd);">Ferramenta</th>
         <th style="padding:6px;border-bottom:1px solid var(--bd);">Problema</th>
-        <th style="padding:6px;border-bottom:1px solid var(--bd);">Reg. por</th>
+        <th style="padding:6px;border-bottom:1px solid var(--bd);">Reg. por (mecânico)</th>
         <th style="padding:6px;border-bottom:1px solid var(--bd);">Resolvida por</th>
+        <th style="padding:6px;border-bottom:1px solid var(--bd);text-align:center;">Reincidência</th>
       </tr></thead>
       <tbody>
       ${filtered.map(nc => {
         const motCls = nc.motivo === 'faltando' ? 'byw' : 'brd';
         const motTxt = nc.motivo === 'faltando' ? 'Faltando' : nc.motivo === 'quebrado' ? 'Quebrado' : nc.motivo;
-        return `<tr style="border-bottom:1px solid rgba(255,255,255,.04);">
+        const cartN = normalizeCartName(nc.carrinho);
+        const recFerr = recorrencia[cartN + '|' + nc.ferramenta] || 1;
+        const recMec = recorrenciaMec[cartN + '|' + (nc.mecanico||'').toLowerCase()] || 1;
+        const isRecorrenteFerr = recFerr >= 2;
+        const isRecorrenteMec = recMec >= 3;
+        const reincTags = [];
+        if (isRecorrenteFerr) reincTags.push(`<span style="background:rgba(245,158,11,.15);color:var(--yw);border:1px solid var(--yw);padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800;">🔁 ${recFerr}× ferr</span>`);
+        if (isRecorrenteMec) reincTags.push(`<span style="background:rgba(239,68,68,.15);color:var(--rd);border:1px solid var(--rd);padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800;" title="Mesmo mecânico repondo no mesmo carrinho ${recMec}×">⚠ ${recMec}× mec</span>`);
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,.04);${isRecorrenteMec?'background:rgba(239,68,68,.04);':''}">
           <td style="padding:8px 6px;color:var(--w2);white-space:nowrap;">${fmtDateFull(nc.reposta_ts)}</td>
-          <td style="padding:8px 6px;"><strong>${normalizeCartName(nc.carrinho)}</strong></td>
+          <td style="padding:8px 6px;"><strong>${cartN}</strong></td>
           <td style="padding:8px 6px;">${nc.ferramenta}</td>
           <td style="padding:8px 6px;"><span class="badge ${motCls}">${motTxt}</span></td>
-          <td style="padding:8px 6px;color:var(--gr);font-size:12px;">${nc.mecanico||'-'}</td>
+          <td style="padding:8px 6px;color:var(--w2);font-size:12px;">${nc.mecanico||'-'}</td>
           <td style="padding:8px 6px;color:var(--gn);font-weight:700;">${nc.reposta_por||'gestor'}</td>
+          <td style="padding:8px 6px;text-align:center;">${reincTags.join(' ') || '<span style="color:var(--gr);">—</span>'}</td>
         </tr>`;
       }).join('')}
       </tbody>
     </table>`;
   }
-  document.getElementById('histo-footer').textContent = `${filtered.length} de ${_historicoNCs.length} resolução(ões)`;
+  const totalScope = baseFiltro ? sortedNCs.filter(n => baseDoCarrinho(n.carrinho) === baseFiltro).length : _historicoNCs.length;
+  document.getElementById('histo-footer').textContent = `${filtered.length} de ${totalScope} reposição(ões)${baseFiltro?' · base '+baseFiltro:''}`;
 }
 
 function exportHistoricoNCsCSV() {
@@ -5926,6 +5973,8 @@ function openDetail(id) {
     </div>
   ` : '';
 
+  const cartEscBtn = (rec.carrinho || '').replace(/'/g,'');
+  const mecEscBtn = (rec.mecanico || '').replace(/'/g,'');
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-row"><span class="lbl">ID</span><span class="val monospace">${rec.id}</span></div>
     <div class="detail-row"><span class="lbl">Tipo</span><span class="val">${rec.tipo === 'checkin' ? '<span class="badge bgn">CHECK-IN</span>' : '<span class="badge byw">CHECK-OUT</span>'}</span></div>
@@ -5933,6 +5982,10 @@ function openDetail(id) {
     <div class="detail-row"><span class="lbl">Mecânico</span><span class="val">${rec.mecanico}</span></div>
     <div class="detail-row"><span class="lbl">Checklist</span><span class="val">${ok} OK · ${ncs.length} problema(s)</span></div>
     <div class="detail-row"><span class="lbl">Data/Hora</span><span class="val">${fmtDateFull(rec.ts)}</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px;">
+      <button class="btn-sm btn-outline" onclick="abrirHistoricoNCs('${cartEscBtn}')" title="Reposições deste carrinho">📋 Histórico do Carrinho</button>
+      ${mecEscBtn ? `<button class="btn-sm btn-outline" onclick="abrirHistoricoNCs('', '${mecEscBtn}')" title="Reposições onde este mecânico operou o carrinho">👤 Histórico do Mecânico</button>` : ''}
+    </div>
     ${historicoHtml}
     ${ncHtml}
     ${fotosHtml}
