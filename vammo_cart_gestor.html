@@ -879,7 +879,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v4';
+      const CACHE = 'vammo-gestor-v5';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -963,6 +963,9 @@
       </div>
       <div class="nav-item" data-panel="estoque" onclick="showPanel('estoque')">
         <span class="nav-icon">📦</span> Estoque
+      </div>
+      <div class="nav-item" data-panel="frota" onclick="showPanel('frota')">
+        <span class="nav-icon">📱</span> Frota Vammo
       </div>
       <div class="nav-item" data-panel="colab" onclick="showPanel('colab')">
         <span class="nav-icon">👥</span> Colaboradores
@@ -1188,6 +1191,17 @@
           </div>
           <div class="table-footer" id="baixas-footer">–</div>
         </div>
+      </div>
+
+      <!-- ── FROTA VAMMO (celulares Headwind, ao vivo) ── -->
+      <div class="panel" id="panel-frota">
+        <div class="table-head" style="margin-bottom:14px;">
+          <h2>📱 Frota Vammo</h2>
+          <div class="spacer"></div>
+          <input type="text" class="search-inp" id="frota-search" placeholder="Filtrar nome / e-mail / IMEI..." oninput="renderFrota()">
+          <button class="btn-sm btn-az" onclick="refreshPresence()">🔄 Atualizar</button>
+        </div>
+        <div id="frota-body"><div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando frota do Headwind…</div></div>
       </div>
 
       <!-- ── COLABORADORES ── -->
@@ -2155,6 +2169,7 @@ function showPanel(id) {
   if (id === 'carrinhos') { renderCarrinhos(); syncPerfisFromGAS(); refreshOsStatus(); }
   if (id === 'perfis') { renderPerfis(); syncPerfisFromGAS(); }
   if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); syncGameStartFromGAS(); }
+  if (id === 'frota') { renderFrota(); refreshPresence(); }
   if (id === 'nc') syncNCsComServidor(true); // silent: alinha local com servidor ao abrir
   if (id === 'colab') renderColab();
   if (id === 'links') renderLinks();
@@ -2722,10 +2737,45 @@ function refreshPresence(){
   if (!cfg.presenceUrl) return;
   gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
     if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
-    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), number: d.number || '', online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim(), serial: d.serial || '', imei: d.imei || '' }));
+    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), number: d.number || '', online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim(), serial: d.serial || '', imei: d.imei || '', lastUpdate: d.lastUpdate || 0 }));
     _presLoaded = true;
     try { renderCarrinhos(); } catch(e){}
+    try { if (document.getElementById('panel-frota')?.classList.contains('active')) renderFrota(); } catch(e){}
   });
+}
+
+// ─── FROTA VAMMO: todos os celulares do Headwind, ao vivo (IMEI, dono, online) ───
+function renderFrota(){
+  const body = document.getElementById('frota-body');
+  if (!body) return;
+  if (!_presLoaded) { body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando frota do Headwind…</div>'; return; }
+  const devs = (_presDevices || []).slice();
+  const online = devs.filter(d => d.online).length;
+  const semDono = devs.filter(d => !d.email).length;
+  const stats = `<div class="stat-grid" style="margin-bottom:18px;">
+    <div class="stat-card"><div class="sc-label">Celulares Vammo</div><div class="sc-num sc-az">${devs.length}</div><div class="sc-sub">na frota (Headwind)</div></div>
+    <div class="stat-card"><div class="sc-label">Online agora</div><div class="sc-num sc-gn">${online}</div><div class="sc-sub">conectados</div></div>
+    <div class="stat-card"><div class="sc-label">Offline</div><div class="sc-num">${devs.length - online}</div><div class="sc-sub">sem sync recente</div></div>
+    <div class="stat-card" ${semDono?'style="border-color:var(--yw);"':''}><div class="sc-label">Sem dono</div><div class="sc-num ${semDono?'sc-yw':''}">${semDono}</div><div class="sc-sub">sem e-mail na descrição</div></div>
+  </div>`;
+  const q = (document.getElementById('frota-search')?.value || '').toLowerCase().trim();
+  let filt = devs.filter(d => !q || (String(d.number)+' '+String(d.email)+' '+String(d.imei)).toLowerCase().includes(q));
+  filt.sort((a,b) => (b.online?1:0)-(a.online?1:0) || String(a.email||a.number).localeCompare(String(b.email||b.number)));
+  const fmtSync = (ms) => { if(!ms) return '—'; const min=Math.floor((Date.now()-ms)/60000); if(min<1)return 'agora'; if(min<60)return min+'min'; const h=Math.floor(min/60); if(h<24)return h+'h'; return Math.floor(h/24)+'d'; };
+  const td = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;';
+  const rows = filt.map(d => `<tr>
+    <td style="${td}white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${d.online?'#22c55e':'#ef4444'};margin-right:7px;box-shadow:${d.online?'0 0 6px #22c55e':'none'};"></span>${d.online?'online':'offline'}</td>
+    <td style="${td}font-weight:700;color:var(--wh);">${d.number || '—'}</td>
+    <td style="${td}">${d.email ? d.email : '<span style="color:var(--yw);font-weight:700;">⚠ sem dono</span>'}</td>
+    <td style="${td}font-family:monospace;font-size:11px;color:var(--w2);">${d.imei || '—'}</td>
+    <td style="${td}text-align:center;">${d.battery != null ? d.battery+'%' : '—'}</td>
+    <td style="${td}text-align:center;color:var(--gr);">${fmtSync(d.lastUpdate)}</td>
+  </tr>`).join('');
+  body.innerHTML = stats + `<div class="table-wrap"><div class="table-head"><h2>Aparelhos (${filt.length})</h2></div>
+    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+      <thead><tr>${['Status','Aparelho','Dono (e-mail)','IMEI','Bat.','Últ. sync'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--gr);">Nenhum aparelho.</td></tr>'}</tbody>
+    </table></div></div>`;
 }
 
 // ─── STATUS DE OS: em moto (IN_PROGRESS via Metabase) · ocioso = timer no app ───
@@ -6267,7 +6317,7 @@ function aplicarRoleSupervisor() {
     badge.style.display = 'inline-block';
   }
   // Esconde Configurações e Perfis de Carrinho (colab/links/logs ele vê, mas restrito)
-  ['config','perfis'].forEach(p => {
+  ['config','perfis','frota'].forEach(p => {
     const navEl = document.querySelector(`.nav-item[data-panel="${p}"]`);
     if (navEl) navEl.style.display = 'none';
     const panelEl = document.getElementById('panel-' + p);
@@ -6290,7 +6340,7 @@ function aplicarRoleSupervisor() {
   // Bloqueia navegação direta pras abas escondidas
   const originalShowPanel = window.showPanel;
   window.showPanel = function(id) {
-    if (['config','perfis'].includes(id)) {
+    if (['config','perfis','frota'].includes(id)) {
       id = 'dashboard';
     }
     return originalShowPanel.call(this, id);
