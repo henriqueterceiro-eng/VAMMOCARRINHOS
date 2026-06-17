@@ -73,6 +73,29 @@
     .nav-item:hover { background: var(--c1); color: var(--w2); }
     .nav-item.active { background: rgba(46,194,255,.08); color: var(--az); border-left-color: var(--az); }
     .nav-icon { font-size: 18px; width: 22px; text-align: center; }
+    /* Carrinhos: botão mais importante — destaque permanente */
+    .nav-item.nav-destaque {
+      font-weight: 800; color: var(--wh);
+      background: linear-gradient(90deg, rgba(46,194,255,.16), rgba(46,194,255,.02));
+      border-left-color: var(--az);
+      box-shadow: inset 0 0 0 1px rgba(46,194,255,.18);
+    }
+    .nav-item.nav-destaque .nav-icon { font-size: 21px; }
+    .nav-item.nav-destaque:hover { background: linear-gradient(90deg, rgba(46,194,255,.24), rgba(46,194,255,.05)); color: var(--wh); }
+    /* ─── Restrições do papel SUPERVISOR (esconde ações que ele não pode) ─── */
+    body.role-supervisor [onclick="abrirPedidoModal()"],
+    body.role-supervisor [onclick="zerarContadorGasto()"],
+    body.role-supervisor [onclick="salvarPerfis()"],
+    body.role-supervisor [onclick="deleteSelectedRegistros()"],
+    body.role-supervisor [onclick^="deleteRegistro"],
+    body.role-supervisor #colab-list,
+    body.role-supervisor #colab-count,
+    body.role-supervisor #colab-search,
+    body.role-supervisor [onclick="exportColab()"],
+    body.role-supervisor [onclick="importColabPrompt()"],
+    body.role-supervisor [onclick="resetColabDefault()"],
+    body.role-supervisor [onclick="resetColab()"],
+    body.role-supervisor [onclick="sincronizarColabsAgora()"] { display: none !important; }
 
     .sidebar-footer {
       padding: 16px 20px;
@@ -636,7 +659,7 @@
       background: var(--c1); border-radius: 12px;
       border: 2px solid var(--bd); padding: 14px 16px;
       transition: transform .15s, border-color .2s, box-shadow .2s;
-      min-height: 110px;
+      min-height: 96px;
       display: flex; flex-direction: column; justify-content: space-between;
     }
     .cart-card-v3:hover { transform: translateY(-2px); }
@@ -661,15 +684,18 @@
     .cart-card-v3 .ccv-mec { font-size: 12px; color: var(--w2); margin-top: 4px; line-height: 1.3; }
     .cart-card-v3 .ccv-time { font-size: 10px; color: var(--gr); margin-top: 2px; }
 
-    /* Badge de celular (presença Headwind): ícone + "Celular VAMMO" + status */
+    /* Badge de celular (presença Headwind): compacto no canto superior direito */
     .cart-card-v3 .ccv-phone-badge {
-      display: flex; align-items: center; justify-content: center; gap: 7px;
-      margin-top: 8px;
+      position: absolute; top: 11px; right: 12px;
+      display: flex; align-items: center; gap: 5px;
     }
-    .cart-card-v3 .ccv-phone-badge svg { width: 23px; height: 23px; display: block; }
-    .cart-card-v3 .ccv-phone-txt { display: flex; flex-direction: column; line-height: 1.05; text-align: left; }
-    .cart-card-v3 .cpb-label  { font-size: 8.5px; letter-spacing: .6px; color: var(--gr); text-transform: uppercase; font-weight: 800; white-space: nowrap; }
-    .cart-card-v3 .cpb-status { font-size: 12.5px; font-weight: 900; letter-spacing: .5px; white-space: nowrap; }
+    .cart-card-v3 .ccv-phone-badge svg { width: 18px; height: 18px; display: block; }
+    .cart-card-v3 .ccv-phone-txt { display: flex; align-items: center; gap: 5px; line-height: 1; }
+    .cart-card-v3 .cpb-label  { display: none; }
+    .cart-card-v3 .cpb-status { font-size: 10.5px; font-weight: 900; letter-spacing: .3px; white-space: nowrap; }
+    .cart-card-v3 .cpb-line { display: flex; align-items: center; gap: 5px; }
+    .cart-card-v3 .cpb-batt { font-size: 10px; font-weight: 800; color: #aeb6c2; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+    .cart-card-v3 .cpb-batt svg { display: block; }
     /* online: verde brilhando */
     .cart-card-v3 .ccv-phone-badge.on svg { color: #22c55e; filter: drop-shadow(0 0 4px rgba(34,197,94,.9)) drop-shadow(0 0 9px rgba(34,197,94,.5)); }
     .cart-card-v3 .ccv-phone-badge.on .cpb-status { color: #22c55e; }
@@ -679,6 +705,10 @@
     /* sem celular cadastrado: cinza */
     .cart-card-v3 .ccv-phone-badge.nodev svg,
     .cart-card-v3 .ccv-phone-badge.nodev .cpb-status { color: #9aa0a6; }
+    .cart-card-v3 .ccv-os { margin-top:8px; font-size:13.5px; font-weight:800; letter-spacing:.3px; padding:7px 12px; border-radius:10px; display:flex; align-items:center; gap:6px; }
+    .cart-card-v3 .ccv-os.on { background:rgba(46,194,255,.18); color:#2EC2FF; border:1px solid rgba(46,194,255,.65); box-shadow:0 0 12px rgba(46,194,255,.28); }
+    .cart-card-v3 .ccv-os.idle { background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.6); box-shadow:0 0 12px rgba(245,158,11,.18); }
+    .cart-card-v3 .ccv-os-t { font-weight:700; font-size:12.5px; margin-left:auto; opacity:.95; }
     @keyframes phoneAlert {
       0%, 100% { opacity: .55; filter: drop-shadow(0 0 2px rgba(239,68,68,.5)); }
       50%      { opacity: 1;   filter: drop-shadow(0 0 8px rgba(239,68,68,.95)); }
@@ -849,7 +879,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v3';
+      const CACHE = 'vammo-gestor-v5';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -862,7 +892,7 @@
         if (e.request.method !== 'GET') return;
         // Network-first: sempre tenta rede; cache é só fallback offline
         e.respondWith(
-          fetch(e.request).then(resp => {
+          fetch(e.request, { cache: 'no-store' }).then(resp => {
             const copy = resp.clone();
             caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
             return resp;
@@ -925,14 +955,17 @@
       <div class="nav-item" data-panel="registros" onclick="showPanel('registros')">
         <span class="nav-icon">📋</span> Registros
       </div>
-      <div class="nav-item" data-panel="nc" onclick="showPanel('nc')">
-        <span class="nav-icon">⚠️</span> Não Conformidades
+      <div class="nav-item nav-destaque" data-panel="carrinhos" onclick="showPanel('carrinhos')">
+        <span class="nav-icon">🧰</span> Carrinhos
       </div>
-      <div class="nav-item" data-panel="carrinhos" onclick="showPanel('carrinhos')">
-        <span class="nav-icon">🛒</span> Carrinhos
+      <div class="nav-item" data-panel="perfis" onclick="showPanel('perfis')">
+        <span class="nav-icon">🏷️</span> Perfis de Carrinho
       </div>
       <div class="nav-item" data-panel="estoque" onclick="showPanel('estoque')">
         <span class="nav-icon">📦</span> Estoque
+      </div>
+      <div class="nav-item" data-panel="frota" onclick="showPanel('frota')">
+        <span class="nav-icon">📱</span> Frota Vammo
       </div>
       <div class="nav-item" data-panel="colab" onclick="showPanel('colab')">
         <span class="nav-icon">👥</span> Colaboradores
@@ -1061,6 +1094,8 @@
           <div class="table-head">
             <h2>Status em Tempo Real</h2>
             <div class="spacer"></div>
+            <button class="btn-sm btn-outline" onclick="abrirRelatorioNC()" title="Relatório de NCs abertas por base — ferramentas necessárias">📋 Relatório NC</button>
+            <button class="btn-sm btn-outline" onclick="abrirBuscaAparelho()" title="Buscar aparelho por IMEI, serial, nome ou e-mail">🔎 Buscar aparelho</button>
             <input type="text" class="search-inp" id="cart-search" placeholder="Filtrar carrinho..." oninput="renderCarrinhos()">
           </div>
           <div style="padding:16px;">
@@ -1097,6 +1132,20 @@
         </div>
       </div>
 
+      <!-- ── PERFIS DE CARRINHO ── -->
+      <div class="panel" id="panel-perfis">
+        <div class="config-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px;">
+            <div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;color:var(--az);">🏷️ PERFIS DE CARRINHO</div>
+              <div style="font-size:11.5px;color:var(--gr);margin-top:3px;">Defina as ferramentas de cada perfil e atribua um perfil a cada carrinho. O check-in mostra a lista do perfil. A cor do perfil aparece no card quando o carrinho está online.</div>
+            </div>
+            <button class="btn-sm btn-az" onclick="salvarPerfis()">💾 Salvar perfis</button>
+          </div>
+          <div id="perfis-body"><div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando…</div></div>
+        </div>
+      </div>
+
       <!-- ── ESTOQUE ── -->
       <div class="panel" id="panel-estoque">
         <div id="est-alert-box" style="margin-bottom:12px;"></div>
@@ -1112,6 +1161,7 @@
             <button class="btn-sm btn-outline" onclick="abrirInventarioModal()" title="Conferência física × sistema (mensal)">📋 Inventário</button>
             <button class="btn-sm btn-outline" onclick="zerarContadorGasto()" title="Zerar contador de gasto (game start)">🎮 Zerar gasto</button>
             <button class="btn-sm btn-outline" onclick="exportEstoqueCSV()" title="Exportar estoque em CSV">⬇ CSV</button>
+            <button class="btn-sm btn-az" onclick="imprimirListaFerramentas()" title="Imprimir a lista padrão de ferramentas dos carrinhos para conferência">🛠 Lista Padrão (PDF)</button>
           </div>
           <div style="padding:16px;">
             <div class="base-tabs" id="est-base-tabs"></div>
@@ -1141,6 +1191,17 @@
           </div>
           <div class="table-footer" id="baixas-footer">–</div>
         </div>
+      </div>
+
+      <!-- ── FROTA VAMMO (celulares Headwind, ao vivo) ── -->
+      <div class="panel" id="panel-frota">
+        <div class="table-head" style="margin-bottom:14px;">
+          <h2>📱 Frota Vammo</h2>
+          <div class="spacer"></div>
+          <input type="text" class="search-inp" id="frota-search" placeholder="Filtrar nome / e-mail / IMEI..." oninput="renderFrota()">
+          <button class="btn-sm btn-az" onclick="refreshPresence()">🔄 Atualizar</button>
+        </div>
+        <div id="frota-body"><div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando frota do Headwind…</div></div>
       </div>
 
       <!-- ── COLABORADORES ── -->
@@ -1182,13 +1243,16 @@
         <div class="config-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
             <div>
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);">📜 LOGS DE AUDITORIA</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;color:var(--az);">📜 LOGS DE AUDITORIA</div>
               <div style="font-size:11.5px;color:var(--gr);margin-top:3px;">Tudo que acontece nos apps: logins, reposições, transferências, pedidos, inventários, NCs resolvidas.</div>
             </div>
-            <button class="btn-sm btn-az" onclick="syncLogsFromGAS()">🔄 Atualizar</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button class="btn-sm btn-outline" onclick="abrirEncarregadosEmCarrinho()" title="Todo check-in feito por encarregado — varre TODOS os registros, inclusive antigos" style="border-color:var(--rd);color:var(--rd);">⚠ Encarregados em carrinho</button>
+              <button class="btn-sm btn-az" onclick="syncLogsFromGAS()">🔄 Atualizar</button>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-            <input type="text" id="logs-search" placeholder="🔍 buscar (email, ação, base...)" oninput="renderLogs()" style="flex:1;min-width:220px;padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12.5px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+            <input type="text" id="logs-search" placeholder="🔍 buscar (email, ação, base...)" oninput="renderLogs()" style="flex:1;min-width:200px;padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12.5px;">
             <select id="logs-filt-acao" onchange="renderLogs()" style="padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">
               <option value="">Todas as ações</option>
             </select>
@@ -1199,6 +1263,11 @@
               <option value="SBC">SBC</option>
               <option value="Estoque Mooca">Estoque Mooca</option>
             </select>
+            <span style="color:var(--gr);font-size:11px;">de</span>
+            <input type="date" id="logs-filt-de" onchange="renderLogs()" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;color-scheme:dark;cursor:pointer;">
+            <span style="color:var(--gr);font-size:11px;">até</span>
+            <input type="date" id="logs-filt-ate" onchange="renderLogs()" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;color-scheme:dark;cursor:pointer;">
+            <button class="btn-sm btn-outline" onclick="document.getElementById('logs-filt-de').value='';document.getElementById('logs-filt-ate').value='';renderLogs();" title="Limpar datas">✕</button>
           </div>
           <div id="logs-tbody-wrap" style="background:var(--c1);border:1px solid var(--bd);border-radius:6px;max-height:65vh;overflow-y:auto;">
             <div style="padding:40px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando logs...</div>
@@ -1209,7 +1278,7 @@
       <!-- ── LINKS DE ACESSO ── -->
       <div class="panel" id="panel-links">
         <div class="config-card">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:2px;color:var(--az);margin-bottom:6px;">🔗 LINKS DE ACESSO</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;color:var(--az);margin-bottom:6px;">🔗 LINKS DE ACESSO</div>
           <div style="font-size:12px;color:var(--gr);margin-bottom:18px;">Compartilhe o link certo com cada perfil. Cada um abre uma visão diferente. Clique no botão "Copiar" pra colar onde precisar (Slack, WhatsApp, e-mail).</div>
 
           <div id="links-list" style="display:flex;flex-direction:column;gap:14px;"></div>
@@ -1432,9 +1501,20 @@
       </div>
     </div>
 
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div style="background:var(--c1);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:1px;">Origem tem</div>
+        <div id="transfer-bal-from" style="font-size:16px;font-weight:800;color:var(--wh);margin-top:2px;">–</div>
+      </div>
+      <div style="background:rgba(46,194,255,.10);border:1px solid var(--az);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--az);text-transform:uppercase;letter-spacing:1px;">📦 Base alvo tem</div>
+        <div id="transfer-bal-to" style="font-size:16px;font-weight:800;color:var(--az);margin-top:2px;">–</div>
+      </div>
+    </div>
+
     <div style="margin-bottom:14px;">
       <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Quantidade a transferir *</div>
-      <input type="number" id="transfer-qtd" min="1" value="1" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;">
+      <input type="number" id="transfer-qtd" min="1" value="1" class="select-filt" style="width:100%;padding:11px 12px;font-size:14px;" oninput="atualizaTransferEstoque()">
       <div style="font-size:11px;color:var(--gr);margin-top:4px;" id="transfer-saldo-info">–</div>
     </div>
 
@@ -1744,6 +1824,13 @@ function clearAuth() { localStorage.removeItem('vammo_auth'); }
 const BASES = ['Mooca', 'Osasco', 'SBC'];
 // Bases que recebem estoque (inclui overflow do armário Mooca). Carrinhos só usam BASES.
 const ESTOQUE_BASES = ['Mooca', 'Osasco', 'SBC', 'Estoque Mooca'];
+// Encarregados — não deveriam logar em carrinho de mecânico (destacado no log)
+const ENCARREGADOS_EMAILS = [
+  'clebert.silva@vammo.com',
+  'allecio.carvalho@vammo.com',
+  'thiago.santos@vammo.com',
+  'adelino.salome@vammo.com'
+];
 
 // ─── ROLE / SUPERVISOR DE BASE ──────────────────────────────────────────────
 // Modo supervisor: URL ?role=supervisor&base=Mooca → vê só uma base, sem cadastros/dashboard geral
@@ -1787,12 +1874,15 @@ function normalizeCartName(nome) {
   if (!m) return String(nome || '').trim().toUpperCase();
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
+let _cartsCache = null;
 function getCarts() {
+  if (_cartsCache) return _cartsCache;
   let raw;
   try { raw = JSON.parse(localStorage.getItem('vammo_carts')); } catch { raw = null; }
   if (!raw || !Array.isArray(raw) || raw.length === 0) {
     const def = defaultCarts();
     localStorage.setItem('vammo_carts', JSON.stringify(def));
+    _cartsCache = def;
     return def;
   }
   // migra formato antigo (array de strings) → array de objetos + injeta defaults novos
@@ -1802,6 +1892,7 @@ function getCarts() {
     defaultCarts().forEach(d => { if (!nomes.has(d.nome)) migrados.push(d); });
     migrados.sort((a,b) => a.nome.localeCompare(b.nome));
     localStorage.setItem('vammo_carts', JSON.stringify(migrados));
+    _cartsCache = migrados;
     return migrados;
   }
   // v4: padroniza nomes para "MC 01" (prefixo + espaço + 2 dígitos)
@@ -1837,51 +1928,11 @@ function getCarts() {
     }
     localStorage.setItem('vammo_carts_seeded_v4', '1');
   }
+  _cartsCache = raw;
   return raw;
 }
-function saveCarts(a) { localStorage.setItem('vammo_carts', JSON.stringify(a)); }
+function saveCarts(a) { _cartsCache = a; localStorage.setItem('vammo_carts', JSON.stringify(a)); }
 function getCartsByBase(base) { return getCarts().filter(c => c.base === base); }
-
-// Sincroniza lista de carrinhos com o servidor (mesma estratégia dos colaboradores)
-function syncCartsFromGAS(cb) {
-  const cfg = getConfig();
-  if (!cfg.webhookUrl) { if (cb) cb(false); return; }
-  gasGet(cfg.webhookUrl, 'action=cartsGet', (data, err) => {
-    if (err || !data?.ok || !Array.isArray(data.carts)) { if (cb) cb(false); return; }
-    if (!data.carts.length) { if (cb) cb(true, 0); return; }
-    // Merge: pega o que vem do servidor + mantém o que já existe local
-    const local = getCarts();
-    const byNome = new Map(local.map(c => [c.nome, c]));
-    data.carts.forEach(s => {
-      if (!s.nome) return;
-      const existing = byNome.get(s.nome);
-      if (existing) {
-        // se base do servidor é válida, usa a do servidor (fonte da verdade)
-        if (s.base && s.base !== existing.base) existing.base = s.base;
-      } else {
-        byNome.set(s.nome, { nome: s.nome, base: s.base || inferBaseFromName(s.nome) });
-      }
-    });
-    const merged = Array.from(byNome.values()).sort((a,b) => a.nome.localeCompare(b.nome));
-    saveCarts(merged);
-    if (cb) cb(true, merged.length);
-  });
-}
-
-function pushCartToGAS(nome, base) {
-  const cfg = getConfig();
-  if (!cfg.webhookUrl) return;
-  gasGet(cfg.webhookUrl,
-    'action=cartAdd&nome=' + encodeURIComponent(nome) +
-    '&base=' + encodeURIComponent(base) +
-    '&por=' + encodeURIComponent((getStoredAuth()||{}).email||'gestor'),
-    () => {});
-}
-function removeCartFromGAS(nome) {
-  const cfg = getConfig();
-  if (!cfg.webhookUrl) return;
-  gasGet(cfg.webhookUrl, 'action=cartRemove&nome=' + encodeURIComponent(nome), () => {});
-}
 function getCartBase(nome) {
   const norm = normalizeCartName(nome);
   const c = getCarts().find(x => normalizeCartName(x.nome) === norm);
@@ -1925,12 +1976,170 @@ function getEstoque() {
 }
 function saveEstoque(e) { localStorage.setItem('vammo_estoque', JSON.stringify(e)); }
 
-// Preço unitário por ferramenta (global, igual em todas bases)
-function getPrecos() {
-  try { return JSON.parse(localStorage.getItem('vammo_precos')) || {}; } catch { return {}; }
+// ─── PERFIS DE CARRINHO ──────────────────────────────────────────────────────
+const PERFIL_NOMES = ['Mecânico', 'Diagnóstico', 'Qualidade'];
+const PERFIL_CORES = { 'Mecânico': '#22c55e', 'Diagnóstico': '#3b82f6', 'Qualidade': '#a855f7' };
+let _perfisCfg = null; // { perfis: {Diagnóstico:[...], Qualidade:[...]}, carrinhos: {cart: perfil} }
+function getPerfisConfig() {
+  if (_perfisCfg && _perfisCfg.perfis) return _perfisCfg;
+  return { perfis: { 'Diagnóstico': [], 'Qualidade': [] }, carrinhos: {} };
 }
-function savePrecos(p) { localStorage.setItem('vammo_precos', JSON.stringify(p)); }
+function getCartPerfil(nome) {
+  const cfg = getPerfisConfig(); const n = normalizeCartName(nome);
+  return (cfg.carrinhos && (cfg.carrinhos[n] || cfg.carrinhos[nome])) || 'Mecânico';
+}
+function getPerfilTools(perfil) {
+  if (perfil === 'Mecânico') return flatTools();
+  const cfg = getPerfisConfig();
+  return (cfg.perfis && cfg.perfis[perfil]) || [];
+}
+function syncPerfisFromGAS() {
+  const cfg = getConfig(); if (!cfg.presenceUrl) return;
+  gasGet(cfg.presenceUrl, 'action=perfisGet', (d) => {
+    if (d && d.ok && d.config) {
+      _perfisCfg = d.config;
+      // Lista de carrinhos é compartilhada pelo servidor (entre aparelhos e apps).
+      if (isSupervisor()) {
+        // supervisor adota a lista do servidor (fonte = gestor)
+        if (Array.isArray(d.config.cartList) && d.config.cartList.length) saveCarts(d.config.cartList);
+      } else {
+        // gestor é a fonte da verdade: publica a lista local em todo sync
+        pushCartListToGAS();
+      }
+      try { renderCarrinhos(); } catch(e){}
+      if (document.getElementById('panel-perfis')?.classList.contains('active')) { try { renderPerfis(); } catch(e){} }
+    }
+  });
+}
+// Publica a lista de carrinhos local no servidor (dentro do config de perfis).
+// Busca o config atual antes de mesclar pra NUNCA sobrescrever os perfis do servidor.
+function pushCartListToGAS() {
+  const cfg = getConfig(); if (!cfg.presenceUrl) return;
+  gasGet(cfg.presenceUrl, 'action=perfisGet', (d) => {
+    const base = (d && d.config) ? d.config : (_perfisCfg || {});
+    const config = Object.assign({}, base, { cartList: getCarts() });
+    _perfisCfg = config;
+    fetch(cfg.presenceUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) }).catch(()=>{});
+  });
+}
+function savePerfisToGAS(config, cb) {
+  const cfg = getConfig(); if (!cfg.presenceUrl) { cb && cb(false, 'sem-url'); return; }
+  // Perfis ficam no serviço de presença (não no backend dos carrinhos).
+  gasGet(cfg.presenceUrl, 'action=perfisGet', (d) => {
+    if (!d || !('config' in d)) { cb && cb(false, 'backend-sem-perfis'); return; }
+    config.cartList = getCarts(); // preserva a lista de carrinhos ao salvar perfis
+    _perfisCfg = config;
+    fetch(cfg.presenceUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ _action:'perfisSet', config }) })
+      .then(() => { cb && cb(true); }).catch(() => { cb && cb(true); });
+  });
+}
+function _pfExtraHtml(perfil, t){
+  return `<label style="display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--wh);padding:2px 0;cursor:pointer;"><input type="checkbox" class="pf-tool" data-perfil="${perfil}" value="${String(t).replace(/"/g,'&quot;')}" checked> 🔧 ${t}</label>`;
+}
+function addToolPerfil(perfil){
+  const inp = document.getElementById('pf-add-'+perfil); if (!inp) return;
+  const v = (inp.value||'').trim(); if (!v) { inp.focus(); return; }
+  const dup = Array.from(document.querySelectorAll('.pf-tool[data-perfil="'+perfil+'"]')).some(cb => cb.value.toLowerCase() === v.toLowerCase());
+  if (!dup) document.getElementById('pf-extras-'+perfil).insertAdjacentHTML('beforeend', _pfExtraHtml(perfil, v));
+  inp.value = ''; inp.focus();
+}
+function renderPerfis() {
+  const body = document.getElementById('perfis-body'); if (!body) return;
+  let html = '<div style="margin-bottom:10px;color:var(--w2);font-size:14px;"><b>1) Ferramentas de cada perfil</b> · <span style="color:var(--gr)">Mecânico = catálogo completo. Marque as do Diagnóstico e Qualidade. Ferramenta que não está na lista? Use "Extras" pra adicionar.</span></div>';
+  ['Diagnóstico','Qualidade'].forEach(perfil => {
+    const list = getPerfilTools(perfil);
+    const sel = new Set(list);
+    const catalogo = new Set(flatTools());
+    const extras = list.filter(t => !catalogo.has(t));
+    const cor = PERFIL_CORES[perfil];
+    html += `<div style="border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <span style="width:14px;height:14px;border-radius:4px;background:${cor};display:inline-block;"></span>
+        <b style="color:${cor};font-size:17px;">${perfil}</b>
+        <span style="color:var(--gr);font-size:12.5px;">(${sel.size} ferramenta(s))</span>
+        <button class="btn-sm btn-outline" style="margin-left:auto;font-size:12px;" onclick="marcarTodasPerfil('${perfil}',true)">Todas</button>
+        <button class="btn-sm btn-outline" style="font-size:12px;" onclick="marcarTodasPerfil('${perfil}',false)">Nenhuma</button>
+      </div>
+      <div style="columns:2;column-gap:22px;">`;
+    TOOLS_CATALOG.forEach(cat => {
+      html += `<div style="break-inside:avoid;margin-bottom:8px;"><div style="color:${cor};font-size:11.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin:5px 0 2px;">${cat.cat}</div>`;
+      cat.items.forEach(t => {
+        html += `<label style="display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--w2);padding:2px 0;cursor:pointer;"><input type="checkbox" class="pf-tool" data-perfil="${perfil}" value="${String(t).replace(/"/g,'&quot;')}" ${sel.has(t)?'checked':''}> ${t}</label>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>
+      <div style="border-top:1px dashed var(--bd);margin-top:10px;padding-top:10px;">
+        <div style="color:var(--az);font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;">+ Ferramentas extras (fora do catálogo do mecânico)</div>
+        <div id="pf-extras-${perfil}">${extras.map(t => _pfExtraHtml(perfil, t)).join('')}</div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <input id="pf-add-${perfil}" placeholder="Nome da ferramenta + Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addToolPerfil('${perfil}');}" style="flex:1;padding:8px 10px;background:var(--c1);border:1px solid var(--bd);border-radius:6px;color:var(--wh);font-size:13.5px;">
+          <button class="btn-sm btn-az" onclick="addToolPerfil('${perfil}')">+ Adicionar</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  html += '<div style="margin:16px 0 8px;color:var(--w2);font-size:14px;"><b>2) Perfil de cada carrinho</b></div>';
+  BASES.forEach(base => {
+    const carts = getCarts().filter(c => c.base === base);
+    if (!carts.length) return;
+    html += `<div style="margin-bottom:12px;"><div style="color:var(--gr);font-size:12.5px;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">${base}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px;">`;
+    carts.forEach(c => {
+      const p = getCartPerfil(c.nome);
+      html += `<div style="display:flex;align-items:center;gap:7px;background:var(--c1);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${PERFIL_CORES[p]};flex:0 0 auto;"></span>
+        <span style="flex:1;color:var(--wh);font-size:13.5px;font-weight:700;">${c.nome}</span>
+        <select class="pf-cart" data-cart="${String(c.nome).replace(/"/g,'&quot;')}" onchange="this.previousElementSibling.previousElementSibling.style.background=({'Mecânico':'#22c55e','Diagnóstico':'#3b82f6','Qualidade':'#a855f7'})[this.value]" style="padding:5px 7px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12.5px;">
+          ${PERFIL_NOMES.map(pn=>`<option ${pn===p?'selected':''}>${pn}</option>`).join('')}
+        </select></div>`;
+    });
+    html += `</div></div>`;
+  });
+  body.innerHTML = html;
+}
+function marcarTodasPerfil(perfil, val){ document.querySelectorAll('.pf-tool[data-perfil="'+perfil+'"]').forEach(cb => cb.checked = val); }
+function salvarPerfis(){
+  const perfis = {};
+  ['Diagnóstico','Qualidade'].forEach(perfil => {
+    perfis[perfil] = Array.from(document.querySelectorAll('.pf-tool[data-perfil="'+perfil+'"]:checked')).map(cb => cb.value);
+  });
+  const carrinhos = {};
+  document.querySelectorAll('.pf-cart').forEach(s => { const p = s.value; if (p && p !== 'Mecânico') carrinhos[normalizeCartName(s.dataset.cart)] = p; });
+  savePerfisToGAS({ perfis, carrinhos }, (ok, reason) => {
+    if (ok) { try { renderCarrinhos(); } catch(e){} alert('✅ Perfis salvos! O check-in e o painel já passam a usar.'); }
+    else if (reason === 'backend-sem-perfis') alert('⚠ NÃO salvei: o backend ainda não tem os perfis.\n\nCole o snippet (perfisGet/perfisSet) no Apps Script dos carrinhos e dê "Nova versão" na implantação. Depois clique em Salvar de novo.\n\n(Bloqueei pra não criar registro vazio no Sheets.)');
+    else alert('⚠ Servidor não configurado (sem URL).');
+  });
+}
+
+// Preço unitário por ferramenta (global, igual em todas bases)
+// Cacheado em memória: getPreco é chamado milhares de vezes por render (estoque
+// + patrimônio); sem cache, fazia JSON.parse a cada chamada e travava.
+let _precosCache = null;
+function getPrecos() {
+  if (_precosCache) return _precosCache;
+  try { _precosCache = JSON.parse(localStorage.getItem('vammo_precos')) || {}; } catch { _precosCache = {}; }
+  return _precosCache;
+}
+function savePrecos(p) { _precosCache = p; localStorage.setItem('vammo_precos', JSON.stringify(p)); }
 function getPreco(ferr) { return Number(getPrecos()[ferr]) || 0; }
+// Conjunto de carrinhos que JÁ tiveram registro (check-in/out).
+function cartsComRegistro() {
+  const set = new Set();
+  (getRecords() || []).forEach(r => { if (r && r.carrinho) set.add(normalizeCartName(r.carrinho)); });
+  return set;
+}
+// Valor das ferramentas que estão NOS CARRINHOS de uma base (1 jogo por carrinho,
+// conforme o perfil). Só conta carrinhos que já tiveram registro — carrinho
+// cadastrado pro futuro (sem uso) não entra no patrimônio.
+function valorFerramentasEmCarrinho(base, comReg) {
+  const reg = comReg || cartsComRegistro();
+  return getCartsByBase(base).reduce((s, c) => {
+    if (!reg.has(normalizeCartName(c.nome))) return s;
+    const tools = getPerfilTools(getCartPerfil(c.nome)) || [];
+    return s + tools.reduce((ss, t) => ss + getPreco(t), 0);
+  }, 0);
+}
 function fmtMoney(n) {
   const v = Number(n) || 0;
   return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1957,8 +2166,10 @@ function showPanel(id) {
   if (id === 'dashboard') renderDashboard();
   if (id === 'registros') renderRegistros();
   if (id === 'nc') renderNC();
-  if (id === 'carrinhos') renderCarrinhos();
+  if (id === 'carrinhos') { renderCarrinhos(); syncPerfisFromGAS(); refreshOsStatus(); }
+  if (id === 'perfis') { renderPerfis(); syncPerfisFromGAS(); }
   if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); syncGameStartFromGAS(); }
+  if (id === 'frota') { renderFrota(); refreshPresence(); }
   if (id === 'nc') syncNCsComServidor(true); // silent: alinha local com servidor ao abrir
   if (id === 'colab') renderColab();
   if (id === 'links') renderLinks();
@@ -1979,7 +2190,7 @@ function renderLinks() {
       cor: 'var(--az)',
       desc: 'Visão completa de todas as bases. Para você, Marcelo, Billy.',
       links: [
-        { rotulo: 'Gestor central', url: `${LINKS_NETLIFY}/gestor`, perfil: 'Vê tudo · link novo', alt: `${LINKS_GITHUB}/vammo_cart_gestor.html` },
+        { rotulo: 'Gestor central', url: `${LINKS_GITHUB}/vammo_cart_gestor.html`, perfil: 'Vê tudo' },
       ]
     },
     {
@@ -1987,9 +2198,9 @@ function renderLinks() {
       cor: 'var(--gn)',
       desc: 'Mesmas ações do gestor mas só vê 1 base. Pode repor, transferir, pedido, inventário. Mande pro Luciano/Wladmir/Ronaldo/Edson.',
       links: [
-        { rotulo: 'Supervisor Mooca (Luciano / Wladmir)', url: `${LINKS_NETLIFY}/supervisor?base=Mooca`, perfil: 'Repor, transfer, inventário · só Mooca', alt: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Mooca` },
-        { rotulo: 'Supervisor Osasco (Ronaldo)', url: `${LINKS_NETLIFY}/supervisor?base=Osasco`, perfil: 'Repor, transfer, inventário · só Osasco', alt: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Osasco` },
-        { rotulo: 'Supervisor SBC (Edson)', url: `${LINKS_NETLIFY}/supervisor?base=SBC`, perfil: 'Repor, transfer, inventário · só SBC', alt: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=SBC` },
+        { rotulo: 'Supervisor Mooca (Luciano / Wladmir)', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Mooca`, perfil: 'Repor, transfer, inventário · só Mooca' },
+        { rotulo: 'Supervisor Osasco (Ronaldo)', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Osasco`, perfil: 'Repor, transfer, inventário · só Osasco' },
+        { rotulo: 'Supervisor SBC (Edson)', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=SBC`, perfil: 'Repor, transfer, inventário · só SBC' },
       ]
     },
     {
@@ -1997,9 +2208,9 @@ function renderLinks() {
       cor: 'var(--w2)',
       desc: 'Só visualiza os carrinhos da sua base, sem mexer em nada. Otimizado pra tablet (fullscreen + wake-lock).',
       links: [
-        { rotulo: 'Encarregado Mooca', url: `${LINKS_NETLIFY}/encarregado?base=Mooca`, perfil: 'Só visualiza · Mooca', alt: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Mooca` },
-        { rotulo: 'Encarregado Osasco', url: `${LINKS_NETLIFY}/encarregado?base=Osasco`, perfil: 'Só visualiza · Osasco', alt: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Osasco` },
-        { rotulo: 'Encarregado SBC', url: `${LINKS_NETLIFY}/encarregado?base=SBC`, perfil: 'Só visualiza · SBC', alt: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=SBC` },
+        { rotulo: 'Encarregado Mooca', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Mooca`, perfil: 'Só visualiza · Mooca' },
+        { rotulo: 'Encarregado Osasco', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Osasco`, perfil: 'Só visualiza · Osasco' },
+        { rotulo: 'Encarregado SBC', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=SBC`, perfil: 'Só visualiza · SBC' },
       ]
     },
     {
@@ -2007,13 +2218,17 @@ function renderLinks() {
       cor: 'var(--yw)',
       desc: 'Check-in/check-out via QR code. Login Google obrigatório (deve estar na lista de Colaboradores).',
       links: [
-        { rotulo: 'App do Mecânico', url: `${LINKS_NETLIFY}/mecanico`, perfil: 'Quem opera o carrinho', alt: `${LINKS_GITHUB}/vammo_cart_checkin.html` },
+        { rotulo: 'App do Mecânico', url: `${LINKS_GITHUB}/vammo_cart_checkin.html`, perfil: 'Quem opera o carrinho' },
       ]
     },
   ];
+  let gruposView = grupos;
+  if (isSupervisor()) {
+    gruposView = grupos.map(g => ({ titulo: g.titulo, cor: g.cor, desc: g.desc, links: g.links.filter(l => (l.rotulo + ' ' + l.url).includes(_SUPERVISOR_BASE)) })).filter(g => g.links.length);
+  }
   wrap.innerHTML = `<div style="background:rgba(46,194,255,.08);border:1px solid rgba(46,194,255,.25);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--w2);line-height:1.5;">
-    💡 <strong style="color:var(--az);">Use os links novos abaixo</strong> pra novos compartilhamentos — são mais curtos e sem nome pessoal. Os links antigos do GitHub Pages continuam funcionando pra quem já tem salvo (clique em "Ver link antigo" pra ver).
-  </div>` + grupos.map(g => `
+    💡 Links de acesso${isSupervisor() ? ' · base ' + _SUPERVISOR_BASE : ''}. Copie e compartilhe — abrem direto (GitHub Pages).
+  </div>` + gruposView.map(g => `
     <div style="border:1px solid var(--bd);border-radius:8px;padding:14px;background:var(--c1);">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;letter-spacing:1.5px;color:${g.cor};margin-bottom:4px;">${g.titulo}</div>
       <div style="font-size:11.5px;color:var(--gr);margin-bottom:12px;">${g.desc}</div>
@@ -2068,10 +2283,15 @@ function renderLogs() {
   if (!wrap) return;
   const q = (document.getElementById('logs-search')?.value || '').toLowerCase();
   const filtAcao = document.getElementById('logs-filt-acao')?.value || '';
-  const filtBase = document.getElementById('logs-filt-base')?.value || '';
+  const filtBase = isSupervisor() ? _SUPERVISOR_BASE : (document.getElementById('logs-filt-base')?.value || '');
+  const filtDe = document.getElementById('logs-filt-de')?.value || '';
+  const filtAte = document.getElementById('logs-filt-ate')?.value || '';
+  const deMs = filtDe ? new Date(filtDe + 'T00:00:00').getTime() : null;
+  const ateMs = filtAte ? new Date(filtAte + 'T23:59:59').getTime() : null;
   const filtered = _logsCache.filter(l => {
     if (filtAcao && l.acao !== filtAcao) return false;
     if (filtBase && l.base !== filtBase) return false;
+    if (deMs || ateMs) { const t = l.ts ? new Date(l.ts).getTime() : 0; if (deMs && t < deMs) return false; if (ateMs && t > ateMs) return false; }
     if (!q) return true;
     return (l.acao + ' ' + l.email + ' ' + l.nome + ' ' + l.base + ' ' + l.detalhes + ' ' + l.origem).toLowerCase().includes(q);
   });
@@ -2091,19 +2311,55 @@ function renderLogs() {
       </tr>
     </thead>
     <tbody>
-      ${filtered.map(l => `
-        <tr style="border-top:1px solid rgba(255,255,255,.04);">
+      ${filtered.map(l => {
+        const enc = (String(l.origem||'').toLowerCase()==='encarregado' || ENCARREGADOS_EMAILS.includes(String(l.email||'').toLowerCase().trim())) && /^cart_/.test(l.acao||'');
+        return `
+        <tr style="border-top:1px solid ${enc?'rgba(239,68,68,.35)':'rgba(255,255,255,.04)'};${enc?'background:rgba(239,68,68,.10);':''}">
           <td style="padding:8px 10px;color:var(--w2);white-space:nowrap;font-family:monospace;font-size:11px;">${l.ts ? new Date(l.ts).toLocaleString('pt-BR') : '—'}</td>
-          <td style="padding:8px 10px;"><span style="background:rgba(46,194,255,.12);color:var(--az);padding:3px 7px;border-radius:4px;font-size:10.5px;font-family:monospace;font-weight:700;">${l.acao}</span></td>
+          <td style="padding:8px 10px;">${enc?'<span title="Encarregado logou em carrinho de mecânico">⚠️ </span>':''}<span style="background:${enc?'rgba(239,68,68,.18)':'rgba(46,194,255,.12)'};color:${enc?'#ef4444':'var(--az)'};padding:3px 7px;border-radius:4px;font-size:10.5px;font-family:monospace;font-weight:700;">${l.acao}</span></td>
           <td style="padding:8px 10px;color:var(--wh);font-size:11.5px;"><div>${l.nome||'—'}</div><div style="color:var(--gr);font-size:10.5px;">${l.email||''}</div></td>
           <td style="padding:8px 10px;color:var(--w2);font-size:11.5px;">${l.base||'—'}</td>
           <td style="padding:8px 10px;color:var(--w2);font-size:11.5px;">${l.detalhes||''}</td>
-          <td style="padding:8px 10px;color:var(--gr);font-size:10.5px;">${l.origem||''}</td>
-        </tr>
-      `).join('')}
+          <td style="padding:8px 10px;font-size:10.5px;color:${enc?'#ef4444':'var(--gr)'};font-weight:${enc?'800':'400'};">${enc?'ENCARREGADO ⚠':(l.origem||'')}</td>
+        </tr>`;
+      }).join('')}
     </tbody>
   </table>
   <div style="padding:10px 12px;background:var(--c2);border-top:1px solid var(--bd);color:var(--gr);font-size:11px;text-align:center;">${filtered.length} de ${_logsCache.length} entradas</div>`;
+}
+
+// Varre TODOS os registros (inclusive antigos) e lista check-ins feitos por encarregado
+function abrirEncarregadosEmCarrinho() {
+  const encs = ENCARREGADOS_EMAILS.map(e => e.toLowerCase());
+  const recs = (getRecords() || [])
+    .filter(r => encs.includes(String(r.mecanico || '').toLowerCase().trim()))
+    .sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  let body;
+  if (!recs.length) {
+    body = '<div style="padding:30px;text-align:center;color:var(--gr);font-size:14px;">✅ Nenhum check-in de encarregado nos registros.</div>';
+  } else {
+    body = `<table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <thead><tr style="color:var(--gr);text-transform:uppercase;font-size:10px;letter-spacing:1px;">
+        <th style="text-align:left;padding:6px 8px;">Data/Hora</th><th style="text-align:left;padding:6px 8px;">Encarregado</th><th style="text-align:left;padding:6px 8px;">Carrinho</th><th style="padding:6px 8px;">Ação</th><th style="padding:6px 8px;">NC</th></tr></thead>
+      <tbody>${recs.map(r => `<tr style="border-top:1px solid rgba(239,68,68,.22);background:rgba(239,68,68,.07);">
+        <td style="padding:6px 8px;font-family:monospace;font-size:11px;color:var(--w2);white-space:nowrap;">${r.ts ? new Date(r.ts).toLocaleString('pt-BR') : '—'}</td>
+        <td style="padding:6px 8px;color:#ef4444;font-weight:700;">${r.mecanico || ''}</td>
+        <td style="padding:6px 8px;color:var(--wh);font-weight:800;">${r.carrinho || ''}</td>
+        <td style="padding:6px 8px;text-align:center;color:var(--w2);">${r.tipo === 'checkin' ? 'entrou' : 'saiu'}</td>
+        <td style="padding:6px 8px;text-align:center;color:var(--yw);font-weight:700;">${r.nc_count || 0}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const ov = document.createElement('div'); ov.id = 'encarg-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;';
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--rd);border-radius:12px;max-width:760px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);">
+      <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:1.5px;color:#ef4444;">⚠️ ENCARREGADOS EM CARRINHO <span style="color:var(--gr);font-size:12px;">· ${recs.length} registro(s)</span></div>
+      <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('encarg-overlay').remove()">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;">
+      <div style="font-size:11.5px;color:var(--gr);margin-bottom:10px;">Todo check-in/checkout feito por e-mail de <b>encarregado</b> — varre <b>todos os registros</b> (inclusive antigos). Encarregado não deveria operar carrinho de mecânico.</div>
+      ${body}</div></div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
 }
 
 function copiarLink(url, btn) {
@@ -2138,6 +2394,270 @@ function setBaseTab(base) {
   renderCarrinhos();
 }
 
+// ─── RELATÓRIO DE NC POR BASE ───────────────────────────────────────────────
+// ─── BUSCAR APARELHO (IMEI / serial / nome / e-mail) ─────────────────────────
+function abrirBuscaAparelho(){
+  const ov = document.createElement('div'); ov.id='busca-ap-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100001;display:flex;align-items:flex-start;justify-content:center;padding:40px 18px;';
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:620px;width:100%;max-height:82vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);">
+      <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:1.5px;color:var(--wh);">🔎 BUSCAR APARELHO</div>
+      <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('busca-ap-overlay').remove()">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;">
+      <input id="busca-ap-inp" oninput="renderBuscaAparelho()" placeholder="IMEI, serial, nome ou e-mail…" style="width:100%;padding:10px 12px;background:var(--c1);border:1px solid var(--bd);border-radius:7px;color:var(--wh);font-size:14px;box-sizing:border-box;">
+      <div id="busca-ap-res" style="margin-top:12px;"></div>
+    </div></div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  setTimeout(() => { const i = document.getElementById('busca-ap-inp'); if (i) i.focus(); }, 50);
+}
+function renderBuscaAparelho(){
+  const res = document.getElementById('busca-ap-res'); if (!res) return;
+  const q = (document.getElementById('busca-ap-inp').value||'').trim().toLowerCase();
+  if (q.length < 2) { res.innerHTML = '<div style="color:var(--gr);font-size:12.5px;padding:8px;">Digite ao menos 2 caracteres (IMEI, serial, nome ou e-mail).</div>'; return; }
+  const qd = q.replace(/\D/g,'');
+  const hits = (_presDevices||[]).filter(d => {
+    const nome=(d.number||'').toLowerCase(), email=(d.email||'').toLowerCase(), serial=(d.serial||'').toLowerCase(), imei=(d.imei||'');
+    return nome.includes(q) || email.includes(q) || serial.includes(q) || (qd.length>=4 && (imei.includes(qd) || serial.replace(/\D/g,'').includes(qd)));
+  }).slice(0, 25);
+  if (!hits.length) { res.innerHTML = '<div style="color:var(--gr);font-size:12.5px;padding:8px;">Nenhum aparelho encontrado. (A lista carrega junto com o painel — aguarde alguns segundos se acabou de abrir.)</div>'; return; }
+  res.innerHTML = hits.map(d => `<div style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--c2);">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="width:9px;height:9px;border-radius:50%;background:${d.online?'#22c55e':'#ef4444'};flex:0 0 auto;"></span>
+      <b style="color:var(--wh);font-size:14px;">${d.number||'—'}</b>
+      <span style="margin-left:auto;color:${d.online?'#22c55e':'#ef4444'};font-size:11px;font-weight:800;">${d.online?'ONLINE':'OFFLINE'}</span>
+      ${d.battery!=null?`<span style="color:var(--w2);font-size:11.5px;">🔋 ${d.battery}%</span>`:''}
+    </div>
+    <div style="color:var(--az);font-size:12.5px;margin-top:3px;">${d.email||'(sem e-mail na descrição)'}</div>
+    <div style="color:var(--gr);font-size:10.5px;font-family:monospace;margin-top:3px;">IMEI ${d.imei||'—'} · Serial ${d.serial||'—'}</div>
+  </div>`).join('') + `<div style="color:var(--gr);font-size:10.5px;text-align:center;padding:4px;">${hits.length} resultado(s)</div>`;
+}
+
+function _aggNCporBase() {
+  const map = {}; // base -> ferramenta -> {qtd, carts:Set, motivos:Set}
+  (_serverOpenNCs || []).forEach(nc => {
+    const base = getCartBase(nc.carrinho) || '—';
+    const ferr = nc.ferramenta || '—';
+    (map[base] = map[base] || {});
+    const m = (map[base][ferr] = map[base][ferr] || { qtd: 0, carts: new Set(), motivos: new Set() });
+    m.qtd++; m.carts.add(nc.carrinho); if (nc.motivo) m.motivos.add(nc.motivo);
+  });
+  return map;
+}
+// estoque/mínimo helpers p/ relatório e pedido
+function _estoqueDe(base, ferr){ const e = getEstoque(); return (e[base] && Number(e[base][ferr])) || 0; }
+function getEstoqueMin(){ try { return JSON.parse(localStorage.getItem('vammo_estoque_min')) || {}; } catch { return {}; } }
+function saveEstoqueMin(m){ localStorage.setItem('vammo_estoque_min', JSON.stringify(m)); }
+function getMin(base, ferr){ const m = getEstoqueMin(); return (m[base] && Number(m[base][ferr])) || 0; }
+
+function abrirRelatorioNC() {
+  const map = _aggNCporBase(); window._relncMap = map;
+  const bases = Object.keys(map).sort();
+  let total = 0, bodyHtml = '';
+  if (!bases.length) {
+    bodyHtml = '<div style="padding:30px;text-align:center;color:var(--gr);font-size:14px;">🎉 Nenhuma NC aberta — tudo certo!</div>';
+  } else {
+    bases.forEach(base => {
+      const ferrs = Object.entries(map[base]).sort((a,b)=>b[1].qtd-a[1].qtd);
+      const sub = ferrs.reduce((s,[,m])=>s+m.qtd,0); total += sub;
+      bodyHtml += `<div style="margin-bottom:18px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:1.5px;color:var(--az);margin-bottom:6px;">📍 ${base} <span style="color:var(--gr);font-size:13px;">· ${sub} NC</span></div>
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+          <thead><tr style="color:var(--gr);text-transform:uppercase;font-size:10px;letter-spacing:1px;">
+            <th style="text-align:left;padding:5px 8px;">Ferramenta</th><th style="padding:5px 8px;"># NC</th><th style="padding:5px 8px;">Em estoque</th><th style="padding:5px 8px;">A comprar</th><th style="text-align:left;padding:5px 8px;">Carrinhos</th></tr></thead>
+          <tbody>${ferrs.map(([f,m])=>{ const est=_estoqueDe(base,f); const comprar=Math.max(0,m.qtd-est); return `<tr style="border-top:1px solid rgba(255,255,255,.06);">
+            <td style="padding:6px 8px;color:var(--wh);font-weight:700;">${f}</td>
+            <td style="padding:6px 8px;text-align:center;color:var(--yw);font-weight:900;">${m.qtd}</td>
+            <td style="padding:6px 8px;text-align:center;color:var(--w2);">${est}</td>
+            <td style="padding:6px 8px;text-align:center;font-weight:900;color:${comprar>0?'#ef4444':'var(--gn)'};">${comprar}</td>
+            <td style="padding:6px 8px;color:var(--w2);font-size:11px;">${[...m.carts].sort().join(', ')}</td></tr>`;}).join('')}</tbody>
+        </table></div>`;
+    });
+  }
+  const ov = document.createElement('div');
+  ov.id = 'relnc-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;';
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:860px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap;">
+      <div style="flex:1;min-width:160px;font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:900;letter-spacing:2px;color:var(--wh);">📋 RELATÓRIO DE NC <span style="color:var(--gr);font-size:13px;">· ${total} no total</span></div>
+      <button class="btn-sm btn-az" onclick="gerarPedidoCompra()" title="Gera PDF de compra: NCs a repor + estoque mínimo − estoque atual">🛒 Pedido de Compra</button>
+      <button class="btn-sm btn-outline" onclick="abrirEstoqueMinimo()" title="Definir estoque mínimo por ferramenta/base">⚙ Estoque mínimo</button>
+      <button class="btn-sm btn-outline" onclick="exportRelatorioNCCSV()">⬇ CSV</button>
+      <button class="btn-sm btn-outline" onclick="imprimirRelatorioNC()">🖨 Imprimir</button>
+      <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('relnc-overlay').remove()">✕</button>
+    </div>
+    <div style="padding:16px 18px;overflow-y:auto;">${bodyHtml}</div></div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+function exportRelatorioNCCSV() {
+  const map = window._relncMap || _aggNCporBase();
+  let csv = 'Base;Ferramenta;# NC;Em estoque;A comprar;Carrinhos;Motivos\n';
+  Object.keys(map).sort().forEach(base => {
+    Object.entries(map[base]).sort((a,b)=>b[1].qtd-a[1].qtd).forEach(([f,m]) => {
+      const est = _estoqueDe(base, f), comprar = Math.max(0, m.qtd - est);
+      csv += [base, f, m.qtd, est, comprar, [...m.carts].sort().join(' | '), [...m.motivos].join(' | ')]
+        .map(x => `"${String(x).replace(/"/g,'""')}"`).join(';') + '\n';
+    });
+  });
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'relatorio_nc_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+// LISTA PADRÃO DE FERRAMENTAS — escolhe o perfil, depois gera o PDF
+function imprimirListaFerramentas() {
+  const old = document.getElementById('pdf-perfil-ov'); if (old) old.remove();
+  const cores = (typeof PERFIL_CORES !== 'undefined') ? PERFIL_CORES : {};
+  const btns = PERFIL_NOMES.map(p => {
+    const n = getPerfilTools(p).length;
+    const c = cores[p] || '#00B4E5';
+    return '<button onclick="_gerarPdfFerramentas(\'' + p + '\')" ' +
+      'style="display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:16px 18px;margin-bottom:10px;border:1px solid #2e2e2e;border-left:6px solid ' + c + ';border-radius:12px;background:#1a1a1a;color:#fff;cursor:pointer;font-family:\'Barlow Condensed\',sans-serif;font-size:18px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">' +
+      p + '<span style="font-size:12px;font-weight:600;color:#888;letter-spacing:0;text-transform:none;">' + n + ' ferramentas</span></button>';
+  }).join('');
+  const ov = document.createElement('div');
+  ov.id = 'pdf-perfil-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML = '<div style="background:#111;border:1px solid #2e2e2e;border-radius:18px;padding:24px;max-width:380px;width:100%;">' +
+    '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:22px;font-weight:900;letter-spacing:1px;color:var(--az);margin-bottom:4px;">🛠 Lista Padrão de Ferramentas</div>' +
+    '<div style="font-size:13px;color:#888;margin-bottom:18px;">Escolha o perfil do carrinho que quer conferir</div>' +
+    btns +
+    '<button onclick="document.getElementById(\'pdf-perfil-ov\').remove()" style="width:100%;padding:11px;margin-top:4px;border:none;border-radius:12px;background:transparent;color:#888;cursor:pointer;font-size:13px;">Cancelar</button>' +
+    '</div>';
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+function _gerarPdfFerramentas(perfil) {
+  const ovEl = document.getElementById('pdf-perfil-ov'); if (ovEl) ovEl.remove();
+  const tools = getPerfilTools(perfil) || [];
+  if (!tools.length) {
+    alert('O perfil "' + perfil + '" ainda não tem ferramentas definidas.\n\nDefina as ferramentas dele na aba "Perfis de Carrinho" e tente de novo.');
+    return;
+  }
+  const toolSet = new Set(tools);
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const logoEl = document.querySelector('img[src^="data:image"]');
+  const logo = logoEl ? logoEl.src : '';
+  const cor = (typeof PERFIL_CORES !== 'undefined' && PERFIL_CORES[perfil]) || '#00B4E5';
+  // só as categorias/itens que pertencem ao perfil, mantendo a ordem do catálogo
+  let total = 0;
+  const cats = TOOLS_CATALOG.map(cat => {
+    const itens = cat.items.filter(t => toolSet.has(t));
+    if (!itens.length) return '';
+    total += itens.length;
+    const li = itens.map(t => '<li><span class="bx"></span>' + t + '</li>').join('');
+    return '<section class="cat"><h2>' + cat.cat + ' <em>' + itens.length + '</em></h2><ul>' + li + '</ul></section>';
+  }).join('');
+  const css =
+    '@page { size: A4; margin: 12mm; }' +
+    '*{box-sizing:border-box;}' +
+    'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;}' +
+    '.hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid ' + cor + ';padding-bottom:10px;margin-bottom:6px;}' +
+    '.hd img{height:40px;}' +
+    '.hd h1{font-size:20px;margin:0;letter-spacing:1px;text-transform:uppercase;}' +
+    '.hd .sub{font-size:12px;color:#555;}' +
+    '.hd .tag{margin-left:auto;font-size:13px;font-weight:700;color:#fff;background:' + cor + ';padding:5px 14px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;}' +
+    '.meta{font-size:11px;color:#666;margin-bottom:14px;display:flex;justify-content:space-between;}' +
+    '.grid{column-count:2;column-gap:18px;}' +
+    '.cat{break-inside:avoid;margin-bottom:12px;}' +
+    '.cat h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.5px;color:#0077a3;margin:0 0 5px;border-bottom:1px solid #ddd;padding-bottom:3px;}' +
+    '.cat h2 em{float:right;font-style:normal;color:#999;font-weight:400;}' +
+    '.cat ul{list-style:none;margin:0;padding:0;}' +
+    '.cat li{font-size:12px;padding:3px 0;display:flex;align-items:center;gap:8px;}' +
+    '.bx{width:13px;height:13px;border:1.5px solid #333;border-radius:3px;display:inline-block;flex-shrink:0;}' +
+    '.sig{margin-top:34px;display:flex;gap:40px;}' +
+    '.sig div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center;font-size:11px;color:#333;}';
+  const html =
+    '<div class="hd">' + (logo ? '<img src="' + logo + '">' : '') +
+      '<div><h1>Lista Padrão de Ferramentas</h1><div class="sub">Carrinhos de ferramentas · conferência</div></div>' +
+      '<span class="tag">' + perfil + '</span></div>' +
+    '<div class="meta"><span>Gerado em ' + hoje + '</span><span>Perfil <b>' + perfil + '</b> · <b>' + total + '</b> ferramentas</span></div>' +
+    '<div class="grid">' + cats + '</div>' +
+    '<div class="sig"><div>Conferido por</div><div>Carrinho / Base</div><div>Data</div></div>';
+  const w = window.open('', '_blank');
+  w.document.write('<html><head><title>Ferramentas ' + perfil + ' — VAMMO</title><style>' + css + '</style></head><body>' + html + '</body></html>');
+  w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch(e){} }, 350);
+}
+
+function imprimirRelatorioNC() {
+  const map = window._relncMap || _aggNCporBase();
+  let html = '<h1>Relatório de NC por Base</h1><p>Gerado em ' + new Date().toLocaleString('pt-BR') + '</p>';
+  Object.keys(map).sort().forEach(base => {
+    const ferrs = Object.entries(map[base]).sort((a,b)=>b[1].qtd-a[1].qtd);
+    const sub = ferrs.reduce((s,[,m])=>s+m.qtd,0);
+    html += '<h2>' + base + ' — ' + sub + ' NC</h2><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;"><tr><th align="left">Ferramenta</th><th># NC</th><th>Em estoque</th><th>A comprar</th><th align="left">Carrinhos</th></tr>';
+    ferrs.forEach(([f,m]) => { const est=_estoqueDe(base,f), comprar=Math.max(0,m.qtd-est); html += '<tr><td>' + f + '</td><td align="center">' + m.qtd + '</td><td align="center">' + est + '</td><td align="center"><b>' + comprar + '</b></td><td>' + [...m.carts].sort().join(', ') + '</td></tr>'; });
+    html += '</table>';
+  });
+  const w = window.open('', '_blank');
+  w.document.write('<html><head><title>Relatório NC</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111;}h1{font-size:20px;}h2{font-size:15px;margin-top:18px;color:#0077a3;}th{background:#f0f0f0;}</style></head><body>' + html + '</body></html>');
+  w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch(e){} }, 350);
+}
+// PEDIDO DE COMPRA: comprar = max(0, NCs + estoque mínimo − estoque atual)
+function gerarPedidoCompra() {
+  const map = _aggNCporBase(), est = getEstoque();
+  let grand = 0, secoes = '', any = false;
+  BASES.forEach(base => {
+    const linhas = [];
+    flatTools().forEach(f => {
+      const nc = (map[base] && map[base][f]) ? map[base][f].qtd : 0;
+      const e = (est[base] && Number(est[base][f])) || 0;
+      const min = getMin(base, f);
+      const comprar = Math.max(0, nc + min - e);
+      if (comprar > 0) {
+        const preco = getPreco(f), sub = comprar * preco; grand += sub; any = true;
+        linhas.push('<tr><td>'+f+'</td><td align="center">'+nc+'</td><td align="center">'+e+'</td><td align="center">'+min+'</td><td align="center"><b>'+comprar+'</b></td><td align="right">'+fmtMoney(preco)+'</td><td align="right">'+fmtMoney(sub)+'</td></tr>');
+      }
+    });
+    if (linhas.length) {
+      const subBase = linhas.length;
+      secoes += '<h2>'+base+' <span style="font-size:12px;color:#777;">('+subBase+' item(ns))</span></h2><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;"><tr><th align="left">Ferramenta</th><th>NC</th><th>Estoque</th><th>Mín</th><th>Comprar</th><th>Preço un.</th><th>Subtotal</th></tr>'+linhas.join('')+'</table>';
+    }
+  });
+  if (!any) { alert('Nada a comprar — o estoque cobre as NCs e o mínimo. 🎉'); return; }
+  const cab = '<h1>Pedido de Compra — VAMMO</h1><p>Gerado em '+new Date().toLocaleString('pt-BR')+'</p>'
+    + '<p style="font-size:11.5px;color:#555;">Por item: <b>Comprar = NCs a repor + Estoque mínimo − Estoque atual</b>. Preços do cadastro de preços (0 = sem preço cadastrado).</p>';
+  const rod = '<h3 style="text-align:right;margin-top:18px;">Total estimado: '+fmtMoney(grand)+'</h3>';
+  const w = window.open('', '_blank');
+  w.document.write('<html><head><title>Pedido de Compra VAMMO</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111;}h1{font-size:21px;}h2{font-size:15px;margin-top:20px;color:#0077a3;}th{background:#f0f0f0;}table{margin-top:6px;}</style></head><body>'+cab+secoes+rod+'</body></html>');
+  w.document.close(); w.focus(); setTimeout(()=>{ try{w.print();}catch(e){} }, 400);
+}
+// ESTOQUE MÍNIMO por ferramenta/base
+function _estMinBody(base){
+  return TOOLS_CATALOG.map(cat =>
+    `<div style="margin-bottom:8px;"><div style="color:var(--az);font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:6px 0 3px;">${cat.cat}</div>`
+    + cat.items.map(f => `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;"><span style="flex:1;color:var(--w2);font-size:12px;">${f}</span><input type="number" min="0" data-ferr="${String(f).replace(/"/g,'&quot;')}" value="${getMin(base,f)}" style="width:62px;padding:4px 6px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;text-align:center;"></div>`).join('')
+    + `</div>`).join('');
+}
+function abrirEstoqueMinimo(){
+  const _emBases = isSupervisor() ? viewableBases() : BASES; // supervisor: só a base dele
+  const ov = document.createElement('div'); ov.id='estmin-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:100002;display:flex;align-items:center;justify-content:center;padding:18px;';
+  ov.innerHTML = `<div style="background:var(--c1);border:1px solid var(--bd);border-radius:12px;max-width:560px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap;">
+      <div style="flex:1;min-width:140px;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:1.5px;color:var(--wh);">⚙ ESTOQUE MÍNIMO</div>
+      <select id="estmin-base" style="padding:7px 9px;background:var(--c1);border:1px solid var(--bd);border-radius:5px;color:var(--wh);font-size:12px;">${_emBases.map(b=>`<option>${b}</option>`).join('')}</select>
+      <button class="btn-sm" style="background:var(--bd);" onclick="document.getElementById('estmin-overlay').remove()">✕</button>
+    </div>
+    <div id="estmin-body" style="padding:14px 18px;overflow-y:auto;">${_estMinBody(_emBases[0])}</div>
+    <div style="padding:12px 18px;border-top:1px solid var(--bd);text-align:right;"><button class="btn-sm btn-az" onclick="salvarEstoqueMinModal(false)">💾 Salvar</button></div></div>`;
+  document.body.appendChild(ov);
+  const sel = document.getElementById('estmin-base'); sel._base = _emBases[0];
+  sel.addEventListener('change', () => { salvarEstoqueMinModal(true); sel._base = sel.value; document.getElementById('estmin-body').innerHTML = _estMinBody(sel.value); });
+}
+function salvarEstoqueMinModal(silent){
+  const sel = document.getElementById('estmin-base'); if (!sel) return;
+  const base = sel._base || sel.value;
+  const m = getEstoqueMin(); m[base] = m[base] || {};
+  document.querySelectorAll('#estmin-body input[data-ferr]').forEach(inp => { m[base][inp.dataset.ferr] = Math.max(0, parseInt(inp.value)||0); });
+  saveEstoqueMin(m);
+  if (!silent) { const o = document.getElementById('estmin-overlay'); if (o) o.remove(); showAlert('cart-alert-box','gn','✅ Estoque mínimo salvo.'); }
+}
+
 function ncListFromRec(rec) {
   if (!rec || !rec.ferramentas) return [];
   return Object.entries(rec.ferramentas)
@@ -2158,6 +2678,20 @@ function _nameTokens(s){
   if (v.indexOf('@') >= 0) v = v.split('@')[0].replace(/[._]+/g,' ');
   return _deburr(v).toLowerCase().replace(/[^a-z\s]/g,' ').trim().split(/\s+/).filter(Boolean);
 }
+// true se a e b diferem em no máx. 1 letra (typo) — exige token >=3 chars
+function _close(a,b){
+  if (a === b) return true;
+  const la=a.length, lb=b.length;
+  if (la<3 || lb<3 || Math.abs(la-lb)>1) return false;
+  let i=0,j=0,ed=0;
+  while (i<la && j<lb){
+    if (a[i]===b[j]){ i++; j++; continue; }
+    if (++ed>1) return false;
+    if (la>lb) i++; else if (lb>la) j++; else { i++; j++; }
+  }
+  if (i<la || j<lb) ed++;
+  return ed<=1;
+}
 // Status do celular do mecânico: true=online, false=offline, null=sem match
 function mecPhoneStatus(mec){
   const mt = _nameTokens(mec);
@@ -2168,15 +2702,131 @@ function mecPhoneStatus(mec){
   }
   return null;
 }
+// Device casado do mecânico logado: 1º por e-mail exato (description do Headwind,
+// sem erro de grafia), 2º por nome (tokens). Retorna o device ou null.
+function mecDevice(mec){
+  if (!_presLoaded) return null;
+  const email = String(mec||'').toLowerCase().trim();
+  if (email.indexOf('@') >= 0) {
+    for (const d of _presDevices){ if (d.email && d.email === email) return d; }
+    // tolera typo de domínio (ex.: @vammo sem .com): casa pelo trecho antes do @
+    const lp = email.split('@')[0];
+    if (lp) for (const d of _presDevices){ if (d.email && d.email.split('@')[0] === lp) return d; }
+  }
+  const mt = _nameTokens(mec);
+  if (!mt.length) return null;
+  const first = mt[0], last = mt[mt.length-1];
+  for (const d of _presDevices){
+    if (d.tokens.includes(first) && d.tokens.includes(last)) return d;
+  }
+  // 3) tolerância a typo de 1 letra (ex.: capetine vs capetini)
+  for (const d of _presDevices){
+    if (d.tokens.some(t=>_close(t,first)) && d.tokens.some(t=>_close(t,last))) return d;
+  }
+  return null;
+}
+// Ícone de bateria (SVG): preenchimento proporcional + cor por nível
+function batterySvg(lvl){
+  lvl = Math.max(0, Math.min(100, lvl|0));
+  const fill = Math.max(2, Math.round(19*lvl/100));
+  const col = lvl>50 ? '#22c55e' : (lvl>20 ? '#eab308' : '#ef4444');
+  return `<svg viewBox="0 0 28 16" width="24" height="14"><rect x="1" y="2.5" width="23" height="11" rx="2.5" fill="none" stroke="#aeb6c2" stroke-width="1.6"/><rect x="25" y="5.5" width="2.6" height="5" rx="1" fill="#aeb6c2"/><rect x="3" y="4.5" width="${fill}" height="7" rx="1.4" fill="${col}"/></svg>`;
+}
 function refreshPresence(){
   const cfg = getConfig();
   if (!cfg.presenceUrl) return;
   gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
     if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
-    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), online: !!d.online }));
+    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), number: d.number || '', online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim(), serial: d.serial || '', imei: d.imei || '', lastUpdate: d.lastUpdate || 0 }));
     _presLoaded = true;
     try { renderCarrinhos(); } catch(e){}
+    try { if (document.getElementById('panel-frota')?.classList.contains('active')) renderFrota(); } catch(e){}
   });
+}
+
+// ─── FROTA VAMMO: todos os celulares do Headwind, ao vivo (IMEI, dono, online) ───
+function renderFrota(){
+  const body = document.getElementById('frota-body');
+  if (!body) return;
+  if (!_presLoaded) { body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando frota do Headwind…</div>'; return; }
+  const devs = (_presDevices || []).slice();
+  const online = devs.filter(d => d.online).length;
+  const semDono = devs.filter(d => !d.email).length;
+  const stats = `<div class="stat-grid" style="margin-bottom:18px;">
+    <div class="stat-card"><div class="sc-label">Celulares Vammo</div><div class="sc-num sc-az">${devs.length}</div><div class="sc-sub">na frota (Headwind)</div></div>
+    <div class="stat-card"><div class="sc-label">Online agora</div><div class="sc-num sc-gn">${online}</div><div class="sc-sub">conectados</div></div>
+    <div class="stat-card"><div class="sc-label">Offline</div><div class="sc-num">${devs.length - online}</div><div class="sc-sub">sem sync recente</div></div>
+    <div class="stat-card" ${semDono?'style="border-color:var(--yw);"':''}><div class="sc-label">Sem dono</div><div class="sc-num ${semDono?'sc-yw':''}">${semDono}</div><div class="sc-sub">sem e-mail na descrição</div></div>
+  </div>`;
+  const q = (document.getElementById('frota-search')?.value || '').toLowerCase().trim();
+  let filt = devs.filter(d => !q || (String(d.number)+' '+String(d.email)+' '+String(d.imei)).toLowerCase().includes(q));
+  filt.sort((a,b) => (b.online?1:0)-(a.online?1:0) || String(a.email||a.number).localeCompare(String(b.email||b.number)));
+  const fmtSync = (ms) => { if(!ms) return '—'; const min=Math.floor((Date.now()-ms)/60000); if(min<1)return 'agora'; if(min<60)return min+'min'; const h=Math.floor(min/60); if(h<24)return h+'h'; return Math.floor(h/24)+'d'; };
+  const td = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;';
+  const rows = filt.map(d => `<tr>
+    <td style="${td}white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${d.online?'#22c55e':'#ef4444'};margin-right:7px;box-shadow:${d.online?'0 0 6px #22c55e':'none'};"></span>${d.online?'online':'offline'}</td>
+    <td style="${td}font-weight:700;color:var(--wh);">${d.number || '—'}</td>
+    <td style="${td}">${d.email ? d.email : '<span style="color:var(--yw);font-weight:700;">⚠ sem dono</span>'}</td>
+    <td style="${td}font-family:monospace;font-size:11px;color:var(--w2);">${d.imei || '—'}</td>
+    <td style="${td}text-align:center;">${d.battery != null ? d.battery+'%' : '—'}</td>
+    <td style="${td}text-align:center;color:var(--gr);">${fmtSync(d.lastUpdate)}</td>
+  </tr>`).join('');
+  body.innerHTML = stats + `<div class="table-wrap"><div class="table-head"><h2>Aparelhos (${filt.length})</h2></div>
+    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+      <thead><tr>${['Status','Aparelho','Dono (e-mail)','IMEI','Bat.','Últ. sync'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--gr);">Nenhum aparelho.</td></tr>'}</tbody>
+    </table></div></div>`;
+}
+
+// ─── STATUS DE OS: em moto (IN_PROGRESS via Metabase) · ocioso = timer no app ───
+let _osByEmail = {};   // só in_progress: { email: {placa, since} }
+let _wasInProg = {};   // quem estava em moto (p/ detectar a saída)
+let _idleStart = {};   // email -> ms em que a ociosidade começou (persistido)
+try { _idleStart = JSON.parse(localStorage.getItem('vammo_idle_start') || '{}'); } catch(e){ _idleStart = {}; }
+function _saveIdleStart(){ try { localStorage.setItem('vammo_idle_start', JSON.stringify(_idleStart)); } catch(e){} }
+
+function refreshOsStatus(){
+  const cfg = getConfig();
+  if (!cfg.presenceUrl) return;
+  gasGet(cfg.presenceUrl, 'action=osStatus', (d) => {
+    if (!d || !d.ok || !d.os) return;
+    const inprog = {};
+    Object.keys(d.os).forEach(e => { if (d.os[e] && d.os[e].status === 'in_progress') inprog[e] = d.os[e]; });
+    let changed = false;
+    // está em moto agora: zera o timer de ocioso
+    Object.keys(inprog).forEach(e => { _wasInProg[e] = true; if (_idleStart[e]) { delete _idleStart[e]; changed = true; } });
+    // acabou de sair do in_progress: começa a contar a ociosidade
+    Object.keys(_wasInProg).forEach(e => {
+      if (_wasInProg[e] && !inprog[e]) { _wasInProg[e] = false; if (!_idleStart[e]) { _idleStart[e] = Date.now(); changed = true; } }
+    });
+    if (changed) _saveIdleStart();
+    _osByEmail = inprog;
+    try { renderCarrinhos(); } catch(e){}
+  });
+}
+function fmtElapsedMs(ms){
+  let s = Math.max(0, Math.floor((Date.now()-ms)/1000));
+  const d = Math.floor(s/86400); s -= d*86400;
+  const h = Math.floor(s/3600); s -= h*3600;
+  const m = Math.floor(s/60);
+  if (d > 0) return d+'d '+h+'h';
+  if (h > 0) return h+'h '+m+'min';
+  return m+'min';
+}
+// mec = e-mail do mecânico logado; cartTs = ISO do check-in (fallback p/ início do ocioso)
+function osBadgeHtml(mec, cartTs){
+  const email = String(mec||'').toLowerCase().trim();
+  if (!email) return '';
+  const o = _osByEmail[email];
+  if (o) { // em moto
+    const ms = Date.parse(o.since) || Date.now();
+    return '<div class="ccv-os on" title="Executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+'<span class="ccv-os-t">há '+fmtElapsedMs(ms)+'</span></div>';
+  }
+  // ocioso: conta desde que saiu do in_progress (ou desde que o app o viu ocioso).
+  // Teto de 12h pra não arrastar madrugada/carrinho preso logado.
+  let sinceMs = _idleStart[email];
+  if (!sinceMs || (Date.now() - sinceMs) > 12*3600*1000) { sinceMs = Date.now(); _idleStart[email] = sinceMs; _saveIdleStart(); }
+  return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso<span class="ccv-os-t">há '+fmtElapsedMs(sinceMs)+'</span></div>';
 }
 
 function computeCartState(nome, recs) {
@@ -2263,31 +2913,31 @@ function renderCarrinhos() {
     // Cards menores por base (não mostra se for supervisor — só vê 1 base)
     const porBaseCards = (visibleBases.length > 1)
       ? `<div style="grid-column:1 / -1;margin-top:4px;">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;margin-bottom:8px;">Detalhe por Base</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:1.5px;color:var(--gr);text-transform:uppercase;margin-bottom:8px;">Detalhe por Base</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px;">
             ${visibleBases.map(b => {
               const s = porBase[b];
               return `<div style="background:var(--c2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;">
                 <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-                  <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:900;letter-spacing:1.5px;color:var(--az);">📍 ${b.toUpperCase()}</span>
-                  <span style="font-size:10.5px;color:var(--gr);">${s.total} cart${s.total!==1?'s':''}</span>
+                  <span style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;letter-spacing:1.5px;color:var(--az);">📍 ${b.toUpperCase()}</span>
+                  <span style="font-size:12px;color:var(--gr);">${s.total} cart${s.total!==1?'s':''}</span>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:4px;text-align:center;">
                   <div title="Logados">
-                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gn);line-height:1;">${s.log}</div>
-                    <div style="font-size:9px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">Log</div>
+                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:var(--gn);line-height:1;">${s.log}</div>
+                    <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">Log</div>
                   </div>
                   <div title="Deslogados">
-                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--w2);line-height:1;">${s.deslog}</div>
-                    <div style="font-size:9px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">Desl</div>
+                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:var(--w2);line-height:1;">${s.deslog}</div>
+                    <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">Desl</div>
                   </div>
                   <div title="Com NC aberta">
-                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:${s.nc>0?'var(--yw)':'var(--gr)'};line-height:1;">${s.nc}</div>
-                    <div style="font-size:9px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">NC</div>
+                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:${s.nc>0?'var(--yw)':'var(--gr)'};line-height:1;">${s.nc}</div>
+                    <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">NC</div>
                   </div>
                   <div title="Sem registro">
-                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gr);line-height:1;">${s.sem}</div>
-                    <div style="font-size:9px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">S/R</div>
+                    <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:var(--gr);line-height:1;">${s.sem}</div>
+                    <div style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;">S/R</div>
                   </div>
                 </div>
               </div>`;
@@ -2326,19 +2976,30 @@ function renderCarrinhos() {
       const PHONE_SVG_SLASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/><line x1="3.5" y1="2.5" x2="20.5" y2="21.5"/></svg>';
       let phoneBadge = '';
       if (st.status === 'logado' && _presLoaded) {
-        const p = mecPhoneStatus(mec);
-        let bcls, bsvg, btxt;
-        if (p === true)       { bcls='on';    bsvg=PHONE_SVG;       btxt='ONLINE'; }
-        else if (p === false) { bcls='alert'; bsvg=PHONE_SVG;       btxt='OFFLINE'; }
-        else                  { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='NÃO CADASTRADO'; }
-        phoneBadge = `<div class="ccv-phone-badge ${bcls}"><span>${bsvg}</span><span class="ccv-phone-txt"><span class="cpb-label">Celular VAMMO</span><span class="cpb-status">${btxt}</span></span></div>`;
+        const dev = mecDevice(mec); // {online,battery} ou null (sem celular)
+        let bcls, bsvg, btxt, batt='';
+        if (dev) {
+          bcls = dev.online ? 'on' : 'alert';
+          bsvg = PHONE_SVG;
+          btxt = dev.online ? 'ONLINE' : 'OFFLINE';
+          if (dev.battery !== null && dev.battery !== undefined)
+            batt = `<span class="cpb-batt">${batterySvg(dev.battery)} ${dev.battery}%</span>`;
+        } else { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='S/ CADASTRO'; }
+        phoneBadge = `<div class="ccv-phone-badge ${bcls}"><span>${bsvg}</span><span class="ccv-phone-txt"><span class="cpb-label">Celular VAMMO</span><span class="cpb-line"><span class="cpb-status">${btxt}</span>${batt}</span></span></div>`;
       }
-      return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
+      // Cor do perfil só quando ONLINE (logado): Mecânico=verde, Diagnóstico=azul, Qualidade=roxo
+      const perfil = getCartPerfil(c.nome);
+      const perfilCor = PERFIL_CORES[perfil] || '#22c55e';
+      const logadoStyle = st.status === 'logado' ? `border-color:${perfilCor};box-shadow:inset 0 0 0 1px ${perfilCor}40;` : '';
+      const perfilTag = st.status === 'logado' ? `<span style="display:inline-block;margin-top:5px;font-size:9.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:1px 8px;border-radius:999px;background:${perfilCor}22;color:${perfilCor};border:1px solid ${perfilCor}66;">${perfil}</span>` : '';
+      return `<div class="cart-card-v3 ${cls} ${hasNC?'has-nc':''}" style="${logadoStyle}" onclick="openCartDetail('${c.nome}', '${recIdAttr}')">
         ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
         <div>
           <div class="ccv-id">${c.nome}</div>
           <div class="ccv-status">${label}</div>
+          ${perfilTag}
           ${phoneBadge}
+          ${st.status === 'logado' ? osBadgeHtml(mec, st.last ? st.last.ts : '') : ''}
         </div>
         <div>
           ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
@@ -2501,21 +3162,19 @@ function addCart() {
   carts.push({ nome: val, base });
   carts.sort((a,b) => a.nome.localeCompare(b.nome));
   saveCarts(carts);
+  pushCartListToGAS();
   inp.value = '';
   _currentBaseTab = base;
   renderCarrinhos();
-  showAlert('cart-alert-box', 'gn', `✅ Carrinho ${val} cadastrado em ${base}! Sincronizando com servidor...`);
-  pushCartToGAS(val, base);
-  logAcao('cart_add', `${val} em ${base}`, base);
+  showAlert('cart-alert-box', 'gn', `✅ Carrinho ${val} cadastrado em ${base}!`);
 }
 
 function removeCart(nome) {
   if (!confirm('Remover o carrinho ' + nome + '?')) return;
   const carts = getCarts().filter(c => c.nome !== nome);
   saveCarts(carts);
+  pushCartListToGAS();
   renderCarrinhos();
-  removeCartFromGAS(nome);
-  logAcao('cart_remove', nome, '');
 }
 
 function resetCartsDefault() {
@@ -2527,6 +3186,7 @@ function resetCartsDefault() {
   def.forEach(d => { if (!existingNames.has(d.nome)) existing.push(d); });
   existing.sort((a,b) => a.nome.localeCompare(b.nome));
   saveCarts(existing);
+  pushCartListToGAS();
   renderCarrinhos();
   showAlert('cart-alert-box', 'gn', '✅ Lista padrão restaurada.');
 }
@@ -2690,28 +3350,20 @@ function gastoDiarioBase(base, dias) {
     const inicio = d.getTime();
     const fim = inicio + 86400000;
     let gasto = 0, ncCount = 0;
-    const chaves = new Set();
-    baixasLocais.forEach(b => {
-      if (b.base !== base) return;
-      if (b.tipo === 'ajuste') return;
-      if (b.estornada) return;
+    const seen = new Set();
+    const add = (b) => {
+      if (!b || b.base !== base || b.tipo === 'ajuste') return;
+      if (b.estornada || b._estornada) return;
       const ts = new Date(b.ts).getTime();
       if (ts < inicio || ts >= fim) return;
-      chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
-      gasto += (Number(b.qtd)||0) * getPreco(b.ferramenta);
-      ncCount++;
-    });
-    _serverBaixas.forEach(b => {
-      if (b.base !== base) return;
-      if (b.tipo === 'ajuste') return;
-      if (b._estornada) return;
-      const ts = new Date(b.ts).getTime();
-      if (ts < inicio || ts >= fim) return;
-      const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
-      if (chaves.has(k)) return;
+      const key = b.recId ? (b.recId + '|' + b.ferramenta)
+                          : (b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+      if (seen.has(key)) return;
+      seen.add(key);
       gasto += (Number(b.qtd)||1) * getPreco(b.ferramenta);
       ncCount++;
-    });
+    };
+    _serverBaixas.forEach(add); // só servidor (sem baixas locais que inflavam)
     out.push({
       label: d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}),
       dataIso: d.toISOString().slice(0,10),
@@ -3194,10 +3846,29 @@ function syncNCsComServidor(silent) {
       if (!silent) showAlert('nc-alert-box','rd','❌ ' + (err || 'sem resposta'));
       return;
     }
-    _serverOpenNCs = data.ncs; // cache
-    const abertas = new Set(data.ncs.map(nc => normalizeCartName(nc.carrinho) + '|' + nc.ferramenta));
     const recs = getRecords();
     const rep = getNCRepostas();
+    // (carrinho|ferramenta) -> ts (ms) da resolução local mais recente
+    const repByCF = {};
+    recs.forEach(r => {
+      Object.keys(r.ferramentas || {}).forEach(f => {
+        const k = ncKey(r.id, f);
+        if (rep[k] && rep[k].ts) {
+          const ck = normalizeCartName(r.carrinho) + '|' + f;
+          const tms = Date.parse(rep[k].ts) || 0;
+          if (tms > (repByCF[ck] || 0)) repByCF[ck] = tms;
+        }
+      });
+    });
+    // Fonte: servidor MENOS o que já foi resolvido localmente (evita a NC reaparecer
+    // e ser baixada 2x enquanto o servidor não propaga a resolução). Só esconde se a
+    // resolução foi DEPOIS da criação da NC — NC nova do mesmo item continua aparecendo.
+    _serverOpenNCs = (data.ncs || []).filter(nc => {
+      const ck = normalizeCartName(nc.carrinho) + '|' + nc.ferramenta;
+      const resTs = repByCF[ck], ncTs = Date.parse(nc.ts) || 0;
+      return !(resTs && resTs >= ncTs);
+    });
+    const abertas = new Set(_serverOpenNCs.map(nc => normalizeCartName(nc.carrinho) + '|' + nc.ferramenta));
     let marcadas = 0;
     recs.forEach(r => {
       Object.entries(r.ferramentas || {}).forEach(([f, v]) => {
@@ -3598,43 +4269,64 @@ function renderEstoque() {
   }
   const est = getEstoque();
   const q = (document.getElementById('est-search')?.value || '').toLowerCase();
+  const basesView = viewableEstoqueBases(); // supervisor: só a base dele
+  // garante que a aba ativa é uma base visível (senão a seção fica escondida e o estoque "some")
+  if (!basesView.includes(_currentEstBaseTab)) _currentEstBaseTab = basesView[0];
+  const _comReg = cartsComRegistro(); // patrimônio: só carrinhos que já tiveram registro
 
   // Stats: totais por base + indicador de gasto financeiro
   const gastos = gastoPorBase();
   const statsEl = document.getElementById('est-stats');
   if (statsEl) {
-    const baseCards = ESTOQUE_BASES.map(b => {
+    const baseCards = basesView.map(b => {
       const itens = Object.entries(est[b] || {});
       const totalQtd = itens.reduce((s,[,v]) => s + Math.max(0,v), 0);
       const valorTotal = itens.reduce((s,[t,v]) => s + Math.max(0,v) * getPreco(t), 0);
       const zerados = itens.filter(([,v]) => v === 0).length;
       const isReserva = (b === 'Estoque Mooca');
       const label = isReserva ? '📦 Reserva Mooca' : ('Base ' + b);
+      const valorCarrinhos = isReserva ? 0 : valorFerramentasEmCarrinho(b, _comReg);
+      const patrimonio = valorTotal + valorCarrinhos;
+      const patrimLine = `<div class="sc-sub" style="margin-top:6px;color:var(--az);font-weight:700;">🏛️ Patrimônio: ${fmtMoney(patrimonio)}</div>`
+        + (isReserva ? '' : `<div class="sc-sub" style="font-size:10px;opacity:.85;">${fmtMoney(valorCarrinhos)} em carrinhos + ${fmtMoney(valorTotal)} estoque</div>`);
       const gastoLine = isReserva ? '' : `<div class="sc-sub" style="margin-top:6px;color:var(--yw);">💸 Gasto reposições: ${fmtMoney(gastos[b]||0)}</div>`;
       return `<div class="stat-card" ${isReserva?'style="border-color:var(--w2);"':''}>
         <div class="sc-label">${label}</div>
         <div class="sc-num ${isReserva?'sc-w2':'sc-az'}">${totalQtd}</div>
         <div class="sc-sub">${fmtMoney(valorTotal)} em estoque · ${zerados} zerada(s)</div>
+        ${patrimLine}
         ${gastoLine}
       </div>`;
     }).join('');
-    statsEl.innerHTML = baseCards + `<div class="stat-card" style="border-color:var(--yw);">
-      <div class="sc-label">💸 Gasto Total Reposições</div>
-      <div class="sc-num sc-yw">${fmtMoney(gastos._total||0)}</div>
-      <div class="sc-sub">soma de todas as bases</div>
-    </div>`;
+    const patrimonioTotal = basesView.reduce((s,b) => {
+      const vEst = Object.entries(est[b]||{}).reduce((ss,[t,v]) => ss + Math.max(0,v)*getPreco(t), 0);
+      const vCar = (b === 'Estoque Mooca') ? 0 : valorFerramentasEmCarrinho(b, _comReg);
+      return s + vEst + vCar;
+    }, 0);
+    const totalCards = isSupervisor() ? '' :
+      `<div class="stat-card" style="border-color:var(--az);">
+        <div class="sc-label">🏛️ Patrimônio Total</div>
+        <div class="sc-num sc-az">${fmtMoney(patrimonioTotal)}</div>
+        <div class="sc-sub">carrinhos + estoque · todas as bases</div>
+      </div>
+      <div class="stat-card" style="border-color:var(--yw);">
+        <div class="sc-label">💸 Gasto Total Reposições</div>
+        <div class="sc-num sc-yw">${fmtMoney(gastos._total||0)}</div>
+        <div class="sc-sub">soma de todas as bases</div>
+      </div>`;
+    statsEl.innerHTML = baseCards + totalCards;
   }
 
   const tabsEl = document.getElementById('est-base-tabs');
   const sectEl = document.getElementById('est-base-sections');
   if (!tabsEl || !sectEl) return;
 
-  tabsEl.innerHTML = ESTOQUE_BASES.map(b => {
+  tabsEl.innerHTML = basesView.map(b => {
     const label = (b === 'Estoque Mooca') ? '📦 Estoque Mooca' : b;
     return `<button class="base-tab ${b===_currentEstBaseTab?'active':''}" onclick="setEstBaseTab('${b}')">${label}</button>`;
   }).join('');
 
-  sectEl.innerHTML = ESTOQUE_BASES.map(b => {
+  sectEl.innerHTML = basesView.map(b => {
     const baseEst = est[b] || {};
     const catsHtml = TOOLS_CATALOG.map(cat => {
       const items = cat.items.filter(t => !q || t.toLowerCase().includes(q));
@@ -3734,12 +4426,14 @@ let _estoqueSynced = false;
 let _estoqueSyncing = false;
 
 let _estoqueLastErr = null;
+let _estoqueSig = null, _precosSig = null; // só re-renderiza quando os dados mudam
 function syncEstoqueFromGAS(attempt) {
   attempt = attempt || 1;
   const cfg = getConfig();
   if (!cfg.webhookUrl) { _estoqueSynced = true; _estoqueLastErr = 'Sem URL de servidor configurada'; return; }
   _estoqueSyncing = true;
-  if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+  // só mostra estado "sincronizando" no 1º carregamento (evita repaint a cada 30s)
+  if (!_estoqueSynced && document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
   gasGet(cfg.webhookUrl, 'action=estoqueGet', (data, err) => {
     _estoqueSyncing = false;
     if (err || !data?.estoque) {
@@ -3765,8 +4459,12 @@ function syncEstoqueFromGAS(attempt) {
     });
     saveEstoque(est);
     _estoqueSynced = true;
-    if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
-    if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
+    const _sig = JSON.stringify(est);
+    if (_sig !== _estoqueSig) {
+      _estoqueSig = _sig;
+      if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+      if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
+    }
   });
   syncPrecosFromGAS();
 }
@@ -3861,7 +4559,11 @@ function confirmarPedido() {
 
 // ─── INVENTÁRIO ──────────────────────────────────────────────────────────
 function abrirInventarioModal() {
-  document.getElementById('invent-base').value = _currentEstBaseTab || 'Mooca';
+  if (isSupervisor()) {
+    const sel = document.getElementById('invent-base');
+    if (sel) sel.innerHTML = viewableEstoqueBases().map(b => `<option value="${b}">${b === 'Estoque Mooca' ? '📦 Estoque Mooca (reserva)' : b}</option>`).join('');
+  }
+  document.getElementById('invent-base').value = _currentEstBaseTab || (isSupervisor() ? _SUPERVISOR_BASE : 'Mooca');
   document.getElementById('invent-por').value = '';
   document.getElementById('invent-alert').innerHTML = '';
   renderInventarioItems();
@@ -3996,8 +4698,19 @@ function atualizaTransferEstoque() {
   const est = getEstoque();
   const qF = (est[from] && est[from][_transferCtx.ferramenta]) || 0;
   const qT = (est[to] && est[to][_transferCtx.ferramenta]) || 0;
-  document.getElementById('transfer-saldo-info').innerHTML =
-    `${from}: <strong>${qF}</strong> · ${to}: <strong>${qT}</strong>`;
+  const balFrom = document.getElementById('transfer-bal-from');
+  const balTo = document.getElementById('transfer-bal-to');
+  if (balFrom) balFrom.innerHTML = `${from}: ${qF} un.`;
+  if (balTo) balTo.innerHTML = `${to}: ${qT} un.`;
+  const qtd = Math.max(0, parseInt(document.getElementById('transfer-qtd').value, 10) || 0);
+  const info = document.getElementById('transfer-saldo-info');
+  if (info) {
+    if (from === to) {
+      info.innerHTML = '<span style="color:var(--yw);">⚠ Origem e destino são a mesma base.</span>';
+    } else {
+      info.innerHTML = `Após transferir <strong>${qtd}</strong>: ${from} fica com <strong>${Math.max(0, qF - qtd)}</strong> · <span style="color:var(--az);">${to} fica com <strong>${qT + qtd}</strong></span>`;
+    }
+  }
 }
 
 function confirmTransfer() {
@@ -4049,10 +4762,17 @@ function syncPrecosFromGAS(cb) {
   const cfg = getConfig();
   if (!cfg.webhookUrl) { if (cb) cb(); return; }
   gasGet(cfg.webhookUrl, 'action=precosGet', (data, err) => {
-    if (!err && data?.precos) savePrecos(data.precos);
-    if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
-    if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
-    if (document.getElementById('modal-pedido') && !document.getElementById('modal-pedido').classList.contains('hidden')) renderPedidoItems();
+    let _changed = false;
+    if (!err && data?.precos) {
+      savePrecos(data.precos);
+      const s = JSON.stringify(data.precos);
+      if (s !== _precosSig) { _precosSig = s; _changed = true; }
+    }
+    if (_changed) {
+      if (document.getElementById('panel-estoque')?.classList.contains('active')) renderEstoque();
+      if (document.getElementById('panel-dashboard')?.classList.contains('active')) renderDashboard();
+      if (document.getElementById('modal-pedido') && !document.getElementById('modal-pedido').classList.contains('hidden')) renderPedidoItems();
+    }
     if (cb) cb();
   });
 }
@@ -4117,33 +4837,24 @@ function startOfMonth(d) { const x = startOfDay(d); x.setDate(1); return x; }
 
 // Gasto em qualquer intervalo [start, end). Sempre respeita gameStartTs como floor.
 function gastoNoPeriodo(startTs, endTs) {
-  const baixas = getBaixas();
   const game = getGameStartTs();
   const startMs = startTs ? new Date(startTs).getTime() : 0;
   const endMs = endTs ? new Date(endTs).getTime() : Infinity;
   const gameMs = game ? new Date(game).getTime() : 0;
   let total = 0;
-  const chaves = new Set();
-  baixas.forEach(b => {
-    if (b.tipo === 'ajuste') return;
-    if (b.estornada) return;
-    const ts = new Date(b.ts).getTime();
-    if (ts < gameMs) return;
-    if (ts < startMs) return;
-    if (ts >= endMs) return;
-    chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
-    total += (Number(b.qtd) || 0) * getPreco(b.ferramenta);
-  });
-  // Mescla baixas do servidor (qualquer dispositivo)
-  _serverBaixas.forEach(b => {
-    if (b.tipo === 'ajuste') return;
-    if (b._estornada) return;
+  const seen = new Set();
+  const add = (b) => {
+    if (!b || b.tipo === 'ajuste') return;
+    if (b.estornada || b._estornada) return;
     const ts = new Date(b.ts).getTime();
     if (ts < gameMs || ts < startMs || ts >= endMs) return;
-    const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
-    if (chaves.has(k)) return;
+    const key = b.recId ? (b.recId + '|' + b.ferramenta)
+                        : (b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+    if (seen.has(key)) return;
+    seen.add(key);
     total += (Number(b.qtd) || 1) * getPreco(b.ferramenta);
-  });
+  };
+  _serverBaixas.forEach(add); // só servidor (sem baixas locais que inflavam)
   return total;
 }
 
@@ -4174,7 +4885,9 @@ function syncBaixasFromGAS(retry) {
     }
     _serverBaixas = data.ncs.map(nc => {
       const por = String(nc.reposta_por||'');
-      const isAjuste = /\(Ajuste\)/i.test(por);
+      // Só conta como reposição (custo de estoque) quando foi REPOSIÇÃO de verdade.
+      // "Resolvido pelo mecânico" / Ajuste / sem tag = não gastou → não entra no gasto.
+      const isReposicao = /reposi/i.test(por);
       const cart = String(nc.carrinho||'').toUpperCase().replace(/\s+/g,'');
       const base = cart.startsWith('MC') ? 'Mooca' :
                    (cart.startsWith('OC') || cart.startsWith('0C')) ? 'Osasco' :
@@ -4184,7 +4897,8 @@ function syncBaixasFromGAS(retry) {
         base,
         carrinho: nc.carrinho,
         ferramenta: nc.ferramenta,
-        tipo: isAjuste ? 'ajuste' : 'reposicao',
+        recId: nc.recId || '',
+        tipo: isReposicao ? 'reposicao' : 'ajuste',
         qtd: 1,
         por: por.replace(/\s*\((Reposição|Ajuste)\)\s*$/i, ''),
       };
@@ -4229,28 +4943,23 @@ function gastoPorBase() {
   const game = getGameStartTs();
   const gameMs = game ? new Date(game).getTime() : 0;
   const out = { Mooca: 0, Osasco: 0, SBC: 0, _total: 0 };
-  const baixasLocais = getBaixas();
-  const chaves = new Set();
-  baixasLocais.forEach(b => {
-    if (b.tipo === 'ajuste') return;
-    if (b.estornada) return;
+  // Dedup por recId+ferramenta (chave única da NC) — evita contar 2× quando havia
+  // baixa local duplicada (bug da NC reaparecendo) ou local+servidor da mesma resolução.
+  const seen = new Set();
+  const add = (b) => {
+    if (!b || b.tipo === 'ajuste') return;
+    if (b.estornada || b._estornada) return;
     if (new Date(b.ts).getTime() < gameMs) return;
-    chaves.add(b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
-    const v = (Number(b.qtd) || 0) * getPreco(b.ferramenta);
-    if (out[b.base] != null) out[b.base] += v;
-    out._total += v;
-  });
-  _serverBaixas.forEach(b => {
-    if (b.tipo === 'ajuste') return;
-    if (b._estornada) return;
-    if (new Date(b.ts).getTime() < gameMs) return;
-    const k = b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16);
-    if (chaves.has(k)) return;
+    const key = b.recId ? (b.recId + '|' + b.ferramenta)
+                        : (b.base + '|' + b.ferramenta + '|' + b.carrinho + '|' + (b.ts||'').slice(0,16));
+    if (seen.has(key)) return;
+    seen.add(key);
     const v = (Number(b.qtd) || 1) * getPreco(b.ferramenta);
     if (out[b.base] != null) out[b.base] += v;
     out._total += v;
-  });
-  return out;
+  };
+  _serverBaixas.forEach(add);   // SÓ servidor: fonte da verdade, deduplicada por recId.
+  return out;                   // (não soma baixas locais — inflavam com duplicatas do bug)
 }
 
 // Resumo dos 3 períodos
@@ -4380,7 +5089,7 @@ function renderBaixas() {
             ? '<span class="badge baz" style="background:rgba(46,194,255,.15);color:var(--az);border:1px solid var(--az);">📦 Reposição</span>'
             : '<span class="badge" style="background:rgba(245,158,11,.12);color:var(--yw);border:1px solid var(--yw);">🛠 Ajuste</span>';
         const qtdCell = tipo === 'reposicao'
-          ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:${estornada?'var(--gr)':'var(--az)'};${estornada?'text-decoration:line-through;':''}">${b.qtd}</span>`
+          ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:${estornada?'var(--gr)':'var(--az)'};${estornada?'text-decoration:line-through;':''}">${b.qtd}</span>`
           : `<span style="color:var(--gr);font-size:12px;">—</span>`;
         const obsCell = estornada
           ? `<span style="font-size:11px;color:var(--gr);">${b.obs||'-'} <span style="color:var(--yw);">· estornada ${b.estorno_ts?new Date(b.estorno_ts).toLocaleString('pt-BR'):''}${b.estorno_por?' · por '+b.estorno_por:''}${b.estorno_obs?' · '+b.estorno_obs:''}</span></span>`
@@ -4775,8 +5484,9 @@ function log(msg) {
 
 // JSONP via <script src> — único método que funciona com GAS (sem CORS)
 // Funciona em localhost:8080 e no Android. NÃO funciona em file://
+let _gasSeq = 0;
 function gasGet(url, params, callback) {
-  const cbName = '_gas_' + Date.now();
+  const cbName = '_gas_' + Date.now() + '_' + (++_gasSeq);
   const script = document.createElement('script');
   let done = false;
 
@@ -4884,7 +5594,10 @@ function syncAgora() {
 function iniciarAutoSync() {
   if (_syncTimer) clearInterval(_syncTimer);
   // presença (celular online via Headwind MDM) — independe do webhook de registros
-  if (!_presTimer) { setTimeout(refreshPresence, 1500); _presTimer = setInterval(refreshPresence, 30000); }
+  if (!_presTimer) {
+    setTimeout(refreshPresence, 1500); _presTimer = setInterval(refreshPresence, 30000);
+    setTimeout(refreshOsStatus, 2500); setInterval(refreshOsStatus, 60000); // em moto / ocioso
+  }
   const cfg = getConfig();
   if (!cfg.webhookUrl) return;
   setTimeout(syncAgora, 3000);
@@ -5129,18 +5842,21 @@ function openDetail(id) {
   })() : '';
 
   const cartEscDetail = (rec.carrinho || '').replace(/'/g,'');
-  const ncHtml = ncs.length ? `
+  const recIdEsc = (rec.id || '').replace(/'/g,'');
+  const cartEsc = (rec.carrinho || '').replace(/'/g,'');
+  const recNCkeys = new Set(ncs.map(([k]) => k));
+  // NCs abertas no servidor que NÃO estão neste registro (vieram de check-ins anteriores)
+  const orfas = ncsAbertas.filter(nc => !recNCkeys.has(nc.ferramenta));
+  const ncHtml = (ncs.length || orfas.length) ? `
     <div class="detail-section">
       <h4 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span>Não Conformidades (${ncs.length})</span>
-        ${ncsAbertas.length ? `<span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;">${ncsAbertas.length} ainda abertas</span>` : ''}
+        <span>Não Conformidades${ncs.length ? ` (${ncs.length})` : ''}</span>
+        ${ncsAbertas.length ? `<span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;">${ncsAbertas.length} aberta(s)</span>` : ''}
         ${ncsAbertas.length >= 2 ? `<button class="btn-sm btn-az" style="margin-left:auto;padding:6px 12px;font-size:11px;font-weight:800;" onclick="abrirResolverTodosModal('${cartEscDetail}')">↻ Resolver Todas (${ncsAbertas.length})</button>` : ''}
       </h4>
       ${ncs.map(([k,v]) => {
         const aindaAberta = abertasSet.has(k);
         const ferrEsc = JSON.stringify(k).replace(/"/g,'&quot;');
-        const recIdEsc = (rec.id || '').replace(/'/g,'');
-        const cartEsc = (rec.carrinho || '').replace(/'/g,'');
         const motivoEsc = (v.motivo || 'nc').replace(/'/g,'');
         return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;flex-wrap:wrap;">
           <span class="badge ${v.motivo === 'faltando' ? 'byw' : 'brd'}">${v.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
@@ -5149,6 +5865,15 @@ function openDetail(id) {
             ? `<button class="btn-repor" style="padding:6px 14px;font-size:11.5px;font-weight:800;" onclick="reporFerramenta('${recIdEsc}', ${ferrEsc}, '${cartEsc}', '${motivoEsc}')">↻ Resolver</button>`
             : `<span style="color:var(--gn);font-size:11px;font-weight:700;">✅ Resolvida</span>`
           }
+        </div>`;
+      }).join('')}
+      ${orfas.map(nc => {
+        const ferrEsc = JSON.stringify(nc.ferramenta).replace(/"/g,'&quot;');
+        const motivoEsc = (nc.motivo || 'nc').replace(/'/g,'');
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;flex-wrap:wrap;">
+          <span class="badge ${nc.motivo === 'faltando' ? 'byw' : 'brd'}">${nc.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
+          <span style="flex:1;min-width:120px;">${nc.ferramenta} <span style="color:var(--gr);font-size:10px;">· check-in anterior</span></span>
+          <button class="btn-repor" style="padding:6px 14px;font-size:11.5px;font-weight:800;" onclick="reporFerramenta('${recIdEsc}', ${ferrEsc}, '${cartEsc}', '${motivoEsc}')">↻ Resolver</button>
         </div>`;
       }).join('')}
     </div>
@@ -5584,14 +6309,15 @@ function checkAuthAndBoot() {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 function aplicarRoleSupervisor() {
   if (!isSupervisor()) return;
+  document.body.classList.add('role-supervisor'); // ativa as restrições de CSS
   // Badge no top
   const badge = document.getElementById('role-badge');
   if (badge) {
     badge.textContent = `Supervisor · ${_SUPERVISOR_BASE}`;
     badge.style.display = 'inline-block';
   }
-  // Esconde abas que supervisor não pode usar
-  ['colab','links','logs','config'].forEach(p => {
+  // Esconde Configurações e Perfis de Carrinho (colab/links/logs ele vê, mas restrito)
+  ['config','perfis','frota'].forEach(p => {
     const navEl = document.querySelector(`.nav-item[data-panel="${p}"]`);
     if (navEl) navEl.style.display = 'none';
     const panelEl = document.getElementById('panel-' + p);
@@ -5614,7 +6340,7 @@ function aplicarRoleSupervisor() {
   // Bloqueia navegação direta pras abas escondidas
   const originalShowPanel = window.showPanel;
   window.showPanel = function(id) {
-    if (['colab','links','logs','config'].includes(id)) {
+    if (['config','perfis','frota'].includes(id)) {
       id = 'dashboard';
     }
     return originalShowPanel.call(this, id);
@@ -5625,20 +6351,12 @@ function bootApp() {
   renderDashboard();
   iniciarAutoSync();
   syncEstoqueFromGAS();
+  syncPerfisFromGAS();
   syncNCsComServidor(true);
   syncGameStartFromGAS();
   // Carrega histórico de baixas+estornos do servidor (pra ver gastos em qualquer dispositivo) — IMEDIATAMENTE
   syncEstornosFromGAS();
   syncBaixasFromGAS();
-  // Sincroniza lista de carrinhos com servidor (carrinhos extras tipo MC 37/Q01 vêm pra cá)
-  syncCartsFromGAS((ok) => {
-    if (ok) {
-      // Re-renderiza painéis que mostram lista de carrinhos
-      const active = document.querySelector('.panel.active')?.id || '';
-      if (active === 'panel-carrinhos') renderCarrinhos();
-      if (active === 'panel-dashboard') renderDashboard();
-    }
-  });
   // Re-sync periódico (silencioso — só atualiza cache; UI atualiza quando user troca de aba ou clica Atualizar)
   setInterval(syncBaixasFromGAS, 120000); // 2 min
   // Log de login (best effort) — só uma vez por sessão
