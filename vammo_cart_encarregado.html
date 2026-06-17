@@ -111,7 +111,7 @@
     background:var(--c1); border-radius:14px;
     border:3px solid var(--bd); padding:16px 18px;
     transition:transform .15s, border-color .2s, box-shadow .2s;
-    min-height:108px;
+    min-height:130px;
     display:flex; flex-direction:column; justify-content:space-between;
   }
   .cart-card-v3:active { transform:scale(.97); }
@@ -138,27 +138,7 @@
   .cart-card-v3.st-deslogado .ccv-status { color:var(--w2); }
   .cart-card-v3.st-sem-reg .ccv-status { color:var(--gr); }
   .cart-card-v3 .ccv-mec { font-size:13px; color:var(--wh); margin-top:6px; line-height:1.3; word-break:break-word; font-weight:600; }
-  .cart-card-v3 .ccv-os { margin-top:8px; font-size:13.5px; font-weight:800; letter-spacing:.3px; padding:7px 12px; border-radius:10px; display:flex; align-items:center; gap:6px; }
-  .cart-card-v3 .ccv-os.on { background:rgba(46,194,255,.18); color:#2EC2FF; border:1px solid rgba(46,194,255,.65); box-shadow:0 0 12px rgba(46,194,255,.28); }
-  .cart-card-v3 .ccv-os.idle { background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.6); box-shadow:0 0 12px rgba(245,158,11,.18); }
-  .cart-card-v3 .ccv-os-t { font-weight:700; font-size:12.5px; margin-left:auto; opacity:.95; }
   .cart-card-v3 .ccv-time { font-size:11px; color:var(--w2); margin-top:3px; }
-  /* Badge de celular (presença Headwind) */
-  .cart-card-v3 .ccv-phone-badge { position:absolute; top:11px; right:12px; display:flex; align-items:center; gap:5px; }
-  .cart-card-v3 .ccv-phone-badge svg { width:18px; height:18px; display:block; }
-  .cart-card-v3 .ccv-phone-txt { display:flex; align-items:center; gap:5px; line-height:1; }
-  .cart-card-v3 .cpb-label { display:none; }
-  .cart-card-v3 .cpb-status { font-size:10.5px; font-weight:900; letter-spacing:.3px; white-space:nowrap; }
-  .cart-card-v3 .cpb-line { display:flex; align-items:center; gap:6px; }
-  .cart-card-v3 .cpb-batt { font-size:11px; font-weight:800; color:#aeb6c2; white-space:nowrap; display:inline-flex; align-items:center; gap:3px; }
-  .cart-card-v3 .cpb-batt svg { display:block; }
-  .cart-card-v3 .ccv-phone-badge.on svg { color:#22c55e; filter:drop-shadow(0 0 4px rgba(34,197,94,.9)) drop-shadow(0 0 9px rgba(34,197,94,.5)); }
-  .cart-card-v3 .ccv-phone-badge.on .cpb-status { color:#22c55e; }
-  .cart-card-v3 .ccv-phone-badge.alert svg,
-  .cart-card-v3 .ccv-phone-badge.alert .cpb-status { color:#ef4444; animation:phoneAlert 1s ease-in-out infinite; }
-  .cart-card-v3 .ccv-phone-badge.nodev svg,
-  .cart-card-v3 .ccv-phone-badge.nodev .cpb-status { color:#9aa0a6; }
-  @keyframes phoneAlert { 0%,100%{opacity:.55;filter:drop-shadow(0 0 2px rgba(239,68,68,.5));} 50%{opacity:1;filter:drop-shadow(0 0 8px rgba(239,68,68,.95));} }
   .cart-card-v3 .ccv-flag {
     position:absolute; top:-10px; right:-10px;
     background:var(--rd); color:var(--wh);
@@ -408,17 +388,42 @@ function normalizeCartName(nome) {
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
 function fmtDateFull(iso) { return new Date(iso).toLocaleString('pt-BR'); }
+
+// Carrinhos extras vindos do servidor (MC 37, Q01, etc) — adicionados pelo gestor
+let _extraCarts = [];
+try {
+  const raw = JSON.parse(localStorage.getItem('vammo_carts_extras_cache') || '[]');
+  if (Array.isArray(raw)) _extraCarts = raw;
+} catch {}
+
 function carrinhosDaBase() {
-  // Se o servidor já tem a lista cadastrada no gestor, usa ela (inclui carrinhos novos).
-  if (Array.isArray(_cartListServer) && _cartListServer.length) {
-    const list = _cartListServer.filter(c => c && c.base === _base);
-    if (list.length) return list.slice().sort((a,b) => String(a.nome).localeCompare(String(b.nome)));
-  }
   const arr = []; const pre = BASE_PREFIX[_base];
+  // Padrão da base
+  const padraoNomes = new Set();
   for (let i = 1; i <= BASE_COUNT[_base]; i++) {
-    arr.push({ nome: pre + ' ' + String(i).padStart(2,'0'), base: _base });
+    const nome = pre + ' ' + String(i).padStart(2,'0');
+    arr.push({ nome, base: _base });
+    padraoNomes.add(nome);
   }
+  // Extras do servidor que pertencem a esta base
+  _extraCarts.forEach(c => {
+    if (!c || !c.nome) return;
+    if (c.base !== _base) return;
+    if (padraoNomes.has(c.nome)) return;
+    arr.push({ nome: c.nome, base: _base });
+  });
+  // Ordena
+  arr.sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
   return arr;
+}
+
+function syncCartsFromGAS() {
+  gasGet('action=cartsGet', (data) => {
+    if (!data || !data.ok || !Array.isArray(data.carts)) return;
+    _extraCarts = data.carts.filter(c => c && c.nome && c.base === _base);
+    try { localStorage.setItem('vammo_carts_extras_cache', JSON.stringify(_extraCarts)); } catch {}
+    render();
+  });
 }
 
 // ─── JSONP ─────────────────────────────────────────────────────
@@ -437,94 +442,6 @@ function gasGet(params, cb) {
   document.head.appendChild(script);
 }
 
-// ─── PRESENÇA (celular online + bateria no Headwind) ───────────
-const PRESENCE_URL = 'https://script.google.com/macros/s/AKfycbz-yRCeTwX-zxgUVSTAdaRe6ILlnkYgasqBK_lrTMoDFrRnatFQl7YLSYoHZ774ekmIlA/exec';
-let _presDevices = [], _presLoaded = false;
-function _deburr(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,''); }
-function _nameTokens(s){ let v=String(s||''); if(v.indexOf('@')>=0)v=v.split('@')[0].replace(/[._]+/g,' '); return _deburr(v).toLowerCase().replace(/[^a-z\s]/g,' ').trim().split(/\s+/).filter(Boolean); }
-function _close(a,b){ if(a===b)return true; const la=a.length,lb=b.length; if(la<3||lb<3||Math.abs(la-lb)>1)return false; let i=0,j=0,ed=0; while(i<la&&j<lb){ if(a[i]===b[j]){i++;j++;continue;} if(++ed>1)return false; if(la>lb)i++; else if(lb>la)j++; else {i++;j++;} } if(i<la||j<lb)ed++; return ed<=1; }
-function mecDevice(mec){ if(!_presLoaded)return null; const email=String(mec||'').toLowerCase().trim(); if(email.indexOf('@')>=0){ for(const d of _presDevices){ if(d.email&&d.email===email)return d; } const lp=email.split('@')[0]; if(lp)for(const d of _presDevices){ if(d.email&&d.email.split('@')[0]===lp)return d; } } const mt=_nameTokens(mec); if(!mt.length)return null; const first=mt[0],last=mt[mt.length-1]; for(const d of _presDevices){ if(d.tokens.includes(first)&&d.tokens.includes(last))return d; } for(const d of _presDevices){ if(d.tokens.some(t=>_close(t,first))&&d.tokens.some(t=>_close(t,last)))return d; } return null; }
-function batterySvg(lvl){ lvl=Math.max(0,Math.min(100,lvl|0)); const fill=Math.max(2,Math.round(19*lvl/100)); const col=lvl>50?'#22c55e':(lvl>20?'#eab308':'#ef4444'); return `<svg viewBox="0 0 28 16" width="24" height="14"><rect x="1" y="2.5" width="23" height="11" rx="2.5" fill="none" stroke="#aeb6c2" stroke-width="1.6"/><rect x="25" y="5.5" width="2.6" height="5" rx="1" fill="#aeb6c2"/><rect x="3" y="4.5" width="${fill}" height="7" rx="1.4" fill="${col}"/></svg>`; }
-function refreshPresence(){
-  const cbName='_pg_'+Date.now()+'_'+Math.floor(Math.random()*9999);
-  const sc=document.createElement('script'); let done=false;
-  const t=setTimeout(()=>{ if(!done){done=true;clean();} }, 20000);
-  window[cbName]=function(data){ if(done)return; done=true; clean();
-    if(data&&data.ok&&Array.isArray(data.devices)){
-      _presDevices=data.devices.map(d=>({tokens:_nameTokens(d.number),online:!!d.online,battery:(typeof d.battery==='number'?d.battery:null),email:(d.email||'').toLowerCase().trim()}));
-      _presLoaded=true; try{render();}catch(e){}
-    }
-  };
-  function clean(){ clearTimeout(t); delete window[cbName]; if(sc.parentNode)sc.parentNode.removeChild(sc); }
-  sc.onerror=function(){ if(!done){done=true;clean();} };
-  sc.src=PRESENCE_URL+'?action=devices&callback='+cbName;
-  document.head.appendChild(sc);
-}
-
-// Lista de carrinhos vinda do servidor (cadastrada no gestor) — fonte da verdade.
-let _cartListServer = null;
-function fetchCartList(){
-  const cbName='_pc_'+Date.now()+'_'+Math.floor(Math.random()*9999);
-  const sc=document.createElement('script'); let done=false;
-  const t=setTimeout(()=>{ if(!done){done=true;clean();} }, 20000);
-  window[cbName]=function(d){ if(done)return; done=true; clean();
-    if(d&&d.ok&&d.config&&Array.isArray(d.config.cartList)&&d.config.cartList.length){
-      _cartListServer=d.config.cartList; try{render();}catch(e){}
-    }
-  };
-  function clean(){ clearTimeout(t); delete window[cbName]; if(sc.parentNode)sc.parentNode.removeChild(sc); }
-  sc.onerror=function(){ if(!done){done=true;clean();} };
-  sc.src=PRESENCE_URL+'?action=perfisGet&callback='+cbName;
-  document.head.appendChild(sc);
-}
-
-// Em moto (IN_PROGRESS via Metabase) · ociosidade = timer no app.
-let _osByEmail = {};   // só in_progress: { email: {placa, since} }
-let _wasInProg = {};
-let _idleStart = {};
-try { _idleStart = JSON.parse(localStorage.getItem('vammo_idle_start') || '{}'); } catch(e){ _idleStart = {}; }
-function _saveIdleStart(){ try { localStorage.setItem('vammo_idle_start', JSON.stringify(_idleStart)); } catch(e){} }
-function fmtElapsedMs(ms){
-  let s = Math.max(0, Math.floor((Date.now()-ms)/1000));
-  const d = Math.floor(s/86400); s -= d*86400;
-  const h = Math.floor(s/3600); s -= h*3600;
-  const m = Math.floor(s/60);
-  if (d > 0) return d+'d '+h+'h';
-  if (h > 0) return h+'h '+m+'min';
-  return m+'min';
-}
-function osBadgeHtml(mec, cartTs){
-  const email = String(mec||'').toLowerCase().trim();
-  if (!email) return '';
-  const o = _osByEmail[email];
-  if (o) {
-    const ms = Date.parse(o.since) || Date.now();
-    return '<div class="ccv-os on" title="Executando OS agora">🏍️ Em moto'+(o.placa?(' · '+o.placa):'')+'<span class="ccv-os-t">há '+fmtElapsedMs(ms)+'</span></div>';
-  }
-  let sinceMs = _idleStart[email];
-  if (!sinceMs || (Date.now() - sinceMs) > 12*3600*1000) { sinceMs = Date.now(); _idleStart[email] = sinceMs; _saveIdleStart(); }
-  return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso<span class="ccv-os-t">há '+fmtElapsedMs(sinceMs)+'</span></div>';
-}
-function refreshOsStatus(){
-  const cbName='_os_'+Date.now()+'_'+Math.floor(Math.random()*9999);
-  const sc=document.createElement('script'); let done=false;
-  const t=setTimeout(()=>{ if(!done){done=true;clean();} }, 20000);
-  window[cbName]=function(d){ if(done)return; done=true; clean();
-    if(!d||!d.ok||!d.os) return;
-    const inprog={};
-    Object.keys(d.os).forEach(e=>{ if(d.os[e] && d.os[e].status==='in_progress') inprog[e]=d.os[e]; });
-    let changed=false;
-    Object.keys(inprog).forEach(e=>{ _wasInProg[e]=true; if(_idleStart[e]){ delete _idleStart[e]; changed=true; } });
-    Object.keys(_wasInProg).forEach(e=>{ if(_wasInProg[e] && !inprog[e]){ _wasInProg[e]=false; if(!_idleStart[e]){ _idleStart[e]=Date.now(); changed=true; } } });
-    if(changed) _saveIdleStart();
-    _osByEmail=inprog; try{render();}catch(e){}
-  };
-  function clean(){ clearTimeout(t); delete window[cbName]; if(sc.parentNode)sc.parentNode.removeChild(sc); }
-  sc.onerror=function(){ if(!done){done=true;clean();} };
-  sc.src=PRESENCE_URL+'?action=osStatus&callback='+cbName;
-  document.head.appendChild(sc);
-}
-
 function setSyncStatus(state, msg) {
   const el = document.getElementById('sync-status');
   if (!el) return;
@@ -534,9 +451,6 @@ function setSyncStatus(state, msg) {
 
 function carregarTudo() {
   setSyncStatus('loading', 'Atualizando...');
-  refreshPresence(); // celular online + bateria (Headwind)
-  fetchCartList();   // lista de carrinhos cadastrada no gestor (inclui novos)
-  refreshOsStatus(); // em moto / ocioso por mecânico
   let pending = 2;
   function done() { pending--; if (pending === 0) {
     setSyncStatus('ok', 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
@@ -616,25 +530,11 @@ function render() {
     const mec = st.last ? st.last.mecanico : '';
     const hora = st.last ? new Date(st.last.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
     const data = st.last ? new Date(st.last.ts).toLocaleDateString('pt-BR') : '';
-    const PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/></svg>';
-    const PHONE_SVG_SLASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/><line x1="3.5" y1="2.5" x2="20.5" y2="21.5"/></svg>';
-    let phoneBadge = '';
-    if (st.status === 'logado' && _presLoaded) {
-      const dev = mecDevice(mec);
-      let bcls, bsvg, btxt, batt='';
-      if (dev) {
-        bcls = dev.online ? 'on' : 'alert'; bsvg = PHONE_SVG; btxt = dev.online ? 'ONLINE' : 'OFFLINE';
-        if (dev.battery !== null && dev.battery !== undefined) batt = `<span class="cpb-batt">${batterySvg(dev.battery)} ${dev.battery}%</span>`;
-      } else { bcls='nodev'; bsvg=PHONE_SVG_SLASH; btxt='S/ CADASTRO'; }
-      phoneBadge = `<div class="ccv-phone-badge ${bcls}"><span>${bsvg}</span><span class="ccv-phone-txt"><span class="cpb-label">Celular VAMMO</span><span class="cpb-line"><span class="cpb-status">${btxt}</span>${batt}</span></span></div>`;
-    }
     return `<div class="cart-card-v3 ${cls}" onclick="openDetail('${c.nome}')">
       ${hasNC ? `<div class="ccv-flag">⚠ ${st.ncAbertas.length} NC</div>` : ''}
       <div>
         <div class="ccv-id">${c.nome}</div>
         <div class="ccv-status">${label}</div>
-        ${phoneBadge}
-        ${st.status === 'logado' ? osBadgeHtml(mec, st.last ? st.last.ts : '') : ''}
       </div>
       <div>
         ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
@@ -784,7 +684,9 @@ document.addEventListener('keydown', e => {
 function initApp() {
   render();
   carregarTudo();
+  syncCartsFromGAS(); // puxa carrinhos extras (MC 37, Q01...) do servidor
   setInterval(carregarTudo, 30000);
+  setInterval(syncCartsFromGAS, 120000); // re-sync de carrinhos a cada 2min
 }
 
 // ─── INIT ────────────────────────────────────────────────────
