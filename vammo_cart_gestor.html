@@ -1933,6 +1933,51 @@ function getCarts() {
 }
 function saveCarts(a) { _cartsCache = a; localStorage.setItem('vammo_carts', JSON.stringify(a)); }
 function getCartsByBase(base) { return getCarts().filter(c => c.base === base); }
+
+// Sincronização paralela via webhook PRINCIPAL (aba 'Carrinhos' do GAS) —
+// independente do servidor de presença, garante que encarregado/supervisor enxergam
+// qualquer cadastro extra (MC 37, Q01, etc) feito pelo gestor.
+function pushCartToGAS(nome, base) {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl,
+    'action=cartAdd&nome=' + encodeURIComponent(nome) +
+    '&base=' + encodeURIComponent(base) +
+    '&por=' + encodeURIComponent((getStoredAuth()||{}).email||'gestor'),
+    () => {});
+}
+function removeCartFromGAS(nome) {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=cartRemove&nome=' + encodeURIComponent(nome), () => {});
+}
+function syncCartsFromGAS(cb) {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { if (cb) cb(false); return; }
+  gasGet(cfg.webhookUrl, 'action=cartsGet', (data, err) => {
+    if (err || !data?.ok || !Array.isArray(data.carts)) { if (cb) cb(false); return; }
+    if (!data.carts.length) { if (cb) cb(true, 0); return; }
+    const local = getCarts();
+    const byNome = new Map(local.map(c => [c.nome, c]));
+    data.carts.forEach(s => {
+      if (!s.nome) return;
+      const existing = byNome.get(s.nome);
+      if (existing) { if (s.base) existing.base = s.base; }
+      else { byNome.set(s.nome, { nome: s.nome, base: s.base || inferBaseFromName(s.nome) }); }
+    });
+    const merged = Array.from(byNome.values()).sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
+    saveCarts(merged);
+    if (cb) cb(true, merged.length);
+  });
+}
+// Seed inicial: sobe TODOS os carrinhos locais pro servidor (idempotente — dedup por nome no GAS)
+function seedCartsToGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  const carts = getCarts();
+  if (!carts.length) return;
+  carts.forEach((c, i) => setTimeout(() => pushCartToGAS(c.nome, c.base), i * 150));
+}
 function getCartBase(nome) {
   const norm = normalizeCartName(nome);
   const c = getCarts().find(x => normalizeCartName(x.nome) === norm);
@@ -3163,6 +3208,7 @@ function addCart() {
   carts.sort((a,b) => a.nome.localeCompare(b.nome));
   saveCarts(carts);
   pushCartListToGAS();
+  pushCartToGAS(val, base); // GAS principal (encarregado/supervisor leem daqui)
   inp.value = '';
   _currentBaseTab = base;
   renderCarrinhos();
@@ -3174,6 +3220,7 @@ function removeCart(nome) {
   const carts = getCarts().filter(c => c.nome !== nome);
   saveCarts(carts);
   pushCartListToGAS();
+  removeCartFromGAS(nome); // GAS principal
   renderCarrinhos();
 }
 
@@ -6357,8 +6404,17 @@ function bootApp() {
   // Carrega histórico de baixas+estornos do servidor (pra ver gastos em qualquer dispositivo) — IMEDIATAMENTE
   syncEstornosFromGAS();
   syncBaixasFromGAS();
+  // Sincroniza lista de carrinhos com webhook principal (encarregado/supervisor leem daqui)
+  syncCartsFromGAS((ok, count) => {
+    // Se servidor está vazio E temos cadastros locais, semeia tudo (1ª vez após v24)
+    if (ok && (!count || count < getCarts().length)) {
+      setTimeout(seedCartsToGAS, 2000);
+    }
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+  });
   // Re-sync periódico (silencioso — só atualiza cache; UI atualiza quando user troca de aba ou clica Atualizar)
   setInterval(syncBaixasFromGAS, 120000); // 2 min
+  setInterval(() => syncCartsFromGAS(), 180000); // 3 min
   // Log de login (best effort) — só uma vez por sessão
   if (!sessionStorage.getItem('vammo_login_logged')) {
     setTimeout(() => {

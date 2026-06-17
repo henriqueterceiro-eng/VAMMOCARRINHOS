@@ -462,20 +462,38 @@ function refreshPresence(){
 }
 
 // Lista de carrinhos vinda do servidor (cadastrada no gestor) — fonte da verdade.
-let _cartListServer = null;
+// Cache em localStorage pra ter dados na 1ª render sem esperar GAS.
+let _cartListServer = (function(){
+  try { const c = JSON.parse(localStorage.getItem('vammo_carts_server_cache')||'null'); return Array.isArray(c) ? c : null; } catch { return null; }
+})();
 function fetchCartList(){
+  // 1ª tentativa: presence (perfis com cartList — caminho original do gestor)
   const cbName='_pc_'+Date.now()+'_'+Math.floor(Math.random()*9999);
   const sc=document.createElement('script'); let done=false;
-  const t=setTimeout(()=>{ if(!done){done=true;clean();} }, 20000);
+  const t=setTimeout(()=>{ if(!done){done=true;clean(); fetchCartListMain();} }, 12000);
   window[cbName]=function(d){ if(done)return; done=true; clean();
     if(d&&d.ok&&d.config&&Array.isArray(d.config.cartList)&&d.config.cartList.length){
-      _cartListServer=d.config.cartList; try{render();}catch(e){}
+      _cartListServer=d.config.cartList;
+      try { localStorage.setItem('vammo_carts_server_cache', JSON.stringify(_cartListServer)); } catch {}
+      try{render();}catch(e){}
+      return;
     }
+    // Vazio ou erro: tenta o webhook principal (aba Carrinhos)
+    fetchCartListMain();
   };
   function clean(){ clearTimeout(t); delete window[cbName]; if(sc.parentNode)sc.parentNode.removeChild(sc); }
-  sc.onerror=function(){ if(!done){done=true;clean();} };
+  sc.onerror=function(){ if(!done){done=true;clean(); fetchCartListMain();} };
   sc.src=PRESENCE_URL+'?action=perfisGet&callback='+cbName;
   document.head.appendChild(sc);
+}
+// Fallback: usa aba Carrinhos do GAS principal (cadastrado via cartAdd/cartRemove)
+function fetchCartListMain(){
+  gasGet('action=cartsGet', (d) => {
+    if (!d || !d.ok || !Array.isArray(d.carts) || !d.carts.length) return;
+    _cartListServer = d.carts.map(c => ({ nome: c.nome, base: c.base }));
+    try { localStorage.setItem('vammo_carts_server_cache', JSON.stringify(_cartListServer)); } catch {}
+    try { render(); } catch(e) {}
+  });
 }
 
 // Em moto (IN_PROGRESS via Metabase) · ociosidade = timer no app.
