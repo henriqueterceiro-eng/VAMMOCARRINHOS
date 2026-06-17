@@ -1657,7 +1657,7 @@
 
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
       <input type="text" id="histo-search" placeholder="Filtrar (carrinho, ferramenta, quem...)" oninput="renderHistoricoNCs()" class="select-filt" style="flex:1;min-width:200px;padding:8px 12px;font-size:13px;">
-      <button class="btn-sm btn-outline" onclick="exportHistoricoNCsCSV()">⬇ CSV</button>
+      <button class="btn-sm btn-outline" onclick="exportHistoricoNCsCSV()" title="Exporta em XLS (abre direto no Excel)">⬇ Excel</button>
     </div>
 
     <div id="histo-alert" style="margin-bottom:10px;"></div>
@@ -3915,17 +3915,89 @@ function renderHistoricoNCs() {
 }
 
 function exportHistoricoNCsCSV() {
-  const rows = [['Resolvida_TS','Carrinho','Ferramenta','Motivo','Registrada_por','Registrada_TS','Resolvida_por']];
-  _historicoNCs.forEach(nc => rows.push([
-    nc.reposta_ts, nc.carrinho, nc.ferramenta, nc.motivo,
-    nc.mecanico, nc.ts, nc.reposta_por
-  ]));
-  const csv = rows.map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  // Aplica os mesmos filtros que estão em tela (busca + base do supervisor)
+  const q = (document.getElementById('histo-search')?.value || '').toLowerCase().trim();
+  let baseFiltro = null;
+  if (typeof isSupervisor === 'function' && isSupervisor() && _SUPERVISOR_BASE) baseFiltro = _SUPERVISOR_BASE;
+  function baseDoCart(cart) {
+    const c = String(cart||'').toUpperCase().replace(/\s+/g,'');
+    if (c.startsWith('MC')) return 'Mooca';
+    if (c.startsWith('OC') || c.startsWith('0C')) return 'Osasco';
+    if (c.startsWith('SC')) return 'SBC';
+    return '';
+  }
+  const sorted = _historicoNCs.slice().sort((a,b) => new Date(b.reposta_ts||0) - new Date(a.reposta_ts||0));
+  // Reincidência
+  const recF = {}; const recM = {};
+  sorted.forEach(nc => {
+    const cartN = normalizeCartName(nc.carrinho);
+    recF[cartN + '|' + nc.ferramenta] = (recF[cartN + '|' + nc.ferramenta]||0) + 1;
+    recM[cartN + '|' + (nc.mecanico||'').toLowerCase()] = (recM[cartN + '|' + (nc.mecanico||'').toLowerCase()]||0) + 1;
+  });
+  const filtered = sorted.filter(nc => {
+    if (baseFiltro && baseDoCart(nc.carrinho) !== baseFiltro) return false;
+    if (!q) return true;
+    return (nc.carrinho + ' ' + nc.ferramenta + ' ' + nc.motivo + ' ' + nc.mecanico + ' ' + nc.reposta_por).toLowerCase().includes(q);
+  });
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmt(ts){ if (!ts) return ''; try { return new Date(ts).toLocaleString('pt-BR'); } catch { return String(ts); } }
+  const hojeStr = new Date().toISOString().slice(0,10);
+  // XLS gerado via HTML SpreadsheetML — Excel abre nativamente, sem biblioteca externa
+  const html = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+<x:Name>Histórico Reposições</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>
+  table { border-collapse: collapse; }
+  th { background:#2EC2FF; color:#000; font-weight:bold; padding:6px 8px; border:1px solid #888; }
+  td { padding:5px 8px; border:1px solid #ccc; font-family:Calibri,Arial,sans-serif; font-size:11pt; }
+  .reinc-mec { background:#fde2e2; }
+  .reinc-ferr { background:#fff3cd; }
+</style></head>
+<body>
+<table>
+  <thead><tr>
+    <th>Quando</th><th>Carrinho</th><th>Base</th><th>Ferramenta</th><th>Problema</th>
+    <th>Mecânico (registrou)</th><th>Resolvida por</th>
+    <th>Reincidência ferramenta</th><th>Reincidência mecânico</th>
+    <th>NC criada em</th>
+  </tr></thead>
+  <tbody>
+${filtered.map(nc => {
+    const cartN = normalizeCartName(nc.carrinho);
+    const rF = recF[cartN + '|' + nc.ferramenta] || 1;
+    const rM = recM[cartN + '|' + (nc.mecanico||'').toLowerCase()] || 1;
+    const rowClass = rM >= 3 ? ' class="reinc-mec"' : (rF >= 2 ? ' class="reinc-ferr"' : '');
+    const motTxt = nc.motivo === 'faltando' ? 'Faltando' : nc.motivo === 'quebrado' ? 'Quebrado' : (nc.motivo||'');
+    return `    <tr${rowClass}>
+      <td>${esc(fmt(nc.reposta_ts))}</td>
+      <td>${esc(cartN)}</td>
+      <td>${esc(baseDoCart(nc.carrinho))}</td>
+      <td>${esc(nc.ferramenta)}</td>
+      <td>${esc(motTxt)}</td>
+      <td>${esc(nc.mecanico||'')}</td>
+      <td>${esc(nc.reposta_por||'')}</td>
+      <td>${rF}× neste carrinho</td>
+      <td>${rM}× neste carrinho</td>
+      <td>${esc(fmt(nc.ts))}</td>
+    </tr>`;
+}).join('\n')}
+  </tbody>
+</table>
+</body></html>`;
+  // BOM UTF-8 + mime do Excel — abre como planilha
+  const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `vammo_ncs_resolvidas_${new Date().toISOString().slice(0,10)}.csv`;
+  const nomeBase = baseFiltro ? '_' + baseFiltro.toLowerCase() : '';
+  a.download = `vammo_reposicoes${nomeBase}_${hojeStr}.xls`;
+  document.body.appendChild(a);
   a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100);
 }
 
 function syncNCsComServidor(silent) {
