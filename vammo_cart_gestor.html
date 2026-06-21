@@ -786,11 +786,12 @@
     }
     .uptitle {
       font-family: 'Barlow Condensed', 'SF Pro Display', sans-serif;
-      font-size: 32px; font-weight: 900; letter-spacing: -.5px;
+      font-size: 28px; font-weight: 900; letter-spacing: -.3px;
       background: linear-gradient(90deg, #2EC2FF, #22c55e);
       -webkit-background-clip: text; background-clip: text;
       color: transparent;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      line-height: 1.1;
     }
     .upsub {
       font-size: 13px; color: #888; letter-spacing: .5px;
@@ -3286,7 +3287,7 @@ function fmtElapsedMs(ms){
 }
 // ─── POPUP DE ATUALIZAÇÕES (1× por user, até clicar "Entendido") ───────────────────────
 // Pra forçar mostrar de novo: troca o VERSION abaixo (cria uma "release").
-const VAMMO_UPDATES_VERSION = '2026-06-21-v2';
+const VAMMO_UPDATES_VERSION = '2026-06-21-v3';
 const VAMMO_UPDATES = [
   {
     icone: '⏱️',
@@ -3320,8 +3321,8 @@ function mostrarPopupUpdates() {
     <div class="upbox" onclick="event.stopPropagation()">
       <div class="uphead">
         <div class="upemoji">🚀</div>
-        <div class="uptitle">3 novidades importantes</div>
-        <div class="upsub">Olha o que mudou — leva 30 segundos pra ler</div>
+        <div class="uptitle">Atualizações que o Terceiro fez para vocês!</div>
+        <div class="upsub">3 novidades — leva 30 segundos pra ler</div>
       </div>
       <ul class="uplist">
         ${VAMMO_UPDATES.map(u => `
