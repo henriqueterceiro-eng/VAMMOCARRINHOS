@@ -1391,7 +1391,7 @@
         <span class="nav-icon">📦</span> Estoque
       </div>
       <div class="nav-item" data-panel="frota" onclick="showPanel('frota')">
-        <span class="nav-icon">📱</span> Frota Vammo
+        <span class="nav-icon">📱</span> Celulares Vammo
       </div>
       <div class="nav-item" data-panel="colab" onclick="showPanel('colab')">
         <span class="nav-icon">👥</span> Colaboradores
@@ -1622,7 +1622,7 @@
       <!-- ── FROTA VAMMO (celulares Headwind, ao vivo) ── -->
       <div class="panel" id="panel-frota">
         <div class="table-head" style="margin-bottom:14px;">
-          <h2>📱 Frota Vammo</h2>
+          <h2>📱 Celulares Vammo</h2>
           <div class="spacer"></div>
           <input type="text" class="search-inp" id="frota-search" placeholder="Filtrar nome / e-mail / IMEI..." oninput="renderFrota()">
           <button class="btn-sm btn-az" onclick="refreshPresence()">🔄 Atualizar</button>
@@ -3286,8 +3286,18 @@ function fmtElapsedMs(ms){
 }
 // ─── POPUP DE ATUALIZAÇÕES (1× por user, até clicar "Entendido") ───────────────────────
 // Pra forçar mostrar de novo: troca o VERSION abaixo (cria uma "release").
-const VAMMO_UPDATES_VERSION = '2026-06-21-v2';
+const VAMMO_UPDATES_VERSION = '2026-06-21-v3';
 const VAMMO_UPDATES = [
+  {
+    icone: '📱',
+    titulo: 'Celulares Vammo no menu lateral',
+    desc: 'Os <b>supervisores</b> agora também têm o <b>Celulares Vammo</b> na barra lateral — veja em tempo real quais celulares estão <b>online no Headwind</b> por carrinho (bandeira verde = conectado). Ajuda a saber quem está realmente operando.'
+  },
+  {
+    icone: '🔎',
+    titulo: 'Encarregado vê as últimas operações',
+    desc: 'No app do encarregado, ao abrir um carrinho aparecem as <b>últimas 4 operações (check-in/check-out)</b> com mecânico e horário — igual ao supervisor, pra ajudar a <b>investigar</b> divergências.'
+  },
   {
     icone: '⏱️',
     titulo: 'Tempo da OS aparece no card',
@@ -3320,7 +3330,7 @@ function mostrarPopupUpdates() {
     <div class="upbox" onclick="event.stopPropagation()">
       <div class="uphead">
         <div class="upemoji">🚀</div>
-        <div class="uptitle">3 novidades importantes</div>
+        <div class="uptitle">${VAMMO_UPDATES.length} novidades importantes</div>
         <div class="upsub">Olha o que mudou — leva 30 segundos pra ler</div>
       </div>
       <ul class="uplist">

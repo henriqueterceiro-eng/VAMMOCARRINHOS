@@ -428,6 +428,22 @@
   @media (prefers-reduced-motion: reduce) {
     body::before, body::after { animation: none; }
   }
+  /* ── POPUP DE NOVIDADES ── */
+  #upov{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:22px;opacity:0;pointer-events:none;transition:opacity .35s}
+  #upov.show{opacity:1;pointer-events:all}
+  .upbox{max-width:520px;width:100%;background:linear-gradient(180deg,#1c1c1c,#121212);border:1px solid rgba(255,255,255,.08);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.7);padding:28px 24px 22px;max-height:90vh;overflow-y:auto;transform:scale(.9) translateY(16px);transition:transform .45s cubic-bezier(.2,.9,.3,1.15)}
+  #upov.show .upbox{transform:none}
+  .uphead{text-align:center;margin-bottom:16px}
+  .upemoji{font-size:42px}
+  .uptitle{font-size:24px;font-weight:900;letter-spacing:.5px;color:#fff;text-transform:uppercase;margin-top:4px}
+  .upsub{font-size:12.5px;color:#9aa6b2;margin-top:2px}
+  .uplist{list-style:none;padding:0;margin:0 0 18px}
+  .upitem{display:flex;gap:12px;padding:12px 0;border-top:1px solid rgba(255,255,255,.06)}
+  .upicon{font-size:24px;flex:0 0 auto}
+  .upitem .uptxt h3{font-size:14.5px;color:#fff;margin:0 0 3px}
+  .upitem .uptxt p{font-size:12.5px;color:#c8c8c8;line-height:1.5;margin:0}
+  .upitem .uptxt p b{color:#fff}
+  .upbtn{width:100%;padding:13px;background:linear-gradient(135deg,#2ec2ff,#0096c0);border:0;border-radius:12px;color:#04181f;font-size:15px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer}
 </style>
 </head>
 <body>
@@ -852,6 +868,10 @@ function openDetail(nome) {
 
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-row"><span class="lbl">Status</span><span class="val">${statusBadge}</span></div>
+    ${last ? `
+    <div class="detail-row"><span class="lbl">Última operação</span><span class="val">${last.tipo==='checkin'?'<span class="badge bgn">CHECK-IN</span>':'<span class="badge byw">CHECK-OUT</span>'}</span></div>
+    <div class="detail-row"><span class="lbl">Mecânico</span><span class="val">${last.mecanico||'-'}</span></div>
+    <div class="detail-row"><span class="lbl">Data/Hora</span><span class="val">${fmtDateFull(last.ts)}</span></div>` : ''}
     ${ncsHtml}
     ${historicoHtml}
     ${fotosHtml}
@@ -950,6 +970,35 @@ function initApp() {
     initApp();
   }
 })();
+</script>
+
+<script>
+const VAMMO_UPDATES_VERSION = '2026-06-21-v3';
+const VAMMO_UPDATES = [
+  { icone:'🔎', titulo:'Você vê as últimas operações',
+    desc:'Ao abrir um carrinho, agora aparecem as <b>últimas 4 operações (check-in / check-out)</b> com mecânico e horário — pra você <b>ajudar a investigar</b> divergências, igual ao supervisor.' },
+  { icone:'📱', titulo:'Celulares Vammo',
+    desc:'O painel do supervisor agora mostra os <b>Celulares Vammo</b> — quais celulares estão online no Headwind por carrinho (bandeira verde = conectado).' }
+];
+function mostrarPopupUpdates(){
+  try{ if(localStorage.getItem('vammo_enc_updates_seen')===VAMMO_UPDATES_VERSION) return; }catch{}
+  const ja=document.getElementById('upov'); if(ja) ja.remove();
+  const ov=document.createElement('div'); ov.id='upov'; ov.onclick=fecharPopupUpdates;
+  ov.innerHTML='<div class="upbox" onclick="event.stopPropagation()">'
+    +'<div class="uphead"><div class="upemoji">🚀</div>'
+    +'<div class="uptitle">'+VAMMO_UPDATES.length+' novidades</div>'
+    +'<div class="upsub">Olha o que mudou — leva 30 segundos pra ler</div></div>'
+    +'<ul class="uplist">'+VAMMO_UPDATES.map(function(u){return '<li class="upitem"><div class="upicon">'+u.icone+'</div><div class="uptxt"><h3>'+u.titulo+'</h3><p>'+u.desc+'</p></div></li>';}).join('')+'</ul>'
+    +'<button class="upbtn" onclick="fecharPopupUpdates()">✓ Entendido</button></div>';
+  document.body.appendChild(ov); requestAnimationFrame(function(){ov.classList.add('show');});
+}
+function fecharPopupUpdates(){
+  const ov=document.getElementById('upov'); if(!ov) return;
+  ov.classList.remove('show');
+  try{ localStorage.setItem('vammo_enc_updates_seen', VAMMO_UPDATES_VERSION); }catch{}
+  setTimeout(function(){ov.remove();},400);
+}
+window.addEventListener('load', function(){ setTimeout(mostrarPopupUpdates, 1200); });
 </script>
 
 </body>
