@@ -1330,8 +1330,62 @@
         .catch(() => {});
     }
   </script>
+  <style>
+    /* ═══ SPLASH SCREEN — logo Vammo desenhando + glow (igual /colab da torre) ═══ */
+    #vmsplash {
+      position: fixed; inset: 0; z-index: 999999;
+      overflow: hidden; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(rgba(5,8,11,.5),rgba(5,8,11,.32) 45%,rgba(5,8,11,.82)),
+                  radial-gradient(circle at 50% 50%, rgba(0,180,229,.15), transparent 65%),
+                  #05080b;
+      animation: vmSplashIn .6s ease both;
+    }
+    #vmsplash.out { animation: vmSplashOut .7s ease forwards; }
+    #vmsplash .slogo { position: relative; z-index: 2; width: min(82vw, 440px); max-width: 90vw; }
+    #vmsplash .slogo svg { width: 100%; height: auto; overflow: visible; animation: vmSplashPop 3.6s cubic-bezier(.2,.85,.2,1) both; }
+    @keyframes vmSplashIn { from { opacity: 0; } to { opacity: 1; } }
+    #vmsplash .slogo svg path {
+      stroke: #00D4FF; stroke-width: 5; fill: transparent;
+      filter: drop-shadow(0 0 7px rgba(0,212,255,.95));
+      transition: stroke-dashoffset 2s cubic-bezier(.4,0,.2,1), fill .7s ease, stroke-opacity .7s ease;
+    }
+    #vmsplash .slogo.filled svg path { fill: #fff; stroke-opacity: 0; }
+    #vmsplash .slogo.filled svg { filter: drop-shadow(0 0 22px rgba(0,180,229,.85)); }
+    @keyframes vmSplashPop {
+      0% { transform: scale(.86); }
+      82% { transform: scale(1); }
+      88% { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+    @keyframes vmSplashOut { to { opacity: 0; visibility: hidden; } }
+  </style>
 </head>
 <body>
+
+<!-- Splash com logo Vammo se desenhando — só ativa pra supervisor / encarregado -->
+<div id="vmsplash" style="display:none;"><span class="slogo" id="vmsplogo"></span></div>
+<script>
+(function(){
+  // Só mostra o splash pra supervisor (não pro gestor central)
+  const isSup = /[?&]role=supervisor/i.test(window.location.search);
+  if (!isSup) return;
+  const sw = document.getElementById('vmsplash');
+  if (!sw) return;
+  sw.style.display = 'flex';
+  const LOGO=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 798.668 146.81"><path transform="matrix(1,0,0,-1,78.0094,140.2948)" d="M0 0H-24.356L-75.009 133.296H-41.927L-10.905 44.715 21.085 133.296H53.319Z"/><path transform="matrix(1,0,0,-1,154.0308,72.5559)" d="M0 0C0-11.231 3.736-20.622 11.208-28.175 18.681-35.729 27.789-39.505 38.535-39.505 48.309-39.505 56.913-35.708 64.346-28.114 71.778-20.521 75.494-11.634 75.494-1.454 75.494 9.371 71.757 18.679 64.286 26.476 56.812 34.272 48.066 38.17 38.049 38.17 27.547 38.17 18.58 34.475 11.148 27.083 3.715 19.691 0 10.663 0 0M79.007-67.739V-51.38C75.292-58.005 70.059-62.892 63.315-66.043 56.569-69.193 47.945-70.768 37.444-70.768 17.732-70.768 1.272-64.043-11.937-50.593-25.145-37.141-31.749-20.44-31.749-.486-31.749 8.885-30.094 17.771-26.781 26.174-23.469 34.575-18.743 41.967-12.602 48.349-5.98 55.378 1.373 60.568 9.452 63.921 17.53 67.273 26.618 68.95 36.717 68.95 46.411 68.95 54.752 67.333 61.74 64.103 68.727 60.87 74.362 55.983 78.644 49.44V65.557H108.938V-67.739Z"/><path transform="matrix(1,0,0,-1,643.6393,6.9290926)" d="M0 0V-133.31H-28.71V-50.76L-83.79-133.31-83.88-133.22V-133.31H-112.59V-49.83L-168.01-132.89-168.29-133.31H-196.72V-49.83L-252.42-133.31-253.35-132.35V-133.31H-282.06V-50.76L-337.14-133.31-337.22-133.23V-133.31H-365.92V0H-337.22V-82.49L-282.18 0-282.06-.07V0H-253.35V-83.75L-197.46 0-196.72-.45V0H-168.01V-81.94L-113.34 0-112.59-.45V0H-83.88V-82.49L-28.84 0-28.71-.08V0Z"/><path transform="matrix(1,0,0,-1,475.6293,139.81909)" d="M0 0V-.42H-.28Z"/><path transform="matrix(1,0,0,-1,687.9401,72.7995)" d="M0 0C0-12.36 3.393-22.157 10.179-29.386 16.965-36.617 26.176-40.231 37.808-40.231 49.279-40.231 58.427-36.535 65.256-29.143 72.081-21.751 75.495-11.796 75.495 .727 75.495 11.955 71.92 21.186 64.77 28.416 57.622 35.645 48.633 39.262 37.808 39.262 26.66 39.262 17.572 35.606 10.543 28.296 3.515 20.983 0 11.552 0 0M-31.99-.242C-31.99 9.128-30.275 18.035-26.84 26.478-23.407 34.919-18.418 42.412-11.875 48.956-5.17 55.661 2.382 60.811 10.786 64.406 19.186 68 27.911 69.799 36.96 69.799 46.573 69.799 55.44 68.203 63.558 65.013 71.678 61.82 79.13 57.033 85.916 50.653 92.863 43.946 98.234 36.212 102.033 27.447 105.829 18.681 107.728 9.695 107.728 .485 107.728-9.694 106.072-18.985 102.76-27.386 99.446-35.789 94.478-43.382 87.854-50.168 81.23-57.035 73.677-62.225 65.195-65.739 56.712-69.253 47.503-71.011 37.566-71.011 27.547-71.011 18.42-69.233 10.179-65.678 1.94-62.124-5.573-56.793-12.359-49.683-18.824-42.736-23.711-35.081-27.022-26.72-30.335-18.359-31.99-9.533-31.99-.242"/></svg>`;
+  const sp = document.getElementById('vmsplogo');
+  sp.innerHTML = LOGO;
+  const paths = [...sp.querySelectorAll('path')];
+  paths.forEach((p, i) => {
+    let L; try { L = p.getTotalLength() || 900; } catch(e) { L = 900; }
+    p.style.strokeDasharray = L; p.style.strokeDashoffset = L; p.style.transitionDelay = (i*0.18) + 's';
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => { paths.forEach(p => { p.style.strokeDashoffset = '0'; }); }));
+  setTimeout(() => sp.classList.add('filled'), 2500);
+  setTimeout(() => sw.classList.add('out'), 3700);
+  setTimeout(() => { try { sw.remove(); } catch(e) {} }, 4500);
+})();
+</script>
 
 <!-- ─── LOGIN GATE ──────────────────────────────────────────────────────────── -->
 <div id="login-gate" style="position:fixed;inset:0;background:#0a0a0a;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;">
