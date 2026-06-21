@@ -745,13 +745,31 @@ function setSyncStatus(state, msg) {
   document.getElementById('sync-text').textContent = msg;
 }
 
+let _ncsResolvidas = []; // [{carrinho, ferramenta, ts, reposta_ts}]
+function aplicarFiltroResolvidas() {
+  // Espelha o filtro do supervisor: se uma NC tem reposta com TS >= criação, sumiu.
+  if (!_ncsResolvidas.length) return;
+  const repByCF = {};
+  _ncsResolvidas.forEach(rep => {
+    const k = normalizeCartName(rep.carrinho||rep.cart||'') + '|' + (rep.ferramenta||'');
+    const tms = Date.parse(rep.reposta_ts || rep.ts || 0) || 0;
+    if (tms > (repByCF[k] || 0)) repByCF[k] = tms;
+  });
+  _ncsAbertas = _ncsAbertas.filter(nc => {
+    const k = normalizeCartName(nc.carrinho) + '|' + nc.ferramenta;
+    const resTs = repByCF[k], ncTs = Date.parse(nc.ts) || 0;
+    return !(resTs && resTs >= ncTs);
+  });
+}
+
 function carregarTudo() {
   setSyncStatus('loading', 'Atualizando...');
   refreshPresence(); // celular online + bateria (Headwind)
   fetchCartList();   // lista de carrinhos cadastrada no gestor (inclui novos)
   refreshOsStatus(); // em moto / ocioso por mecânico
-  let pending = 2;
+  let pending = 3;
   function done() { pending--; if (pending === 0) {
+    aplicarFiltroResolvidas();
     setSyncStatus('ok', 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
     render();
   }}
@@ -761,6 +779,10 @@ function carregarTudo() {
   });
   gasGet('action=allOpenNCs', (data) => {
     if (data && Array.isArray(data.ncs)) _ncsAbertas = data.ncs;
+    done();
+  });
+  gasGet('action=ncsResolvidasGet', (data) => {
+    if (data && Array.isArray(data.ncs)) _ncsResolvidas = data.ncs;
     done();
   });
 }
@@ -863,59 +885,51 @@ function render() {
   }).join('') + '</div>';
 }
 
-function renderMiniHistorico(recsDoCart, max) {
+function renderMiniHistorico(recsDoCart, max, selectedId) {
   max = max || 4;
   if (!recsDoCart || !recsDoCart.length) {
     return '<div class="detail-section"><h4>🕒 Histórico</h4><div style="color:var(--gr);font-size:13px;">Nenhuma operação registrada.</div></div>';
   }
-  const items = recsDoCart.slice(0, max).map((r, idx) => {
+  const items = recsDoCart.slice(0, max).map(r => {
     const isForce = r.forced || (r.id && String(r.id).startsWith('VMO-FORCE'));
     const tipoClass = isForce ? 'force' : (r.tipo === 'checkin' ? 'ci' : 'co');
     const tipoIcon = isForce ? '🔓' : (r.tipo === 'checkin' ? '🟢' : '⚪');
     const tipoLabel = isForce ? 'Force checkout' : (r.tipo === 'checkin' ? 'Check-in' : 'Check-out');
     const obs = r.obs ? ` · ${r.obs}` : '';
     const temFotos = r.fotos && ['sup','inf','elv'].some(k => typeof r.fotos[k] === 'string' && r.fotos[k]);
-    const fotoIcon = temFotos ? '<span style="color:var(--vm);font-size:14px;margin-left:6px;" title="Tem fotos">📷</span>' : '';
-    const caret = temFotos ? '<span class="histo-caret" id="hc-'+idx+'">▾</span>' : '';
-    const clickAttr = temFotos ? `onclick="toggleHistoFotos(${idx})" style="cursor:pointer;"` : '';
-    const fotosBlock = temFotos
-      ? `<div class="histo-fotos hidden" id="hf-${idx}" style="padding:10px 0 4px;">${renderFotosInner(r.fotos)}</div>`
-      : '';
-    return `<div class="histo-item-wrap" data-idx="${idx}">
-      <div class="histo-item" ${clickAttr}>
-        <div class="histo-icon ${tipoClass}">${tipoIcon}</div>
-        <div>
-          <div class="histo-mec">${r.mecanico||'-'}${fotoIcon}</div>
-          <div class="histo-sub">${tipoLabel}${obs}${r.nc_count ? ` · ${r.nc_count} NC` : ''}</div>
-        </div>
-        <div class="histo-time">${fmtDateFull(r.ts)}${caret ? ' '+caret : ''}</div>
+    const fotoIcon = temFotos ? '<span style="font-size:13px;margin-left:6px;opacity:.85;">📷</span>' : '';
+    const idEsc = (r.id || '').replace(/'/g,'');
+    const isSelected = selectedId && r.id === selectedId;
+    const selStyle = isSelected ? 'background:rgba(0,180,229,.10);box-shadow:inset 3px 0 0 var(--vm);' : '';
+    return `<div class="histo-item" onclick="openDetail('${idEsc}')" style="cursor:pointer;${selStyle}">
+      <div class="histo-icon ${tipoClass}">${tipoIcon}</div>
+      <div>
+        <div class="histo-mec">${r.mecanico||'-'}${fotoIcon}</div>
+        <div class="histo-sub">${tipoLabel}${obs}${r.nc_count ? ` · ${r.nc_count} NC` : ''}</div>
       </div>
-      ${fotosBlock}
+      <div class="histo-time">${fmtDateFull(r.ts)}</div>
     </div>`;
   }).join('');
   const extra = recsDoCart.length > max ? `<div style="text-align:center;font-size:11px;color:var(--gr);margin-top:8px;">+ ${recsDoCart.length - max} operação(ões) mais antigas</div>` : '';
-  return `<div class="detail-section"><h4>🕒 Últimas operações (${recsDoCart.length}) <span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;margin-left:6px;">📷 = clique pra ver fotos</span></h4><div class="histo-list">${items}</div>${extra}</div>`;
+  return `<div class="detail-section"><h4>🕒 Últimas operações (${recsDoCart.length}) <span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;margin-left:6px;">clique num log pra ver as fotos</span></h4><div class="histo-list">${items}</div>${extra}</div>`;
 }
 
-function toggleHistoFotos(idx) {
-  const el = document.getElementById('hf-' + idx);
-  const caret = document.getElementById('hc-' + idx);
-  if (!el) return;
-  const open = !el.classList.contains('hidden');
-  if (open) { el.classList.add('hidden'); if (caret) caret.textContent = '▾'; }
-  else      { el.classList.remove('hidden'); if (caret) caret.textContent = '▴'; }
-}
-
-function openDetail(nome) {
-  const st = computeCartState(nome);
+function openDetail(idOrName) {
+  // Aceita: nome do carrinho (do card) OU id de registro (de clique no log)
+  let nome, selectedRec;
+  const byId = _registros.find(r => r.id === idOrName);
+  if (byId) {
+    nome = byId.carrinho;
+    selectedRec = byId;
+  } else {
+    nome = idOrName;
+  }
   document.getElementById('detail-cart-name').textContent = nome;
 
   const recsDoCart = _registros.filter(r => normalizeCartName(r.carrinho) === normalizeCartName(nome));
   recsDoCart.sort((a,b) => new Date(b.ts) - new Date(a.ts));
-  const last = recsDoCart[0];
-  // Fotos: pega ATÉ 4 últimos registros que têm fotos (skip force checkouts vazios)
-  const recsComFotos = recsDoCart.filter(r => r.fotos && ['sup','inf','elv'].some(k => typeof r.fotos[k] === 'string' && r.fotos[k])).slice(0, 4);
-  const lastComFotos = recsComFotos[0];
+  if (!selectedRec) selectedRec = recsDoCart[0];
+  const st = computeCartState(nome);
 
   const ncsHtml = st.ncAbertas.length
     ? `<div class="detail-section"><h4>⚠ NCs Abertas (${st.ncAbertas.length})</h4>${st.ncAbertas.map(nc => `
@@ -926,20 +940,25 @@ function openDetail(nome) {
         </div>`).join('')}</div>`
     : '<div class="detail-section"><div style="color:var(--gn);font-size:13px;">✅ Sem NCs em aberto</div></div>';
 
-  // Fotos: mostra as últimas 4 entradas (cada operação com fotos vira uma sub-seção)
-  const fotosHtml = recsComFotos.length
-    ? recsComFotos.map((r, idx) => {
-        const tipoIcon = r.tipo === 'checkin' ? '🟢 Check-in' : '⚪ Check-out';
-        const subtitle = `${tipoIcon} · ${r.mecanico || '-'} · ${fmtDateFull(r.ts)}`;
-        return `<div class="detail-section">
-          <h4>${idx === 0 ? '📷 Fotos · última entrada' : `📷 Entrada anterior #${idx+1}`}</h4>
-          <div style="font-size:11.5px;color:var(--gr);margin:-4px 0 8px;">${subtitle}</div>
-          ${renderFotosInner(r.fotos)}
-        </div>`;
-      }).join('')
-    : '';
-  const sigHtml = last && last.assinatura ? renderAssinatura(last.assinatura) : '';
-  const historicoHtml = renderMiniHistorico(recsDoCart, 4);
+  // Fotos: SEMPRE mostra 3 thumbs (Gav. Sup, Gav. Inf, 5S) — do registro selecionado.
+  // Clicar num item do mini-histórico recarrega esta seção com as fotos daquele rec.
+  let fotosHtml = '';
+  if (selectedRec && selectedRec.fotos && ['sup','inf','elv'].some(k => typeof selectedRec.fotos[k] === 'string' && selectedRec.fotos[k])) {
+    const tipoIcon = selectedRec.tipo === 'checkin' ? '🟢 Check-in' : '⚪ Check-out';
+    const subtitle = `${tipoIcon} · ${selectedRec.mecanico || '-'} · ${fmtDateFull(selectedRec.ts)}`;
+    fotosHtml = `<div class="detail-section">
+      <h4>📷 Fotos do log selecionado <span style="color:var(--gr);font-weight:400;text-transform:none;font-size:11px;margin-left:6px;">clique pra ampliar</span></h4>
+      <div style="font-size:11.5px;color:var(--gr);margin:-4px 0 8px;">${subtitle}</div>
+      ${renderFotosInner(selectedRec.fotos)}
+    </div>`;
+  } else if (selectedRec) {
+    fotosHtml = `<div class="detail-section">
+      <h4>📷 Fotos do log selecionado</h4>
+      <div style="color:var(--gr);font-size:12px;">Este log não tem fotos. Clique num log com 📷 abaixo.</div>
+    </div>`;
+  }
+  const sigHtml = selectedRec && selectedRec.assinatura ? renderAssinatura(selectedRec.assinatura) : '';
+  const historicoHtml = renderMiniHistorico(recsDoCart, 4, selectedRec && selectedRec.id);
 
   const statusBadge = st.status === 'logado'
     ? '<span class="badge bgn">LOGADO</span>'
@@ -1042,14 +1061,21 @@ function initApp() {
   setInterval(carregarTudo, 30000);
   // Sync EXTRA só das NCs a cada 12s — NCs são críticas pro encarregado ver fresh
   setInterval(() => {
-    gasGet('action=allOpenNCs', (data) => {
-      if (data && Array.isArray(data.ncs)) {
-        const antes = JSON.stringify(_ncsAbertas);
-        _ncsAbertas = data.ncs;
-        if (JSON.stringify(_ncsAbertas) !== antes) {
-          try { render(); } catch(e){}
-        }
+    let waiting = 2;
+    function maybeRender() {
+      waiting--;
+      if (waiting === 0) {
+        aplicarFiltroResolvidas();
+        try { render(); } catch(e){}
       }
+    }
+    gasGet('action=allOpenNCs', (data) => {
+      if (data && Array.isArray(data.ncs)) _ncsAbertas = data.ncs;
+      maybeRender();
+    });
+    gasGet('action=ncsResolvidasGet', (data) => {
+      if (data && Array.isArray(data.ncs)) _ncsResolvidas = data.ncs;
+      maybeRender();
     });
   }, 12000);
   // Sync imediato quando a aba volta a ficar visível (kiosk-friendly)
