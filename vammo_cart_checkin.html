@@ -914,9 +914,9 @@
 
       <div id="qr-status" class="qr-loading" style="margin-top:14px;text-align:center;min-height:20px;">🎯 Aponte para o QR Code</div>
 
-      <!-- Entrada manual como fallback -->
-      <details style="margin-top:14px;background:var(--c1);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;">
-        <summary style="cursor:pointer;font-size:13px;color:var(--gr);">⌨️ Digitar o código manualmente</summary>
+      <!-- Entrada manual: padrao OCULTO. Gestor central libera via toggle no painel. -->
+      <details id="qr-manual-wrap" style="display:none;margin-top:14px;background:var(--c1);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;">
+        <summary style="cursor:pointer;font-size:13px;color:var(--gr);">⌨️ Digitar o código manualmente <span style="color:var(--yw);font-size:10px;margin-left:6px;">(liberado pelo gestor)</span></summary>
         <div style="display:flex;gap:8px;margin-top:10px;">
           <input type="text" id="qr-manual-inp" placeholder="Ex: MC 01" maxlength="10"
             style="flex:1;padding:10px 12px;background:var(--c2);border:1.5px solid var(--bd);border-radius:8px;color:var(--wh);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;outline:none;"
@@ -1118,6 +1118,14 @@ let _perfisCfg = null; // { perfis: {Diagnóstico:[...], Qualidade:[...]}, carri
 const PERFIS_URL = 'https://script.google.com/macros/s/AKfycbz-yRCeTwX-zxgUVSTAdaRe6ILlnkYgasqBK_lrTMoDFrRnatFQl7YLSYoHZ774ekmIlA/exec';
 function fetchPerfis() {
   gasGet(PERFIS_URL, 'action=perfisGet', (d) => { if (d && d.ok && d.config) _perfisCfg = d.config; });
+}
+function fetchManualQrFlag() {
+  gasGet(PERFIS_URL, 'action=manualQrGet', (d) => {
+    const el = document.getElementById('qr-manual-wrap');
+    if (!el) return;
+    el.style.display = (d && d.ok && d.enabled === true) ? '' : 'none';
+  });
+  setTimeout(fetchManualQrFlag, 60000); // re-checa a cada 60s
 }
 function getCartPerfil(nome) {
   if (!_perfisCfg || !_perfisCfg.carrinhos) return 'Mecânico';
@@ -2625,6 +2633,7 @@ function decodeQRConfigFallback(file, st) {
   // Sempre busca lista atualizada do servidor em background — pra próximos logins/check-ins
   syncColabFromGAS();
   fetchPerfis(); // perfis de carrinho (define a lista de ferramentas por carrinho)
+  fetchManualQrFlag(); // libera o input de QR manual SO se gestor central tiver autorizado
   updateBar();
   updateNextBtn();
 })();
