@@ -818,18 +818,22 @@
     #upov.show .upitem:nth-child(5) { transition-delay: .43s; }
     #upov.show .upitem:nth-child(6) { transition-delay: .50s; }
     .upicon {
-      font-size: 26px; line-height: 1; flex-shrink: 0;
-      width: 44px; height: 44px;
+      font-size: 22px; line-height: 1; flex-shrink: 0;
+      min-width: 52px; min-height: 52px;
+      padding: 0 8px;
       display: flex; align-items: center; justify-content: center;
       background: linear-gradient(135deg, rgba(46,194,255,.18), rgba(46,194,255,.04));
       border-radius: 12px;
       border: 1px solid rgba(46,194,255,.25);
+      letter-spacing: -2px;
     }
+    .upitem .uptxt { flex: 1; min-width: 0; }
     .upitem .uptxt h3 {
-      font-size: 14.5px; font-weight: 800; color: #fff; margin: 0 0 3px;
-      letter-spacing: -.2px;
+      font-size: 15.5px; font-weight: 800; color: #fff; margin: 0 0 5px;
+      letter-spacing: -.2px; line-height: 1.25;
     }
-    .upitem .uptxt p { font-size: 12.5px; color: #aaa; line-height: 1.45; margin: 0; }
+    .upitem .uptxt p { font-size: 13px; color: #c8c8c8; line-height: 1.55; margin: 0; }
+    .upitem .uptxt p b { color: #fff; font-weight: 700; }
     .upbtn {
       width: 100%; padding: 14px;
       background: linear-gradient(135deg, #22c55e, #16a34a);
@@ -3279,20 +3283,26 @@ function fmtElapsedMs(ms){
 }
 // ─── POPUP DE ATUALIZAÇÕES (1× por user, até clicar "Entendido") ───────────────────────
 // Pra forçar mostrar de novo: troca o VERSION abaixo (cria uma "release").
-const VAMMO_UPDATES_VERSION = '2026-06-21';
+const VAMMO_UPDATES_VERSION = '2026-06-21-v2';
 const VAMMO_UPDATES = [
-  { icone: '⏱️', titulo: 'Tempo de reparo no card',
-    desc: 'Quando o mecânico está numa moto, aparece uma bolinha colorida com o tempo estimado do reparo (soma de todas as peças pedidas).' },
-  { icone: '🟢', titulo: 'Classificação por dificuldade',
-    desc: 'Verde até 40min · laranja 40-120min · vermelho acima de 2h (pisca pra chamar atenção).' },
-  { icone: '📡', titulo: 'Rastreador IoT visível',
-    desc: 'Ícone piscando vermelho quando a moto tem task de remover rastreador. Vira ✅ verde quando o time já removeu.' },
-  { icone: '📋', titulo: 'Histórico de reposições',
-    desc: 'Aba nova no menu com todas as reposições + detecção automática de reincidência (mecânico repondo a mesma peça muitas vezes).' },
-  { icone: '📊', titulo: 'Exportação em Excel',
-    desc: 'O histórico de reposições agora exporta em XLS com formatação e cores — abre direto no Excel.' },
-  { icone: '🎨', titulo: 'Visual macOS Glass',
-    desc: 'Cards, sidebar e modais com glassmorphism. Fundo aurora animado pra dar vida.' }
+  {
+    icone: '⏱️',
+    titulo: 'Tempo da OS aparece no card',
+    desc: 'Sempre que um mecânico está executando uma moto, o card mostra <b>quanto tempo o reparo vai durar</b> — calculado somando o tempo de cada peça pedida. Você bate o olho e já sabe quanto falta.'
+  },
+  {
+    icone: '🟢🟠🔴',
+    titulo: 'Cores pra dificuldade do reparo',
+    desc: 'Uma bolinha colorida do lado do tempo indica a dificuldade:<br>'
+        + '<b style="color:#22c55e;">● até 40 min</b> = rápido<br>'
+        + '<b style="color:#f59e0b;">● 40 a 120 min</b> = médio<br>'
+        + '<b style="color:#ef4444;">● mais de 2h</b> = difícil (pisca pra chamar atenção)'
+  },
+  {
+    icone: '📡',
+    titulo: 'Status do rastreador (IoT Tracker)',
+    desc: 'Se a moto tem task aberta pra remover o rastreador, aparece <b>📡 piscando vermelho</b> no card. Quando o time remove, vira <b>✅ verde fixo</b> por 7 dias. Assim você sabe na hora se a remoção foi feita.'
+  }
 ];
 function mostrarPopupUpdates() {
   try {
@@ -3307,8 +3317,8 @@ function mostrarPopupUpdates() {
     <div class="upbox" onclick="event.stopPropagation()">
       <div class="uphead">
         <div class="upemoji">🚀</div>
-        <div class="uptitle">Novidades da Semana</div>
-        <div class="upsub">Confere o que mudou no app · ${new Date().toLocaleDateString('pt-BR')}</div>
+        <div class="uptitle">3 novidades importantes</div>
+        <div class="upsub">Olha o que mudou — leva 30 segundos pra ler</div>
       </div>
       <ul class="uplist">
         ${VAMMO_UPDATES.map(u => `
