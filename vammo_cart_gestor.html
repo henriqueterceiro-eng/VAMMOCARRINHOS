@@ -709,6 +709,149 @@
     .cart-card-v3 .ccv-os.on { background:rgba(46,194,255,.18); color:#2EC2FF; border:1px solid rgba(46,194,255,.65); box-shadow:0 0 12px rgba(46,194,255,.28); }
     .cart-card-v3 .ccv-os.idle { background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.6); box-shadow:0 0 12px rgba(245,158,11,.18); }
     .cart-card-v3 .ccv-os-t { font-weight:700; font-size:12.5px; margin-left:auto; opacity:.95; }
+    /* ─── ÍCONE DE RASTREADOR IoT (task remover Fulltracker) ─── */
+    .cart-card-v3 .iot-flag {
+      display: inline-block; font-size: 16px; line-height: 1;
+      margin-left: 6px; padding: 2px 4px;
+      vertical-align: middle;
+    }
+    .cart-card-v3 .iot-flag.pend {
+      animation: iotPiscaPend 1.2s ease-in-out infinite;
+      filter: drop-shadow(0 0 6px rgba(239,68,68,.8));
+    }
+    .cart-card-v3 .iot-flag.done {
+      filter: drop-shadow(0 0 4px rgba(34,197,94,.7));
+    }
+    @keyframes iotPiscaPend {
+      0%, 100% { opacity: .55; transform: scale(1); filter: drop-shadow(0 0 2px rgba(239,68,68,.4)); }
+      50%      { opacity: 1;   transform: scale(1.12); filter: drop-shadow(0 0 10px rgba(239,68,68,1)); }
+    }
+
+    /* ═══════════ POPUP DE ATUALIZAÇÕES ═══════════ */
+    #upov {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.78);
+      backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .4s ease;
+    }
+    #upov.show { opacity: 1; pointer-events: all; }
+    .upbox {
+      max-width: 560px; width: 100%;
+      background: linear-gradient(180deg, rgba(36,36,36,.98), rgba(18,18,18,.98));
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.08),
+        0 30px 80px rgba(0,0,0,.7),
+        0 4px 16px rgba(0,0,0,.5);
+      padding: 36px 32px 28px;
+      position: relative; overflow: hidden;
+      max-height: 92vh; overflow-y: auto;
+      transform: scale(.86) translateY(20px);
+      transition: transform .55s cubic-bezier(.2,.9,.3,1.15);
+    }
+    #upov.show .upbox { transform: scale(1) translateY(0); }
+    /* Glow no fundo do box */
+    .upbox::before {
+      content: ''; position: absolute; top: -100px; left: -100px;
+      width: 320px; height: 320px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(46,194,255,.32), transparent 70%);
+      filter: blur(20px); pointer-events: none;
+      animation: upGlow1 6s ease-in-out infinite alternate;
+    }
+    .upbox::after {
+      content: ''; position: absolute; bottom: -120px; right: -100px;
+      width: 320px; height: 320px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(34,197,94,.25), transparent 70%);
+      filter: blur(20px); pointer-events: none;
+      animation: upGlow2 7s ease-in-out infinite alternate;
+    }
+    @keyframes upGlow1 { from { transform: translate(0,0); } to { transform: translate(60px,40px); } }
+    @keyframes upGlow2 { from { transform: translate(0,0); } to { transform: translate(-50px,-30px); } }
+    .uphead { text-align: center; position: relative; z-index: 1; margin-bottom: 24px; }
+    .upemoji {
+      font-size: 56px; line-height: 1; margin-bottom: 8px;
+      display: inline-block;
+      animation: upBounce 2s ease-in-out infinite;
+      filter: drop-shadow(0 4px 12px rgba(46,194,255,.4));
+    }
+    @keyframes upBounce {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      25% { transform: translateY(-6px) rotate(-3deg); }
+      50% { transform: translateY(0) rotate(0deg); }
+      75% { transform: translateY(-3px) rotate(3deg); }
+    }
+    .uptitle {
+      font-family: 'Barlow Condensed', 'SF Pro Display', sans-serif;
+      font-size: 32px; font-weight: 900; letter-spacing: -.5px;
+      background: linear-gradient(90deg, #2EC2FF, #22c55e);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+      margin-bottom: 4px;
+    }
+    .upsub {
+      font-size: 13px; color: #888; letter-spacing: .5px;
+    }
+    .uplist {
+      list-style: none; padding: 0; margin: 0 0 22px;
+      position: relative; z-index: 1;
+    }
+    .upitem {
+      display: flex; gap: 14px;
+      padding: 14px 16px;
+      background: rgba(255,255,255,.025);
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 14px;
+      margin-bottom: 10px;
+      opacity: 0; transform: translateY(10px);
+      transition: opacity .5s ease, transform .5s ease, background .2s, border-color .2s;
+    }
+    #upov.show .upitem { opacity: 1; transform: translateY(0); }
+    .upitem:hover { background: rgba(255,255,255,.045); border-color: rgba(255,255,255,.1); }
+    #upov.show .upitem:nth-child(1) { transition-delay: .15s; }
+    #upov.show .upitem:nth-child(2) { transition-delay: .22s; }
+    #upov.show .upitem:nth-child(3) { transition-delay: .29s; }
+    #upov.show .upitem:nth-child(4) { transition-delay: .36s; }
+    #upov.show .upitem:nth-child(5) { transition-delay: .43s; }
+    #upov.show .upitem:nth-child(6) { transition-delay: .50s; }
+    .upicon {
+      font-size: 26px; line-height: 1; flex-shrink: 0;
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(46,194,255,.18), rgba(46,194,255,.04));
+      border-radius: 12px;
+      border: 1px solid rgba(46,194,255,.25);
+    }
+    .upitem .uptxt h3 {
+      font-size: 14.5px; font-weight: 800; color: #fff; margin: 0 0 3px;
+      letter-spacing: -.2px;
+    }
+    .upitem .uptxt p { font-size: 12.5px; color: #aaa; line-height: 1.45; margin: 0; }
+    .upbtn {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      border: none;
+      border-radius: 14px;
+      color: #fff;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px; font-weight: 900; letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      position: relative; z-index: 1;
+      box-shadow: 0 8px 24px rgba(34,197,94,.4), inset 0 1px 0 rgba(255,255,255,.18);
+      transition: transform .15s, box-shadow .2s;
+    }
+    .upbtn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(34,197,94,.55), inset 0 1px 0 rgba(255,255,255,.25); }
+    .upbtn:active { transform: translateY(0); }
+    @media (max-width: 600px) {
+      .upbox { padding: 28px 22px 22px; }
+      .upemoji { font-size: 44px; }
+      .uptitle { font-size: 26px; }
+    }
+
     /* ─── PILL DE TEMPO DE REPARO (verde/laranja/vermelho conforme faixas 40/120 min) ─── */
     .cart-card-v3 .ccv-reparo {
       display:inline-flex; align-items:center; gap:8px;
@@ -3113,6 +3256,100 @@ function fmtElapsedMs(ms){
   if (h > 0) return h+'h '+m+'min';
   return m+'min';
 }
+// ─── POPUP DE ATUALIZAÇÕES (1× por user, até clicar "Entendido") ───────────────────────
+// Pra forçar mostrar de novo: troca o VERSION abaixo (cria uma "release").
+const VAMMO_UPDATES_VERSION = '2026-06-21';
+const VAMMO_UPDATES = [
+  { icone: '⏱️', titulo: 'Tempo de reparo no card',
+    desc: 'Quando o mecânico está numa moto, aparece uma bolinha colorida com o tempo estimado do reparo (soma de todas as peças pedidas).' },
+  { icone: '🟢', titulo: 'Classificação por dificuldade',
+    desc: 'Verde até 40min · laranja 40-120min · vermelho acima de 2h (pisca pra chamar atenção).' },
+  { icone: '📡', titulo: 'Rastreador IoT visível',
+    desc: 'Ícone piscando vermelho quando a moto tem task de remover rastreador. Vira ✅ verde quando o time já removeu.' },
+  { icone: '📋', titulo: 'Histórico de reposições',
+    desc: 'Aba nova no menu com todas as reposições + detecção automática de reincidência (mecânico repondo a mesma peça muitas vezes).' },
+  { icone: '📊', titulo: 'Exportação em Excel',
+    desc: 'O histórico de reposições agora exporta em XLS com formatação e cores — abre direto no Excel.' },
+  { icone: '🎨', titulo: 'Visual macOS Glass',
+    desc: 'Cards, sidebar e modais com glassmorphism. Fundo aurora animado pra dar vida.' }
+];
+function mostrarPopupUpdates() {
+  try {
+    if (localStorage.getItem('vammo_updates_seen') === VAMMO_UPDATES_VERSION) return;
+  } catch {}
+  // Se já existe overlay, remove
+  const ja = document.getElementById('upov');
+  if (ja) ja.remove();
+  const ov = document.createElement('div');
+  ov.id = 'upov';
+  ov.innerHTML = `
+    <div class="upbox" onclick="event.stopPropagation()">
+      <div class="uphead">
+        <div class="upemoji">🚀</div>
+        <div class="uptitle">Novidades da Semana</div>
+        <div class="upsub">Confere o que mudou no app · ${new Date().toLocaleDateString('pt-BR')}</div>
+      </div>
+      <ul class="uplist">
+        ${VAMMO_UPDATES.map(u => `
+          <li class="upitem">
+            <div class="upicon">${u.icone}</div>
+            <div class="uptxt">
+              <h3>${u.titulo}</h3>
+              <p>${u.desc}</p>
+            </div>
+          </li>
+        `).join('')}
+      </ul>
+      <button class="upbtn" onclick="fecharPopupUpdates()">✓ Entendido</button>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  // Trigger animation na próxima frame
+  requestAnimationFrame(() => { ov.classList.add('show'); });
+}
+function fecharPopupUpdates() {
+  const ov = document.getElementById('upov');
+  if (!ov) return;
+  ov.classList.remove('show');
+  try { localStorage.setItem('vammo_updates_seen', VAMMO_UPDATES_VERSION); } catch {}
+  setTimeout(() => ov.remove(), 400);
+}
+
+// ─── FLAG IoT (rastreador): pendente = pisca, removido recente = verde fixo ───────────
+let _flagsIot = (function(){
+  try { return JSON.parse(localStorage.getItem('vammo_flags_iot_cache')||'null') || {}; }
+  catch { return {}; }
+})();
+function syncFlagIotFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=flagIotGet', (d, err) => {
+    if (err || !d?.ok || !d.flags) return;
+    _flagsIot = d.flags;
+    try { localStorage.setItem('vammo_flags_iot_cache', JSON.stringify(_flagsIot)); } catch {}
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+  });
+}
+function flagIotDoMec(mec) {
+  const email = String(mec||'').toLowerCase().trim();
+  if (!email) return null;
+  const os = _osByEmail[email];
+  if (!os || !os.placa) return null;
+  const placa = String(os.placa).trim().toUpperCase();
+  return _flagsIot[placa] || null;
+}
+function flagIotHtml(mec) {
+  const status = flagIotDoMec(mec);
+  if (!status) return '';
+  if (status === 'PENDENTE') {
+    return '<span class="iot-flag pend" title="📡 Rastreador IoT precisa ser removido nesta moto">📡</span>';
+  }
+  if (status === 'REMOVIDO') {
+    return '<span class="iot-flag done" title="✅ Rastreador IoT já foi removido">✅</span>';
+  }
+  return '';
+}
+
 // ─── TEMPO DE REPARO (soma item_group.time_target da OS atual via Metabase) ────────────
 let _temposReparo = (function(){
   try { return JSON.parse(localStorage.getItem('vammo_tempos_reparo_cache')||'null') || {}; }
@@ -3347,6 +3584,7 @@ function renderCarrinhos() {
           ${phoneBadge}
           ${st.status === 'logado' ? osBadgeHtml(mec, st.last ? st.last.ts : '') : ''}
           ${st.status === 'logado' ? reparoPillHtml(mec) : ''}
+          ${st.status === 'logado' ? flagIotHtml(mec) : ''}
         </div>
         <div>
           ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
@@ -6863,6 +7101,11 @@ function bootApp() {
   // Tempo de reparo via Metabase (sync no boot + a cada 90s — cache de 60s no GAS)
   syncTempoReparoFromGAS();
   setInterval(syncTempoReparoFromGAS, 90000);
+  // Flag IoT (rastreador): sync no boot + a cada 2min
+  syncFlagIotFromGAS();
+  setInterval(syncFlagIotFromGAS, 120000);
+  // Popup de atualizações (mostra 1x por user até clicar Entendido)
+  setTimeout(mostrarPopupUpdates, 800);
   // Re-sync periódico (silencioso — só atualiza cache; UI atualiza quando user troca de aba ou clica Atualizar)
   setInterval(syncBaixasFromGAS, 120000); // 2 min
   setInterval(() => syncCartsFromGAS(), 180000); // 3 min
