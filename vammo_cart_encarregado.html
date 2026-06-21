@@ -747,13 +747,25 @@ function setSyncStatus(state, msg) {
 
 let _ncsResolvidas = []; // [{carrinho, ferramenta, ts, reposta_ts}]
 function aplicarFiltroResolvidas() {
-  // Espelha o filtro do supervisor: se uma NC tem reposta com TS >= criação, sumiu.
-  if (!_ncsResolvidas.length) return;
+  // Filtro 1: NC com Reposta_TS no servidor >= ts de criação → fechada
   const repByCF = {};
   _ncsResolvidas.forEach(rep => {
     const k = normalizeCartName(rep.carrinho||rep.cart||'') + '|' + (rep.ferramenta||'');
     const tms = Date.parse(rep.reposta_ts || rep.ts || 0) || 0;
     if (tms > (repByCF[k] || 0)) repByCF[k] = tms;
+  });
+  // Filtro 2 (inferência): se um check-in POSTERIOR à NC marcou a ferramenta como "ok",
+  // significa que foi reposta — mesmo que o supervisor ainda não tenha registrado isso
+  // como Reposta_TS no servidor. Isso elimina divergências entre os apps.
+  _registros.forEach(r => {
+    if (!r.ferramentas) return;
+    const cartN = normalizeCartName(r.carrinho);
+    const rTs = Date.parse(r.ts) || 0;
+    Object.entries(r.ferramentas).forEach(([ferr, v]) => {
+      if (!v || v.status !== 'ok') return;
+      const k = cartN + '|' + ferr;
+      if (rTs > (repByCF[k] || 0)) repByCF[k] = rTs;
+    });
   });
   _ncsAbertas = _ncsAbertas.filter(nc => {
     const k = normalizeCartName(nc.carrinho) + '|' + nc.ferramenta;
