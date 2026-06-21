@@ -1069,7 +1069,10 @@
       50%  { transform: translate(-180px,-140px) scale(1.1); }
       100% { transform: translate(-80px,60px) scale(1.05); }
     }
-    .layout, .modal-ov, .lightbox, #login-gate, .top-bar, .content { position: relative; z-index: 1; }
+    .layout, #login-gate, .top-bar, .content { position: relative; z-index: 1; }
+    /* overlays ficam SEMPRE fixos por cima (nao entram no z-index:1 do layout, senao caem no fim da pagina) */
+    .modal-ov { position: fixed !important; inset: 0 !important; z-index: 1000 !important; }
+    .lightbox { position: fixed !important; inset: 0 !important; z-index: 1100 !important; }
 
     /* Sidebar com vibrancy translúcida */
     .sidebar {
