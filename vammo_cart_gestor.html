@@ -709,6 +709,32 @@
     .cart-card-v3 .ccv-os.on { background:rgba(46,194,255,.18); color:#2EC2FF; border:1px solid rgba(46,194,255,.65); box-shadow:0 0 12px rgba(46,194,255,.28); }
     .cart-card-v3 .ccv-os.idle { background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.6); box-shadow:0 0 12px rgba(245,158,11,.18); }
     .cart-card-v3 .ccv-os-t { font-weight:700; font-size:12.5px; margin-left:auto; opacity:.95; }
+    /* ─── PILL DE TEMPO DE REPARO (verde/laranja/vermelho conforme faixas 40/120 min) ─── */
+    .cart-card-v3 .ccv-reparo {
+      display:inline-flex; align-items:center; gap:8px;
+      margin-top:8px; padding:5px 10px 5px 6px;
+      border-radius:999px;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      font-size:12px;
+    }
+    .cart-card-v3 .ccv-reparo .rp-bolinha {
+      width:10px; height:10px; border-radius:50%;
+      background:currentColor;
+      box-shadow:0 0 8px currentColor;
+      flex-shrink:0;
+    }
+    .cart-card-v3 .ccv-reparo .rp-tempo {
+      font-weight:800; font-size:13px; color:#fff; letter-spacing:-.3px;
+    }
+    .cart-card-v3 .ccv-reparo .rp-qtd { font-size:10.5px; color:#7a7a7a; font-weight:500; }
+    .cart-card-v3 .ccv-reparo.rapido  { color:#22c55e; }
+    .cart-card-v3 .ccv-reparo.medio   { color:#f59e0b; }
+    .cart-card-v3 .ccv-reparo.dificil { color:#ef4444; animation: pulseReparoDificil 1.8s ease-in-out infinite; }
+    @keyframes pulseReparoDificil {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+      50%      { box-shadow: 0 0 0 4px rgba(239,68,68,.15); }
+    }
     @keyframes phoneAlert {
       0%, 100% { opacity: .55; filter: drop-shadow(0 0 2px rgba(239,68,68,.5)); }
       50%      { opacity: 1;   filter: drop-shadow(0 0 8px rgba(239,68,68,.95)); }
@@ -3084,6 +3110,52 @@ function fmtElapsedMs(ms){
   if (h > 0) return h+'h '+m+'min';
   return m+'min';
 }
+// ─── TEMPO DE REPARO (soma item_group.time_target da OS atual via Metabase) ────────────
+let _temposReparo = (function(){
+  try { return JSON.parse(localStorage.getItem('vammo_tempos_reparo_cache')||'null') || {}; }
+  catch { return {}; }
+})();
+function syncTempoReparoFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=tempoReparoGet', (d, err) => {
+    if (err || !d?.ok || !d.placas) return;
+    _temposReparo = d.placas;
+    try { localStorage.setItem('vammo_tempos_reparo_cache', JSON.stringify(_temposReparo)); } catch {}
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+    refreshDetailIfOpen();
+  });
+}
+function nivelReparo(min) {
+  if (min <= 40)  return 'rapido';
+  if (min <= 120) return 'medio';
+  return 'dificil';
+}
+function fmtTempoReparo(min) {
+  if (min < 60) return min + ' min';
+  const h = Math.floor(min/60), m = min%60;
+  return m > 0 ? (h + 'h ' + m + 'min') : (h + 'h');
+}
+// Retorna o reparo da placa atual do mecânico, se houver
+function reparoDoMec(mec) {
+  const email = String(mec||'').toLowerCase().trim();
+  if (!email) return null;
+  const os = _osByEmail[email];
+  if (!os || !os.placa) return null;
+  const r = _temposReparo[os.placa];
+  return r ? Object.assign({ placa: os.placa }, r) : null;
+}
+function reparoPillHtml(mec) {
+  const r = reparoDoMec(mec);
+  if (!r) return '';
+  const nivel = nivelReparo(r.minutos);
+  return '<div class="ccv-reparo ' + nivel + '" title="' + r.qtd_pecas + ' pe&ccedil;a(s) solicitada(s) na placa ' + r.placa + '">' +
+    '<span class="rp-bolinha"></span>' +
+    '<span class="rp-tempo">' + fmtTempoReparo(r.minutos) + '</span>' +
+    '<span class="rp-qtd">· ' + r.qtd_pecas + ' pe&ccedil;a' + (r.qtd_pecas !== 1 ? 's' : '') + '</span>' +
+  '</div>';
+}
+
 // mec = e-mail do mecânico logado; cartTs = ISO do check-in (fallback p/ início do ocioso)
 function osBadgeHtml(mec, cartTs){
   const email = String(mec||'').toLowerCase().trim();
@@ -3271,6 +3343,7 @@ function renderCarrinhos() {
           ${perfilTag}
           ${phoneBadge}
           ${st.status === 'logado' ? osBadgeHtml(mec, st.last ? st.last.ts : '') : ''}
+          ${st.status === 'logado' ? reparoPillHtml(mec) : ''}
         </div>
         <div>
           ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
@@ -6270,6 +6343,29 @@ function openDetail(id) {
 
   const cartEscBtn = (rec.carrinho || '').replace(/'/g,'');
   const mecEscBtn = (rec.mecanico || '').replace(/'/g,'');
+  // Bloco de reparo em andamento (se o mecânico atual estiver em uma placa com peças)
+  const repInfo = reparoDoMec(rec.mecanico);
+  const nivelRep = repInfo ? nivelReparo(repInfo.minutos) : '';
+  const corNivel = nivelRep === 'rapido' ? '#22c55e' : nivelRep === 'medio' ? '#f59e0b' : '#ef4444';
+  const reparoBlock = repInfo ? `
+    <div style="margin-top:14px;background:linear-gradient(180deg, ${corNivel}15, ${corNivel}05);border:1px solid ${corNivel}55;border-radius:12px;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:linear-gradient(135deg, ${corNivel}22, transparent);border-bottom:1px solid ${corNivel}33;">
+        <div>
+          <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${corNivel};">🔧 Reparo em andamento</div>
+          <div style="font-size:11.5px;color:var(--w2);margin-top:3px;">SO #${repInfo.so_id} · placa <strong>${repInfo.placa}</strong> · ${repInfo.qtd_pecas} peça${repInfo.qtd_pecas!==1?'s':''} solicitada${repInfo.qtd_pecas!==1?'s':''}</div>
+        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;color:#fff;line-height:1;letter-spacing:-.5px;">${fmtTempoReparo(repInfo.minutos)}</div>
+      </div>
+      <ul style="list-style:none;padding:6px 0;margin:0;">
+        ${(repInfo.pecas||[]).map(p => `
+          <li style="display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-top:1px solid rgba(255,255,255,.04);font-size:13px;">
+            <span style="color:#fff;">${p.nome}</span>
+            <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;color:${corNivel};font-size:14px;">${p.min} min</span>
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  ` : '';
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-row"><span class="lbl">ID</span><span class="val monospace">${rec.id}</span></div>
     <div class="detail-row"><span class="lbl">Tipo</span><span class="val">${rec.tipo === 'checkin' ? '<span class="badge bgn">CHECK-IN</span>' : '<span class="badge byw">CHECK-OUT</span>'}</span></div>
@@ -6277,6 +6373,7 @@ function openDetail(id) {
     <div class="detail-row"><span class="lbl">Mecânico</span><span class="val">${rec.mecanico}</span></div>
     <div class="detail-row"><span class="lbl">Checklist</span><span class="val">${ok} OK · ${ncs.length} problema(s)</span></div>
     <div class="detail-row"><span class="lbl">Data/Hora</span><span class="val">${fmtDateFull(rec.ts)}</span></div>
+    ${reparoBlock}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px;">
       <button class="btn-sm btn-outline" onclick="abrirHistoricoNCs('${cartEscBtn}')" title="Reposições deste carrinho">📋 Histórico do Carrinho</button>
       ${mecEscBtn ? `<button class="btn-sm btn-outline" onclick="abrirHistoricoNCs('', '${mecEscBtn}')" title="Reposições onde este mecânico operou o carrinho">👤 Histórico do Mecânico</button>` : ''}
@@ -6760,6 +6857,9 @@ function bootApp() {
     }
     if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
   });
+  // Tempo de reparo via Metabase (sync no boot + a cada 90s — cache de 60s no GAS)
+  syncTempoReparoFromGAS();
+  setInterval(syncTempoReparoFromGAS, 90000);
   // Re-sync periódico (silencioso — só atualiza cache; UI atualiza quando user troca de aba ou clica Atualizar)
   setInterval(syncBaixasFromGAS, 120000); // 2 min
   setInterval(() => syncCartsFromGAS(), 180000); // 3 min
