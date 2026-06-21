@@ -3287,7 +3287,7 @@ function fmtElapsedMs(ms){
 }
 // ─── POPUP DE ATUALIZAÇÕES (1× por user, até clicar "Entendido") ───────────────────────
 // Pra forçar mostrar de novo: troca o VERSION abaixo (cria uma "release").
-const VAMMO_UPDATES_VERSION = '2026-06-21-v3';
+const VAMMO_UPDATES_VERSION = '2026-06-21-v4';
 const VAMMO_UPDATES = [
   {
     icone: '⏱️',
@@ -3308,9 +3308,15 @@ const VAMMO_UPDATES = [
     desc: 'Se a moto tem task aberta pra remover o rastreador, aparece <b>📡 piscando vermelho</b> no card. Quando o time remove, vira <b>✅ verde fixo</b> por 7 dias. Assim você sabe na hora se a remoção foi feita.'
   }
 ];
+// Chave por usuário logado (cada supervisor vê o popup independente, mesmo no mesmo dispositivo)
+function _updatesKey() {
+  const u = getStoredAuth();
+  const email = (u && u.email) ? u.email.toLowerCase() : 'anon';
+  return 'vammo_updates_seen__' + email;
+}
 function mostrarPopupUpdates() {
   try {
-    if (localStorage.getItem('vammo_updates_seen') === VAMMO_UPDATES_VERSION) return;
+    if (localStorage.getItem(_updatesKey()) === VAMMO_UPDATES_VERSION) return;
   } catch {}
   // Se já existe overlay, remove
   const ja = document.getElementById('upov');
@@ -3335,7 +3341,7 @@ function mostrarPopupUpdates() {
           </li>
         `).join('')}
       </ul>
-      <button class="upbtn" onclick="fecharPopupUpdates()">✓ Entendido</button>
+      <button class="upbtn" onclick="fecharPopupUpdates()">✓ Entendi</button>
     </div>
   `;
   document.body.appendChild(ov);
@@ -3346,7 +3352,7 @@ function fecharPopupUpdates() {
   const ov = document.getElementById('upov');
   if (!ov) return;
   ov.classList.remove('show');
-  try { localStorage.setItem('vammo_updates_seen', VAMMO_UPDATES_VERSION); } catch {}
+  try { localStorage.setItem(_updatesKey(), VAMMO_UPDATES_VERSION); } catch {}
   setTimeout(() => ov.remove(), 400);
 }
 
