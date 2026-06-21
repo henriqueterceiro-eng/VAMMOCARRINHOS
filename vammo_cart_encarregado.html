@@ -423,20 +423,9 @@
   *::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
   *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.22); }
   *::-webkit-scrollbar-track { background: transparent; }
-  @keyframes vmoFadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-  .cart-grid > * { animation: vmoFadeUp .35s ease both; }
-  .cart-grid > *:nth-child(1) { animation-delay: .02s; }
-  .cart-grid > *:nth-child(2) { animation-delay: .04s; }
-  .cart-grid > *:nth-child(3) { animation-delay: .06s; }
-  .cart-grid > *:nth-child(4) { animation-delay: .08s; }
-  .cart-grid > *:nth-child(5) { animation-delay: .10s; }
-  .cart-grid > *:nth-child(6) { animation-delay: .12s; }
-  .cart-grid > *:nth-child(7) { animation-delay: .14s; }
-  .cart-grid > *:nth-child(8) { animation-delay: .16s; }
-  .cart-grid > *:nth-child(n+9) { animation-delay: .18s; }
+  /* Stagger removida — piscava a cada re-render do auto-sync (30s) */
   @media (prefers-reduced-motion: reduce) {
     body::before, body::after { animation: none; }
-    .cart-grid > * { animation: none; }
   }
 </style>
 </head>
