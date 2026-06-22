@@ -160,6 +160,20 @@
   .cart-card-v3 .ccv-phone-badge.alert .cpb-status { color:#ef4444; animation:phoneAlert 1s ease-in-out infinite; }
   .cart-card-v3 .ccv-phone-badge.nodev svg,
   .cart-card-v3 .ccv-phone-badge.nodev .cpb-status { color:#9aa0a6; }
+  /* Pill de tempo de reparo (estimado) + dificuldade */
+  .cart-card-v3 .ccv-reparo { display:inline-flex; align-items:center; gap:8px; margin-top:8px; padding:5px 10px 5px 6px; border-radius:999px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); font-size:12px; }
+  .cart-card-v3 .ccv-reparo .rp-bolinha { width:10px; height:10px; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; flex-shrink:0; }
+  .cart-card-v3 .ccv-reparo .rp-tempo { font-weight:800; font-size:13px; color:#fff; letter-spacing:-.3px; }
+  .cart-card-v3 .ccv-reparo .rp-qtd { font-size:10.5px; color:#7a7a7a; font-weight:500; }
+  .cart-card-v3 .ccv-reparo.rapido  { color:#22c55e; }
+  .cart-card-v3 .ccv-reparo.medio   { color:#f59e0b; }
+  .cart-card-v3 .ccv-reparo.dificil { color:#ef4444; animation: pulseReparoDificil 1.8s ease-in-out infinite; }
+  @keyframes pulseReparoDificil { 0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow:0 0 0 4px rgba(239,68,68,.15); } }
+  /* Ícone rastreador IoT */
+  .cart-card-v3 .iot-flag { display:inline-block; font-size:16px; line-height:1; margin-left:6px; padding:2px 4px; vertical-align:middle; }
+  .cart-card-v3 .iot-flag.pend { animation: iotPiscaPend 1.2s ease-in-out infinite; filter: drop-shadow(0 0 6px rgba(239,68,68,.8)); }
+  .cart-card-v3 .iot-flag.done { filter: drop-shadow(0 0 4px rgba(34,197,94,.7)); }
+  @keyframes iotPiscaPend { 0%,100% { opacity:.55; transform:scale(1); filter:drop-shadow(0 0 2px rgba(239,68,68,.4)); } 50% { opacity:1; transform:scale(1.12); filter:drop-shadow(0 0 10px rgba(239,68,68,1)); } }
   @keyframes phoneAlert { 0%,100%{opacity:.55;filter:drop-shadow(0 0 2px rgba(239,68,68,.5));} 50%{opacity:1;filter:drop-shadow(0 0 8px rgba(239,68,68,.95));} }
   .cart-card-v3 .ccv-flag {
     position:absolute; top:-10px; right:-10px;
@@ -640,6 +654,56 @@ function refreshPresence(){
   document.head.appendChild(sc);
 }
 
+// ─── TEMPO DE REPARO (estimado) + dificuldade da moto (mesmo do gestor) ───
+let _temposReparo = (function(){ try { return JSON.parse(localStorage.getItem('vammo_tempos_reparo_cache')||'null') || {}; } catch { return {}; } })();
+function syncTempoReparoFromGAS(){
+  gasGet('action=tempoReparoGet', (d, err) => {
+    if (err || !d || !d.ok || !d.placas) return;
+    _temposReparo = d.placas;
+    try { localStorage.setItem('vammo_tempos_reparo_cache', JSON.stringify(_temposReparo)); } catch {}
+    try { render(); } catch(e){}
+  });
+}
+function nivelReparo(min){ if (min <= 40) return 'rapido'; if (min <= 120) return 'medio'; return 'dificil'; }
+function fmtTempoReparo(min){ if (min < 60) return min + ' min'; const h=Math.floor(min/60), m=min%60; return m>0 ? (h+'h '+m+'min') : (h+'h'); }
+function reparoDoMec(mec){
+  const email = String(mec||'').toLowerCase().trim(); if (!email) return null;
+  const os = _osByEmail[email]; if (!os || !os.placa) return null;
+  const r = _temposReparo[os.placa];
+  return r ? Object.assign({ placa: os.placa }, r) : null;
+}
+function reparoPillHtml(mec){
+  const r = reparoDoMec(mec); if (!r) return '';
+  const nivel = nivelReparo(r.minutos);
+  return '<div class="ccv-reparo ' + nivel + '" title="' + r.qtd_pecas + ' pe&ccedil;a(s) na placa ' + r.placa + '">' +
+    '<span class="rp-bolinha"></span>' +
+    '<span class="rp-tempo">' + fmtTempoReparo(r.minutos) + '</span>' +
+    '<span class="rp-qtd">· ' + r.qtd_pecas + ' pe&ccedil;a' + (r.qtd_pecas !== 1 ? 's' : '') + '</span>' +
+  '</div>';
+}
+
+// ─── FLAG IoT (rastreador a remover) — mesmo do gestor ───
+let _flagsIot = (function(){ try { return JSON.parse(localStorage.getItem('vammo_flags_iot_cache')||'null') || {}; } catch { return {}; } })();
+function syncFlagIotFromGAS(){
+  gasGet('action=flagIotGet', (d, err) => {
+    if (err || !d || !d.ok || !d.flags) return;
+    _flagsIot = d.flags;
+    try { localStorage.setItem('vammo_flags_iot_cache', JSON.stringify(_flagsIot)); } catch {}
+    try { render(); } catch(e){}
+  });
+}
+function flagIotDoMec(mec){
+  const email = String(mec||'').toLowerCase().trim(); if (!email) return null;
+  const os = _osByEmail[email]; if (!os || !os.placa) return null;
+  return _flagsIot[String(os.placa).trim().toUpperCase()] || null;
+}
+function flagIotHtml(mec){
+  const status = flagIotDoMec(mec); if (!status) return '';
+  if (status === 'PENDENTE') return '<span class="iot-flag pend" title="📡 Rastreador IoT precisa ser removido nesta moto">📡</span>';
+  if (status === 'REMOVIDO') return '<span class="iot-flag done" title="✅ Rastreador IoT já removido">✅</span>';
+  return '';
+}
+
 // Lista de carrinhos vinda do servidor (cadastrada no gestor) — fonte da verdade.
 // Cache em localStorage pra ter dados na 1ª render sem esperar GAS.
 let _cartListServer = (function(){
@@ -779,6 +843,8 @@ function carregarTudo() {
   refreshPresence(); // celular online + bateria (Headwind)
   fetchCartList();   // lista de carrinhos cadastrada no gestor (inclui novos)
   refreshOsStatus(); // em moto / ocioso por mecânico
+  syncTempoReparoFromGAS(); // tempo estimado de reparo + dificuldade da moto
+  syncFlagIotFromGAS();     // flag de rastreador IoT a remover
   let pending = 3;
   function done() { pending--; if (pending === 0) {
     aplicarFiltroResolvidas();
@@ -888,6 +954,8 @@ function render() {
         ${perfilTag}
         ${phoneBadge}
         ${st.status === 'logado' ? osBadgeHtml(mec, st.last ? st.last.ts : '') : ''}
+        ${st.status === 'logado' ? reparoPillHtml(mec) : ''}
+        ${st.status === 'logado' ? flagIotHtml(mec) : ''}
       </div>
       <div>
         ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
