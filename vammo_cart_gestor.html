@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v5';
+      const CACHE = 'vammo-gestor-v6';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1859,6 +1859,17 @@
   <div class="modal-box">
     <h2><button class="modal-close" onclick="closeDetail()">✕</button> Detalhes do Registro</h2>
     <div id="detail-body"></div>
+  </div>
+</div>
+
+<!-- MODAL: QR Code do Carrinho (backup do QR físico) -->
+<div class="modal-ov hidden" id="modal-qr">
+  <div class="modal-box" style="max-width:380px;text-align:center;">
+    <h2 style="margin-bottom:4px;"><button class="modal-close" onclick="closeCartQR()">✕</button> QR do Carrinho</h2>
+    <div id="qr-cart-name" style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;letter-spacing:3px;color:var(--az);margin:2px 0 10px;"></div>
+    <div style="font-size:12px;color:var(--gr);margin-bottom:14px;">Mostre esta tela pro mecânico escanear caso o QR físico esteja danificado.</div>
+    <div id="qr-cart-box" style="display:flex;align-items:center;justify-content:center;background:#111;padding:18px;border-radius:14px;border:1px solid var(--bd);margin:0 auto 16px;width:fit-content;"></div>
+    <button class="btn-sm btn-outline" style="width:100%;" onclick="printCartQR()">🖨️ Imprimir / Salvar PDF</button>
   </div>
 </div>
 
@@ -3723,8 +3734,10 @@ function openCartDetail(nome, recId) {
   if (recId) { openDetail(recId); return; }
   const recs = getRecords();
   const st = computeCartState(nome, recs);
+  const nomeEsc = String(nome || '').replace(/'/g,'');
   let html = `<h3 style="font-family:'Barlow Condensed',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">Carrinho ${nome}</h3>
-    <div style="color:var(--gr);font-size:13px;margin-bottom:12px;">Base ${getCartBase(nome)} · Sem registros ainda</div>`;
+    <div style="color:var(--gr);font-size:13px;margin-bottom:12px;">Base ${getCartBase(nome)} · Sem registros ainda</div>
+    <button class="btn-sm btn-az" style="margin-bottom:12px;" onclick="openCartQR('${nomeEsc}')" title="Abrir QR Code deste carrinho (backup do físico)">📱 Ver QR Code</button>`;
   if (st.ncAbertas.length) {
     html += `<div style="margin-top:12px;"><strong>NCs em aberto:</strong><ul>` +
       st.ncAbertas.map(nc => `<li>${nc.ferramenta} — ${nc.motivo}</li>`).join('') + `</ul></div>`;
@@ -6756,6 +6769,7 @@ function openDetail(id) {
     <div class="detail-row"><span class="lbl">Data/Hora</span><span class="val">${fmtDateFull(rec.ts)}</span></div>
     ${reparoBlock}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px;">
+      <button class="btn-sm btn-az" onclick="openCartQR('${cartEscBtn}')" title="Abrir QR Code deste carrinho (backup do físico)">📱 Ver QR Code</button>
       <button class="btn-sm btn-outline" onclick="abrirHistoricoNCs('${cartEscBtn}')" title="Reposições deste carrinho">📋 Histórico do Carrinho</button>
       ${mecEscBtn ? `<button class="btn-sm btn-outline" onclick="abrirHistoricoNCs('', '${mecEscBtn}')" title="Reposições onde este mecânico operou o carrinho">👤 Histórico do Mecânico</button>` : ''}
     </div>
@@ -6771,6 +6785,40 @@ function openDetail(id) {
 function closeDetail() {
   document.getElementById('modal-detail').classList.add('hidden');
   _currentDetailRecId = null;
+}
+
+// ─── QR Code do carrinho (backup do QR físico danificado) ─────────────────────
+// O QR físico codifica o nome canônico do carrinho em texto puro (ex: "OC12"),
+// que o app do mecânico lê via normalizeCartName(). Regeramos exatamente isso.
+let _qrCartName = '';
+function openCartQR(nome) {
+  const canon = normalizeCartName(nome);
+  _qrCartName = canon;
+  document.getElementById('qr-cart-name').textContent = canon;
+  const box = document.getElementById('qr-cart-box');
+  box.innerHTML = '';
+  if (typeof QRCode === 'undefined') {
+    box.innerHTML = '<div style="color:var(--rd);font-size:13px;">Biblioteca de QR não carregou</div>';
+  } else {
+    new QRCode(box, { text: canon, width: 240, height: 240, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  }
+  document.getElementById('modal-qr').classList.remove('hidden');
+}
+function closeCartQR() {
+  document.getElementById('modal-qr').classList.add('hidden');
+}
+function printCartQR() {
+  const box = document.getElementById('qr-cart-box');
+  const img = box.querySelector('img') || box.querySelector('canvas');
+  let src = '';
+  if (img) src = img.tagName === 'IMG' ? img.src : img.toDataURL('image/png');
+  const w = window.open('', '_blank');
+  if (!w) { alert('Permita pop-ups para imprimir.'); return; }
+  w.document.write(`<!doctype html><html><head><title>QR ${_qrCartName}</title>
+    <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:Arial,sans-serif;}
+    h1{font-size:48px;letter-spacing:4px;margin:0 0 16px;} img{width:320px;height:320px;}</style></head>
+    <body><h1>${_qrCartName}</h1><img src="${src}"><script>onload=function(){print();}<\/script></body></html>`);
+  w.document.close();
 }
 
 // ─── RESOLVER TODAS AS NCs DE UM CARRINHO ─────────────────────────────────────
