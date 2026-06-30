@@ -1798,18 +1798,18 @@
           <div id="cfg-qr" style="display:flex;align-items:center;justify-content:center;padding:12px 0;"></div>
         </div>
 
-        <!-- TOGGLE: liberar digitacao manual de QR no app dos mecanicos -->
+        <!-- LIBERAR digitacao manual de QR — POR CARRINHO, uso unico (gestor ou supervisor) -->
         <div class="config-card" style="border-left:4px solid var(--yw);">
-          <h3>⌨️ Digitação manual de QR (app mecânico)</h3>
+          <h3>⌨️ Liberar digitação manual de QR (por carrinho)</h3>
           <p class="config-desc">
-            Por padrão os mecânicos <strong>só podem escanear</strong> o QR do carrinho. Ative aqui apenas em emergência (QR ilegível, câmera quebrada). A alteração é global e fica registrada nos Logs.
+            Por padrão os mecânicos <strong>só escaneiam</strong> o QR. Quando o QR de um carrinho falhar, libere <strong>aquele carrinho</strong> aqui — vale <strong>1 uso</strong> e expira em 30 min. Gestor central e supervisores podem liberar; cada liberação fica nos Logs.
           </p>
-          <div id="manualqr-status" style="margin:10px 0;font-size:14px;font-weight:700;color:var(--gr);">Carregando...</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn-sm btn-az" onclick="setManualQrFlag(true)">✅ LIBERAR digitação manual</button>
-            <button class="btn-sm btn-outline" onclick="setManualQrFlag(false)">🚫 EXIGIR scan (padrão)</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;">
+            <select id="manualqr-cart" style="padding:9px 12px;border-radius:8px;border:1px solid var(--bd);background:var(--c2);color:var(--wh);font-size:14px;min-width:160px;"></select>
+            <button class="btn-sm btn-az" onclick="liberarManualCart()">✅ Liberar 1x</button>
             <button class="btn-sm btn-outline" onclick="fetchManualQrFlag()">🔄 Atualizar</button>
           </div>
+          <div id="manualqr-status" style="margin:8px 0;font-size:13px;font-weight:700;color:var(--gr);">Carregando...</div>
         </div>
 
         <!-- ACESSOS DE SUPERVISORES -->
@@ -6449,29 +6449,45 @@ function copyGAS() {
     .catch(() => showAlert('config-alert', 'rd', '❌ Não foi possível copiar. Selecione manualmente.'));
 }
 
-// ─── Toggle: liberar digitacao manual de QR no app dos mecanicos ─────────────
+// ─── Liberar digitacao manual de QR — POR CARRINHO, uso unico ────────────────
 function fetchManualQrFlag() {
   const cfg = getConfig();
+  // Popula o select de carrinhos (1x)
+  const sel = document.getElementById('manualqr-cart');
+  if (sel && sel.options.length === 0) {
+    const carts = ((typeof getCarts === 'function' ? getCarts() : []) || [])
+      .slice().sort((a,b) => String(a.nome||'').localeCompare(String(b.nome||'')));
+    carts.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.nome;
+      o.textContent = c.nome + (c.base ? ' · ' + c.base : '');
+      sel.appendChild(o);
+    });
+  }
   if (!cfg.webhookUrl) { document.getElementById('manualqr-status').innerHTML = '<span style="color:var(--rd);">Configure a URL primeiro</span>'; return; }
   gasGet(cfg.webhookUrl, 'action=manualQrGet', (d, err) => {
     const el = document.getElementById('manualqr-status');
     if (!el) return;
-    if (err || !d) { el.innerHTML = '<span style="color:var(--rd);">❌ Erro: ' + (err||'sem resposta') + '</span>'; return; }
-    el.innerHTML = d.enabled
-      ? '<span style="color:var(--yw);">⚠️ Digitação manual <strong>LIBERADA</strong> — qualquer mecânico pode digitar o código sem scanear</span>'
-      : '<span style="color:var(--gn);">✅ <strong>EXIGIR SCAN</strong> — mecânicos só conseguem escanear o QR (padrão)</span>';
+    if (err || !d || !d.ok) { el.innerHTML = '<span style="color:var(--rd);">❌ Erro ao consultar</span>'; return; }
+    const carts = Array.isArray(d.carts) ? d.carts : [];
+    el.innerHTML = carts.length
+      ? '🟢 Liberados agora (aguardando o mecânico usar): <strong>' + carts.join(', ') + '</strong>'
+      : '<span style="color:var(--gn);">✅ Nenhuma liberação ativa — todos exigem scan (padrão).</span>';
   });
 }
-function setManualQrFlag(on) {
+function liberarManualCart() {
   const cfg = getConfig();
   if (!cfg.webhookUrl) { showAlert('config-alert','rd','❌ Configure a URL primeiro'); return; }
+  const sel = document.getElementById('manualqr-cart');
+  const cart = sel ? sel.value : '';
+  if (!cart) { showAlert('config-alert','rd','❌ Selecione um carrinho'); return; }
   const auth = (typeof getStoredAuth === 'function' ? getStoredAuth() : null) || {};
   const email = (auth.email || '').toLowerCase();
-  if (!email) { showAlert('config-alert','rd','❌ Você precisa estar logado como gestor'); return; }
-  showAlert('config-alert','az','⏳ Salvando flag no servidor...');
-  gasGet(cfg.webhookUrl, 'action=manualQrSet&enabled=' + on + '&por=' + encodeURIComponent(email), (d, err) => {
+  if (!email) { showAlert('config-alert','rd','❌ Você precisa estar logado'); return; }
+  showAlert('config-alert','az','⏳ Liberando ' + cart + '...');
+  gasGet(cfg.webhookUrl, 'action=manualQrSet&cart=' + encodeURIComponent(cart) + '&por=' + encodeURIComponent(email), (d, err) => {
     if (err || !d || d.error) { showAlert('config-alert','rd','❌ ' + ((d&&d.error) || err || 'falha')); return; }
-    showAlert('config-alert','gn', on ? '✅ Digitação manual LIBERADA' : '✅ Digitação manual desligada — só scan');
+    showAlert('config-alert','gn','✅ ' + cart + ' liberado pra entrada manual (1 uso, expira em 30min)');
     fetchManualQrFlag();
   });
 }

@@ -935,16 +935,13 @@
 
       <div id="qr-status" class="qr-loading" style="margin-top:14px;text-align:center;min-height:20px;">🎯 Aponte para o QR Code</div>
 
-      <!-- Entrada manual: padrao OCULTO. Gestor central libera via toggle no painel. -->
-      <details id="qr-manual-wrap" style="display:none;margin-top:14px;background:var(--c1);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;">
-        <summary style="cursor:pointer;font-size:13px;color:var(--gr);">⌨️ Digitar o código manualmente <span style="color:var(--yw);font-size:10px;margin-left:6px;">(liberado pelo gestor)</span></summary>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <input type="text" id="qr-manual-inp" placeholder="Ex: MC 01" maxlength="10"
-            style="flex:1;padding:10px 12px;background:var(--c2);border:1.5px solid var(--bd);border-radius:8px;color:var(--wh);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;outline:none;"
-            onkeydown="if(event.key==='Enter') confirmManualCart()">
-          <button onclick="confirmManualCart()" style="padding:10px 16px;border-radius:8px;border:none;background:var(--az);color:var(--bk);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:900;letter-spacing:1px;cursor:pointer;">OK</button>
-        </div>
-      </details>
+      <!-- Entrada manual: OCULTO por padrão. Supervisor libera UM carrinho por vez (uso único).
+           Aparece só o(s) carrinho(s) liberado(s); ao tocar, usa e a liberação some. -->
+      <div id="qr-manual-wrap" style="display:none;margin-top:14px;background:var(--c1);border:1px solid var(--yw);border-radius:10px;padding:12px 14px;">
+        <div style="font-size:13px;color:var(--yw);font-weight:700;">⌨️ Entrada manual liberada pelo supervisor</div>
+        <div style="font-size:10px;color:var(--gr);margin:4px 0 10px;">Toque no carrinho pra entrar sem QR (vale 1 vez):</div>
+        <div id="qr-manual-carts" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
     </div>
 
     <canvas id="qr-canvas" style="display:none;"></canvas>
@@ -1140,17 +1137,37 @@ const PERFIS_URL = 'https://script.google.com/macros/s/AKfycbz-yRCeTwX-zxgUVSTAd
 function fetchPerfis() {
   gasGet(PERFIS_URL, 'action=perfisGet', (d) => { if (d && d.ok && d.config) _perfisCfg = d.config; });
 }
-function fetchManualQrFlag() {
-  // Flag mora no webhook (gas-mecanicos), onde o gestor grava via manualQrSet.
-  // Antes lia do PERFIS_URL (outro GAS) → nunca via a liberação. Agora lê da fonte certa.
+function _manualUrl() {
   const cfg = (function(){ try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } })();
-  const url = cfg.webhookUrl || DEFAULT_WEBHOOK_URL;
-  gasGet(url, 'action=manualQrGet', (d) => {
-    const el = document.getElementById('qr-manual-wrap');
-    if (!el) return;
-    el.style.display = (d && d.ok && d.enabled === true) ? '' : 'none';
+  return cfg.webhookUrl || DEFAULT_WEBHOOK_URL;
+}
+function fetchManualQrFlag() {
+  // Liberações de entrada manual moram no webhook (gas-mecanicos). São POR CARRINHO e de
+  // uso único: o supervisor libera, aparece aqui, o mecânico usa 1x e some.
+  gasGet(_manualUrl(), 'action=manualQrGet', (d) => {
+    const wrap = document.getElementById('qr-manual-wrap');
+    const box = document.getElementById('qr-manual-carts');
+    if (!wrap || !box) return;
+    const carts = (d && d.ok && Array.isArray(d.carts)) ? d.carts : [];
+    if (!carts.length) { wrap.style.display = 'none'; box.innerHTML = ''; return; }
+    wrap.style.display = '';
+    box.innerHTML = '';
+    carts.forEach(name => {
+      const b = document.createElement('button');
+      b.textContent = '🛒 ' + name;
+      b.style.cssText = "padding:10px 16px;border-radius:8px;border:none;background:var(--az);color:var(--bk);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;letter-spacing:1px;cursor:pointer;";
+      b.onclick = () => useManualCart(name);
+      box.appendChild(b);
+    });
   });
-  setTimeout(fetchManualQrFlag, 60000); // re-checa a cada 60s
+  setTimeout(fetchManualQrFlag, 30000); // re-checa a cada 30s
+}
+// Usa a liberação de um carrinho (uso único): consome no servidor e entra como se tivesse escaneado.
+function useManualCart(name) {
+  gasGet(_manualUrl(), 'action=manualQrConsume&cart=' + encodeURIComponent(name), () => { fetchManualQrFlag(); });
+  stopQR();
+  setCart(normalizeCartName(name));
+  const area = document.getElementById('qr-scan-area'); if (area) area.style.display = 'none';
 }
 function getCartPerfil(nome) {
   if (!_perfisCfg || !_perfisCfg.carrinhos) return 'Mecânico';
