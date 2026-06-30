@@ -145,6 +145,10 @@
   .cart-card-v3 .ccv-os.idle { background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.6); box-shadow:0 0 12px rgba(245,158,11,.18); }
   .cart-card-v3 .ccv-os-t { font-weight:700; font-size:12.5px; margin-left:auto; opacity:.95; }
   .cart-card-v3 .ccv-time { font-size:11px; color:var(--w2); margin-top:3px; }
+  /* Botão: liberar entrada manual de QR (uso único) */
+  .cart-card-v3 .ccv-libqr { margin-top:10px; width:100%; padding:8px 6px; border-radius:8px; border:1px solid var(--bd); background:var(--c2); color:var(--w2); font-family:inherit; font-size:12px; font-weight:800; letter-spacing:.3px; cursor:pointer; }
+  .cart-card-v3 .ccv-libqr:active { transform:scale(.97); }
+  .cart-card-v3 .ccv-libqr.on { background:rgba(46,194,255,.16); color:#2EC2FF; border-color:rgba(46,194,255,.6); }
   /* Badge de celular (presença Headwind) */
   .cart-card-v3 .ccv-phone-badge { display:inline-flex; align-items:center; gap:5px; margin-top:6px; }
   .cart-card-v3 .ccv-phone-badge svg { width:18px; height:18px; display:block; }
@@ -563,6 +567,7 @@ const BASE_COUNT  = { Mooca: 35, Osasco: 50, SBC: 6 };
 let _registros = [];
 let _ncsAbertas = [];
 let _base = null;
+let _manualGrants = []; // carrinhos com digitação manual de QR liberada agora (uso único)
 
 // Prioridade: URL ?base=X (sempre vence) → localStorage → picker.
 // Se ?base= vier explícito, ATUALIZA o localStorage (permite trocar via link).
@@ -863,6 +868,25 @@ function carregarTudo() {
     if (data && Array.isArray(data.ncs)) _ncsResolvidas = data.ncs;
     done();
   });
+  // Carrinhos com entrada manual de QR liberada agora (uso único) — pra marcar no card
+  gasGet('action=manualQrGet', (d) => {
+    _manualGrants = (d && d.ok && Array.isArray(d.carts)) ? d.carts : [];
+    render();
+  });
+}
+
+// Supervisor libera entrada manual de QR pra UM carrinho (uso único). O encarregado é
+// gated por link de base, então manda origem=encarregado (o backend aceita).
+function liberarManualCart(nome) {
+  if (_manualGrants.indexOf(nome) >= 0) {
+    alert(nome + ' já está liberado pra entrada manual — aguardando o mecânico usar (vale 1x).');
+    return;
+  }
+  gasGet('action=manualQrSet&cart=' + encodeURIComponent(nome) + '&por=' + encodeURIComponent('encarregado:' + (_base||'')) + '&origem=encarregado', (d, err) => {
+    if (err || !d || d.error) { alert('Erro ao liberar: ' + ((d && d.error) || err || 'tente de novo')); return; }
+    _manualGrants = (d && Array.isArray(d.carts)) ? d.carts : _manualGrants.concat([nome]);
+    render();
+  });
 }
 
 // Tela cheia + wake-lock pra kiosk em tablet
@@ -960,6 +984,9 @@ function render() {
       <div>
         ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
         ${hora ? `<div class="ccv-time">${data} · ${hora}</div>` : ''}
+        ${(_manualGrants.indexOf(c.nome) >= 0)
+          ? `<button class="ccv-libqr on" onclick="event.stopPropagation(); liberarManualCart('${c.nome}')">✅ QR manual liberado (1x)</button>`
+          : `<button class="ccv-libqr" onclick="event.stopPropagation(); liberarManualCart('${c.nome}')">⌨️ Liberar QR manual</button>`}
       </div>
     </div>`;
   }).join('') + '</div>';
