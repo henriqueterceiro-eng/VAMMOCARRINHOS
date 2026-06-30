@@ -2385,6 +2385,7 @@ function normalizeCartName(nome) {
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
 let _cartsCache = null;
+let _manualGrants = []; // carrinhos com digitação manual de QR liberada agora (uso único)
 function getCarts() {
   if (_cartsCache) return _cartsCache;
   let raw;
@@ -2721,7 +2722,7 @@ function showPanel(id) {
   if (id === 'dashboard') renderDashboard();
   if (id === 'registros') renderRegistros();
   if (id === 'nc') renderNC();
-  if (id === 'carrinhos') { renderCarrinhos(); syncPerfisFromGAS(); refreshOsStatus(); }
+  if (id === 'carrinhos') { renderCarrinhos(); syncPerfisFromGAS(); refreshOsStatus(); fetchManualGrants(); }
   if (id === 'perfis') { renderPerfis(); syncPerfisFromGAS(); }
   if (id === 'estoque') { renderEstoque(); syncEstoqueFromGAS(); syncGameStartFromGAS(); }
   if (id === 'frota') { renderFrota(); refreshPresence(); }
@@ -3678,6 +3679,10 @@ function renderCarrinhos() {
       const forceBtn = st.status === 'logado'
         ? `<button class="cart-force-btn" onclick="event.stopPropagation(); forcarCheckout('${c.nome}', '${mec.replace(/'/g,'')}')" title="Forçar checkout">🔓 Forçar checkout</button>`
         : '';
+      // Liberar digitação manual de QR (uso único) — supervisor de base usa direto no card
+      const manualBtn = (_manualGrants.indexOf(c.nome) >= 0)
+        ? `<button class="cart-force-btn" style="background:rgba(46,194,255,.16);color:#2EC2FF;border-color:rgba(46,194,255,.6)" onclick="event.stopPropagation(); liberarManualCart('${c.nome}')" title="Já liberado (1x), aguardando uso">✅ QR manual liberado (1x)</button>`
+        : `<button class="cart-force-btn" onclick="event.stopPropagation(); liberarManualCart('${c.nome}')" title="Liberar digitação manual do QR só pra este carrinho (1 uso)">⌨️ Liberar QR manual</button>`;
       // Presença (só p/ logado). online=verde ONLINE · offline=vermelho piscando OFFLINE · sem cadastro=cinza
       const PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/></svg>';
       const PHONE_SVG_SLASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.6"/><line x1="10.4" y1="18.5" x2="13.6" y2="18.5"/><line x1="3.5" y1="2.5" x2="20.5" y2="21.5"/></svg>';
@@ -3714,6 +3719,7 @@ function renderCarrinhos() {
           ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
           ${hora ? `<div class="ccv-time">${data} · ${hora}</div>` : ''}
           ${forceBtn}
+          ${manualBtn}
         </div>
       </div>`;
     }).join('');
@@ -6475,20 +6481,31 @@ function fetchManualQrFlag() {
       : '<span style="color:var(--gn);">✅ Nenhuma liberação ativa — todos exigem scan (padrão).</span>';
   });
 }
-function liberarManualCart() {
+// Busca os carrinhos liberados agora e re-renderiza os cards (estado do botão).
+function fetchManualGrants() {
   const cfg = getConfig();
-  if (!cfg.webhookUrl) { showAlert('config-alert','rd','❌ Configure a URL primeiro'); return; }
+  if (!cfg.webhookUrl) return;
+  gasGet(cfg.webhookUrl, 'action=manualQrGet', (d) => {
+    _manualGrants = (d && d.ok && Array.isArray(d.carts)) ? d.carts : [];
+    if (typeof renderCarrinhos === 'function') { try { renderCarrinhos(); } catch(e){} }
+  });
+}
+// Libera digitação manual pra UM carrinho (uso único). Aceita o nome (card) ou usa o select (Config).
+function liberarManualCart(cartArg) {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) { alert('Configure a URL do servidor primeiro'); return; }
   const sel = document.getElementById('manualqr-cart');
-  const cart = sel ? sel.value : '';
-  if (!cart) { showAlert('config-alert','rd','❌ Selecione um carrinho'); return; }
+  const cart = cartArg || (sel ? sel.value : '');
+  if (!cart) { alert('Selecione um carrinho'); return; }
+  if (_manualGrants.indexOf(cart) >= 0) { alert(cart + ' já está liberado — aguardando o mecânico usar (vale 1x).'); return; }
   const auth = (typeof getStoredAuth === 'function' ? getStoredAuth() : null) || {};
   const email = (auth.email || '').toLowerCase();
-  if (!email) { showAlert('config-alert','rd','❌ Você precisa estar logado'); return; }
-  showAlert('config-alert','az','⏳ Liberando ' + cart + '...');
+  if (!email) { alert('Você precisa estar logado'); return; }
   gasGet(cfg.webhookUrl, 'action=manualQrSet&cart=' + encodeURIComponent(cart) + '&por=' + encodeURIComponent(email), (d, err) => {
-    if (err || !d || d.error) { showAlert('config-alert','rd','❌ ' + ((d&&d.error) || err || 'falha')); return; }
-    showAlert('config-alert','gn','✅ ' + cart + ' liberado pra entrada manual (1 uso, expira em 30min)');
-    fetchManualQrFlag();
+    if (err || !d || d.error) { alert('Erro ao liberar: ' + ((d && d.error) || err || 'tente de novo')); return; }
+    _manualGrants = (d && Array.isArray(d.carts)) ? d.carts : _manualGrants.concat([cart]);
+    if (typeof renderCarrinhos === 'function') { try { renderCarrinhos(); } catch(e){} }
+    if (typeof fetchManualQrFlag === 'function') fetchManualQrFlag();
   });
 }
 
