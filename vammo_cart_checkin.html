@@ -1141,7 +1141,11 @@ function fetchPerfis() {
   gasGet(PERFIS_URL, 'action=perfisGet', (d) => { if (d && d.ok && d.config) _perfisCfg = d.config; });
 }
 function fetchManualQrFlag() {
-  gasGet(PERFIS_URL, 'action=manualQrGet', (d) => {
+  // Flag mora no webhook (gas-mecanicos), onde o gestor grava via manualQrSet.
+  // Antes lia do PERFIS_URL (outro GAS) → nunca via a liberação. Agora lê da fonte certa.
+  const cfg = (function(){ try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } })();
+  const url = cfg.webhookUrl || DEFAULT_WEBHOOK_URL;
+  gasGet(url, 'action=manualQrGet', (d) => {
     const el = document.getElementById('qr-manual-wrap');
     if (!el) return;
     el.style.display = (d && d.ok && d.enabled === true) ? '' : 'none';
