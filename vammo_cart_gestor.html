@@ -1499,8 +1499,7 @@
             <strong id="rhidgap-title" style="flex:1;font-size:14px;">Gap ponto × carrinho</strong>
             <div style="display:flex;gap:5px;" onclick="event.stopPropagation();">
               <button class="btn-sm btn-outline rhidgap-per" data-per="hoje" onclick="renderRhidGaps('hoje')">Hoje</button>
-              <button class="btn-sm btn-outline rhidgap-per" data-per="7d" onclick="renderRhidGaps('7d')">7d</button>
-              <button class="btn-sm btn-outline rhidgap-per" data-per="30d" onclick="renderRhidGaps('30d')">30d</button>
+              <button class="btn-sm btn-outline rhidgap-per" data-per="d1" onclick="renderRhidGaps('d1')">Ontem</button>
             </div>
           </div>
           <div id="rhidgap-details" style="display:none;margin-top:8px;background:var(--c1);border:1px solid var(--bd);border-radius:10px;padding:8px 14px;max-height:360px;overflow:auto;"></div>
@@ -4275,14 +4274,12 @@ function renderChartSemanal() {
 // ─── LOG: divergência ponto (RHid) × check-in do carrinho ────────────────────
 // Gap = 1º check-in do carrinho − 1ª batida de ponto, por colaborador/dia. RHid não é
 // tempo real (replica em batch), então é um RELATÓRIO por período (Hoje/7d/30d).
-let _rhidGapPeriod = '7d';
+let _rhidGapPeriod = 'hoje';   // escopo do relatório: hoje, no máximo D-1 (ontem)
 function _rhHHMM(m){ return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); }
 function _rhRange(period){
   const brtNow = new Date(Date.now() - 3*3600*1000);
-  const to = brtNow.toISOString().slice(0,10);
-  const days = period === 'hoje' ? 0 : period === '30d' ? 29 : 6;
-  const from = new Date(brtNow.getTime() - days*86400000).toISOString().slice(0,10);
-  return { from, to };
+  const dia = (period === 'd1' ? new Date(brtNow.getTime() - 86400000) : brtNow).toISOString().slice(0,10);
+  return { from: dia, to: dia };   // sempre 1 dia (hoje ou ontem) — máximo D-1
 }
 function toggleRhidGap(){
   const d = document.getElementById('rhidgap-details');
