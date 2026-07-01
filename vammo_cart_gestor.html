@@ -4328,7 +4328,9 @@ function renderRhidGaps(){
         const pmin = toMin(pontos[key]);
         const smin = turnos[key] ? toMin(turnos[key]) : pmin;
         const gap = arr - Math.max(pmin, smin);
-        if(gap > 10){
+        // 10min–120min: acima de 2h é quase sempre artefato (manhã do mecânico não capturada
+        // por check-in nem IN_PROGRESS) — não é "atraso pra logar", é caso de RH/dado faltando.
+        if(gap > 10 && gap <= 120){
           const dia = key.split('|')[1];
           const base = (ci != null && first[key].cart) ? (cartBase[first[key].cart] || null) : null;
           rows.push({ em, dia, ponto: pontos[key], turno: turnos[key]||'', arr: _rhHHMM(arr), via, gap, semCheckin: ci == null, base });
