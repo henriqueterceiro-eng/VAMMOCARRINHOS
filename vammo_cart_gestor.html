@@ -4282,7 +4282,8 @@ function toggleRhidGap(){
   d.style.display = open ? 'block' : 'none';
   if(c) c.textContent = open ? '▼' : '▶';
 }
-// Relatório de gap ponto × carrinho — SEMPRE hoje + ontem (D-1) juntos (máximo D-1).
+// Relatório de gap ponto × posto — hoje + ontem (D-1). Baseline = max(ponto, início do turno):
+// quem bate ponto cedo não é cobrado por chegar ao posto no horário do próprio turno.
 function renderRhidGaps(){
   const cfg = getConfig();
   const banner = document.getElementById('rhidgap-banner');
@@ -4291,52 +4292,52 @@ function renderRhidGaps(){
   const to = brtNow.toISOString().slice(0,10);
   const from = new Date(brtNow.getTime() - 86400000).toISOString().slice(0,10);
   const hojeBRT = brtNow.toISOString().slice(0,10);
+  const toMin = hhmm => { const a = String(hhmm).split(':'); return (+a[0])*60 + (+a[1]); };
   gasGet(cfg.webhookUrl, 'action=rhidPontoRange&from=' + from + '&to=' + to, (d, err) => {
-    const details = document.getElementById('rhidgap-details');
-    const title = document.getElementById('rhidgap-title');
     if(err || !d || !d.ok){ banner.style.display = 'none'; return; }
-    const pontos = d.pontos || {};
-    const inprog = d.inprogress || {};
+    const pontos = d.pontos || {}, turnos = d.turnos || {}, inprog = d.inprogress || {};
     const colab = new Set((getColab() || []).map(e => String(e).toLowerCase().trim()));
-    const toMin = hhmm => { const a = String(hhmm).split(':'); return (+a[0])*60 + (+a[1]); };
-    // 1º check-in do carrinho por email|dia (BRT) — guarda hora + carrinho
-    const first = {};
-    (getRecords() || []).forEach(r => {
-      if(r.tipo !== 'checkin') return;
-      const em = String(r.mecanico||'').toLowerCase().trim(); if(em.indexOf('@') < 0) return;
-      const dt = new Date(r.ts); if(isNaN(dt)) return;
-      const brt = new Date(dt.getTime() - 3*3600*1000);
-      const dia = brt.toISOString().slice(0,10);
-      if(dia < d.from || dia > d.to) return;
-      const key = em + '|' + dia;
-      const m = brt.getUTCHours()*60 + brt.getUTCMinutes();
-      if(!(key in first) || m < first[key].m) first[key] = { m, cart: r.carrinho || '' };
-    });
-    // Base de cada carrinho (pra filtrar por aba). Quem esqueceu o check-in não tem carrinho → base null.
     const cartBase = {}; (getCarts() || []).forEach(c => { cartBase[c.nome] = c.base; });
-    // Avalia mecânicos de carrinho que bateram ponto. "Chegou ao posto" = 1ª coisa que fez:
-    // check-in do carrinho OU 1º IN_PROGRESS (pegou moto) — o que veio primeiro.
-    const rows = [];
-    Object.keys(pontos).forEach(key => {
-      const em = key.split('|')[0];
-      if(colab.size && !colab.has(em)) return;   // só colaboradores de carrinho
-      const pmin = toMin(pontos[key]);
-      const ci = first[key] ? first[key].m : null;
-      const ip = inprog[key] != null ? toMin(inprog[key]) : null;
-      let arr = null, via = '';
-      if(ci != null){ arr = ci; via = 'check-in'; }
-      if(ip != null && (arr == null || ip < arr)){ arr = ip; via = 'moto'; }
-      if(arr == null) return;                      // sem check-in e sem moto → não mede
-      const gap = arr - pmin;
-      if(gap > 10){
-        const dia = key.split('|')[1];
-        const base = (ci != null && first[key].cart) ? (cartBase[first[key].cart] || null) : null;
-        rows.push({ em, dia, ponto: pontos[key], arr: _rhHHMM(arr), via, gap, semCheckin: ci == null, base });
-      }
+    // Registros FRESCOS (o cache local pode não ter hoje/ontem)
+    gasGet(cfg.webhookUrl, 'action=sync', (sd) => {
+      const recs = (sd && Array.isArray(sd.records)) ? sd.records : (getRecords() || []);
+      const first = {};
+      recs.forEach(r => {
+        if(r.tipo !== 'checkin') return;
+        const em = String(r.mecanico||'').toLowerCase().trim(); if(em.indexOf('@') < 0) return;
+        const dt = new Date(r.ts); if(isNaN(dt)) return;
+        const brt = new Date(dt.getTime() - 3*3600*1000);
+        const dia = brt.toISOString().slice(0,10);
+        if(dia < d.from || dia > d.to) return;
+        const key = em + '|' + dia;
+        const m = brt.getUTCHours()*60 + brt.getUTCMinutes();
+        if(!(key in first) || m < first[key].m) first[key] = { m, cart: r.carrinho || '' };
+      });
+      const rows = [];
+      Object.keys(pontos).forEach(key => {
+        const em = key.split('|')[0];
+        const ci = first[key] ? first[key].m : null;
+        const ip = inprog[key] != null ? toMin(inprog[key]) : null;
+        // sem check-in → só considera colaborador de carrinho conhecido (evita ruído de oficina)
+        if(ci == null && colab.size && !colab.has(em)) return;
+        let arr = null, via = '';
+        if(ci != null){ arr = ci; via = 'check-in'; }
+        if(ip != null && (arr == null || ip < arr)){ arr = ip; via = 'moto'; }
+        if(arr == null) return;
+        // Baseline = mais tarde entre bater ponto e início do turno (previsto)
+        const pmin = toMin(pontos[key]);
+        const smin = turnos[key] ? toMin(turnos[key]) : pmin;
+        const gap = arr - Math.max(pmin, smin);
+        if(gap > 10){
+          const dia = key.split('|')[1];
+          const base = (ci != null && first[key].cart) ? (cartBase[first[key].cart] || null) : null;
+          rows.push({ em, dia, ponto: pontos[key], turno: turnos[key]||'', arr: _rhHHMM(arr), via, gap, semCheckin: ci == null, base });
+        }
+      });
+      rows.sort((a,b) => a.dia === b.dia ? b.gap - a.gap : (a.dia < b.dia ? 1 : -1));
+      _rhidRows = rows; _rhidHoje = hojeBRT;
+      renderRhidRows();
     });
-    rows.sort((a,b) => a.dia === b.dia ? b.gap - a.gap : (a.dia < b.dia ? 1 : -1));
-    _rhidRows = rows; _rhidHoje = hojeBRT;
-    renderRhidRows();
   });
 }
 let _rhidRows = [], _rhidHoje = '';
@@ -4359,7 +4360,7 @@ function renderRhidRows(){
           <span style="color:var(--rd);font-weight:800;min-width:54px;">${r.gap}min</span>
           <span style="min-width:46px;font-weight:700;color:${r.dia===_rhidHoje?'var(--az)':'var(--w2)'};">${quando}</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.em}</span>
-          <span style="font-family:monospace;color:var(--w2);">ponto ${r.ponto} → ${r.arr}</span>
+          <span style="font-family:monospace;color:var(--w2);">ponto ${r.ponto}${r.turno?' · turno '+r.turno:''} → ${r.arr}</span>
           <span style="min-width:120px;color:${r.semCheckin?'var(--yw)':'var(--w2)'};">${viaTxt}</span>
         </div>`;
       }).join('')
