@@ -2959,6 +2959,7 @@ let _currentBaseTab = 'Mooca';
 function setBaseTab(base) {
   _currentBaseTab = base;
   renderCarrinhos();
+  if(typeof renderRhidRows === 'function') renderRhidRows();  // re-filtra o log de gap pela base
 }
 
 // ─── RELATÓRIO DE NC POR BASE ───────────────────────────────────────────────
@@ -4311,6 +4312,8 @@ function renderRhidGaps(){
       const m = brt.getUTCHours()*60 + brt.getUTCMinutes();
       if(!(key in first) || m < first[key].m) first[key] = { m, cart: r.carrinho || '' };
     });
+    // Base de cada carrinho (pra filtrar por aba). Quem esqueceu o check-in não tem carrinho → base null.
+    const cartBase = {}; (getCarts() || []).forEach(c => { cartBase[c.nome] = c.base; });
     // Avalia mecânicos de carrinho que bateram ponto. "Chegou ao posto" = 1ª coisa que fez:
     // check-in do carrinho OU 1º IN_PROGRESS (pegou moto) — o que veio primeiro.
     const rows = [];
@@ -4327,27 +4330,40 @@ function renderRhidGaps(){
       const gap = arr - pmin;
       if(gap > 10){
         const dia = key.split('|')[1];
-        rows.push({ em, dia, ponto: pontos[key], arr: _rhHHMM(arr), via, gap, semCheckin: ci == null });
+        const base = (ci != null && first[key].cart) ? (cartBase[first[key].cart] || null) : null;
+        rows.push({ em, dia, ponto: pontos[key], arr: _rhHHMM(arr), via, gap, semCheckin: ci == null, base });
       }
     });
     rows.sort((a,b) => a.dia === b.dia ? b.gap - a.gap : (a.dia < b.dia ? 1 : -1));
-    banner.style.display = 'flex';
-    title.textContent = 'Gap ponto × posto (check-in ou moto) — ' + rows.length + ' divergência(s) > 10min';
-    if(!details) return;
-    details.innerHTML = rows.length
-      ? rows.map(r => {
-          const quando = r.dia === hojeBRT ? 'Hoje' : 'Ontem';
-          const viaTxt = r.via === 'moto' ? (r.semCheckin ? '🏍 moto (sem check-in!)' : '🏍 moto') : '🛒 check-in';
-          return `<div style="display:flex;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--bd);font-size:13px;">
-            <span style="color:var(--rd);font-weight:800;min-width:54px;">${r.gap}min</span>
-            <span style="min-width:46px;font-weight:700;color:${r.dia===hojeBRT?'var(--az)':'var(--w2)'};">${quando}</span>
-            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.em}</span>
-            <span style="font-family:monospace;color:var(--w2);">ponto ${r.ponto} → ${r.arr}</span>
-            <span style="min-width:120px;color:${r.semCheckin?'var(--yw)':'var(--w2)'};">${viaTxt}</span>
-          </div>`;
-        }).join('')
-      : '<div style="color:var(--gn);padding:8px 4px;">✅ Nenhuma divergência (hoje + ontem).</div>';
+    _rhidRows = rows; _rhidHoje = hojeBRT;
+    renderRhidRows();
   });
+}
+let _rhidRows = [], _rhidHoje = '';
+// Filtra pela aba de base atual; quem NÃO fez check-in (base null) aparece em qualquer base (alerta).
+function renderRhidRows(){
+  const banner = document.getElementById('rhidgap-banner');
+  const details = document.getElementById('rhidgap-details');
+  const title = document.getElementById('rhidgap-title');
+  if(!banner) return;
+  const baseAtual = (typeof _currentBaseTab !== 'undefined') ? _currentBaseTab : null;
+  const rows = _rhidRows.filter(r => r.base == null || r.base === baseAtual);
+  banner.style.display = 'flex';
+  title.textContent = 'Gap ponto × posto (' + (baseAtual||'base') + ', hoje+ontem) — ' + rows.length + ' divergência(s) > 10min';
+  if(!details) return;
+  details.innerHTML = rows.length
+    ? rows.map(r => {
+        const quando = r.dia === _rhidHoje ? 'Hoje' : 'Ontem';
+        const viaTxt = r.via === 'moto' ? (r.semCheckin ? '🏍 moto (sem check-in!)' : '🏍 moto') : '🛒 check-in';
+        return `<div style="display:flex;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--bd);font-size:13px;">
+          <span style="color:var(--rd);font-weight:800;min-width:54px;">${r.gap}min</span>
+          <span style="min-width:46px;font-weight:700;color:${r.dia===_rhidHoje?'var(--az)':'var(--w2)'};">${quando}</span>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.em}</span>
+          <span style="font-family:monospace;color:var(--w2);">ponto ${r.ponto} → ${r.arr}</span>
+          <span style="min-width:120px;color:${r.semCheckin?'var(--yw)':'var(--w2)'};">${viaTxt}</span>
+        </div>`;
+      }).join('')
+    : '<div style="color:var(--gn);padding:8px 4px;">✅ Nenhuma divergência nesta base (hoje + ontem).</div>';
 }
 
 function renderDashboard() {
