@@ -4289,12 +4289,16 @@ function renderRhidGaps(){
   const brtNow = new Date(Date.now() - 3*3600*1000);
   const to = brtNow.toISOString().slice(0,10);
   const from = new Date(brtNow.getTime() - 86400000).toISOString().slice(0,10);
+  const hojeBRT = brtNow.toISOString().slice(0,10);
   gasGet(cfg.webhookUrl, 'action=rhidPontoRange&from=' + from + '&to=' + to, (d, err) => {
     const details = document.getElementById('rhidgap-details');
     const title = document.getElementById('rhidgap-title');
     if(err || !d || !d.ok){ banner.style.display = 'none'; return; }
     const pontos = d.pontos || {};
-    // 1º check-in do carrinho por email|dia (BRT) dentro do período
+    const inprog = d.inprogress || {};
+    const colab = new Set((getColab() || []).map(e => String(e).toLowerCase().trim()));
+    const toMin = hhmm => { const a = String(hhmm).split(':'); return (+a[0])*60 + (+a[1]); };
+    // 1º check-in do carrinho por email|dia (BRT) — guarda hora + carrinho
     const first = {};
     (getRecords() || []).forEach(r => {
       if(r.tipo !== 'checkin') return;
@@ -4305,27 +4309,44 @@ function renderRhidGaps(){
       if(dia < d.from || dia > d.to) return;
       const key = em + '|' + dia;
       const m = brt.getUTCHours()*60 + brt.getUTCMinutes();
-      if(!(key in first) || m < first[key]) first[key] = m;
+      if(!(key in first) || m < first[key].m) first[key] = { m, cart: r.carrinho || '' };
     });
+    // Avalia mecânicos de carrinho que bateram ponto. "Chegou ao posto" = 1ª coisa que fez:
+    // check-in do carrinho OU 1º IN_PROGRESS (pegou moto) — o que veio primeiro.
     const rows = [];
-    Object.keys(first).forEach(key => {
-      const p = pontos[key]; if(!p) return;
-      const pp = p.split(':'); const pmin = (+pp[0])*60 + (+pp[1]);
-      const gap = first[key] - pmin;
-      if(gap > 10){ const parts = key.split('|'); rows.push({ em: parts[0], dia: parts[1], ponto: p, checkin: _rhHHMM(first[key]), gap }); }
+    Object.keys(pontos).forEach(key => {
+      const em = key.split('|')[0];
+      if(colab.size && !colab.has(em)) return;   // só colaboradores de carrinho
+      const pmin = toMin(pontos[key]);
+      const ci = first[key] ? first[key].m : null;
+      const ip = inprog[key] != null ? toMin(inprog[key]) : null;
+      let arr = null, via = '';
+      if(ci != null){ arr = ci; via = 'check-in'; }
+      if(ip != null && (arr == null || ip < arr)){ arr = ip; via = 'moto'; }
+      if(arr == null) return;                      // sem check-in e sem moto → não mede
+      const gap = arr - pmin;
+      if(gap > 10){
+        const dia = key.split('|')[1];
+        rows.push({ em, dia, ponto: pontos[key], arr: _rhHHMM(arr), via, gap, semCheckin: ci == null });
+      }
     });
     rows.sort((a,b) => a.dia === b.dia ? b.gap - a.gap : (a.dia < b.dia ? 1 : -1));
     banner.style.display = 'flex';
-    title.textContent = 'Gap ponto × carrinho (hoje + ontem) — ' + rows.length + ' divergência(s) > 10min';
+    title.textContent = 'Gap ponto × posto (check-in ou moto) — ' + rows.length + ' divergência(s) > 10min';
     if(!details) return;
     details.innerHTML = rows.length
-      ? rows.map(r => `<div style="display:flex;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--bd);font-size:13px;">
-          <span style="color:var(--rd);font-weight:800;min-width:54px;">${r.gap}min</span>
-          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.em}</span>
-          <span style="color:var(--w2);min-width:44px;">${r.dia.slice(5)}</span>
-          <span style="font-family:monospace;color:var(--w2);">ponto ${r.ponto} → logou ${r.checkin}</span>
-        </div>`).join('')
-      : '<div style="color:var(--gn);padding:8px 4px;">✅ Nenhuma divergência no período.</div>';
+      ? rows.map(r => {
+          const quando = r.dia === hojeBRT ? 'Hoje' : 'Ontem';
+          const viaTxt = r.via === 'moto' ? (r.semCheckin ? '🏍 moto (sem check-in!)' : '🏍 moto') : '🛒 check-in';
+          return `<div style="display:flex;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--bd);font-size:13px;">
+            <span style="color:var(--rd);font-weight:800;min-width:54px;">${r.gap}min</span>
+            <span style="min-width:46px;font-weight:700;color:${r.dia===hojeBRT?'var(--az)':'var(--w2)'};">${quando}</span>
+            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.em}</span>
+            <span style="font-family:monospace;color:var(--w2);">ponto ${r.ponto} → ${r.arr}</span>
+            <span style="min-width:120px;color:${r.semCheckin?'var(--yw)':'var(--w2)'};">${viaTxt}</span>
+          </div>`;
+        }).join('')
+      : '<div style="color:var(--gn);padding:8px 4px;">✅ Nenhuma divergência (hoje + ontem).</div>';
   });
 }
 
