@@ -1491,6 +1491,20 @@
 
       <!-- ── DASHBOARD ── -->
       <div class="panel active" id="panel-dashboard">
+        <!-- LOG: divergências ponto (RHid) × check-in do carrinho (gap > 10min) -->
+        <div id="rhidgap-wrap" style="margin-bottom:14px;">
+          <div id="rhidgap-banner" onclick="toggleRhidGap()" style="cursor:pointer;display:none;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;background:linear-gradient(90deg,rgba(220,38,38,.18),rgba(220,38,38,.03));border:1px solid rgba(220,38,38,.5);">
+            <span id="rhidgap-caret" style="color:var(--rd);font-size:11px;">▶</span>
+            <span style="font-size:17px;">⚠</span>
+            <strong id="rhidgap-title" style="flex:1;font-size:14px;">Gap ponto × carrinho</strong>
+            <div style="display:flex;gap:5px;" onclick="event.stopPropagation();">
+              <button class="btn-sm btn-outline rhidgap-per" data-per="hoje" onclick="renderRhidGaps('hoje')">Hoje</button>
+              <button class="btn-sm btn-outline rhidgap-per" data-per="7d" onclick="renderRhidGaps('7d')">7d</button>
+              <button class="btn-sm btn-outline rhidgap-per" data-per="30d" onclick="renderRhidGaps('30d')">30d</button>
+            </div>
+          </div>
+          <div id="rhidgap-details" style="display:none;margin-top:8px;background:var(--c1);border:1px solid var(--bd);border-radius:10px;padding:8px 14px;max-height:360px;overflow:auto;"></div>
+        </div>
         <div class="stat-grid" id="stat-grid"></div>
         <div class="two-col">
           <div class="table-wrap">
@@ -4258,7 +4272,75 @@ function renderChartSemanal() {
   });
 }
 
+// ─── LOG: divergência ponto (RHid) × check-in do carrinho ────────────────────
+// Gap = 1º check-in do carrinho − 1ª batida de ponto, por colaborador/dia. RHid não é
+// tempo real (replica em batch), então é um RELATÓRIO por período (Hoje/7d/30d).
+let _rhidGapPeriod = '7d';
+function _rhHHMM(m){ return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); }
+function _rhRange(period){
+  const brtNow = new Date(Date.now() - 3*3600*1000);
+  const to = brtNow.toISOString().slice(0,10);
+  const days = period === 'hoje' ? 0 : period === '30d' ? 29 : 6;
+  const from = new Date(brtNow.getTime() - days*86400000).toISOString().slice(0,10);
+  return { from, to };
+}
+function toggleRhidGap(){
+  const d = document.getElementById('rhidgap-details');
+  const c = document.getElementById('rhidgap-caret');
+  if(!d) return;
+  const open = d.style.display === 'none';
+  d.style.display = open ? 'block' : 'none';
+  if(c) c.textContent = open ? '▼' : '▶';
+}
+function renderRhidGaps(period){
+  _rhidGapPeriod = period || _rhidGapPeriod;
+  const cfg = getConfig();
+  const banner = document.getElementById('rhidgap-banner');
+  if(!banner || !cfg.webhookUrl) return;
+  document.querySelectorAll('.rhidgap-per').forEach(b => b.classList.toggle('btn-az', b.dataset.per === _rhidGapPeriod));
+  const rng = _rhRange(_rhidGapPeriod);
+  gasGet(cfg.webhookUrl, 'action=rhidPontoRange&from=' + rng.from + '&to=' + rng.to, (d, err) => {
+    const details = document.getElementById('rhidgap-details');
+    const title = document.getElementById('rhidgap-title');
+    if(err || !d || !d.ok){ banner.style.display = 'none'; return; }
+    const pontos = d.pontos || {};
+    // 1º check-in do carrinho por email|dia (BRT) dentro do período
+    const first = {};
+    (getRecords() || []).forEach(r => {
+      if(r.tipo !== 'checkin') return;
+      const em = String(r.mecanico||'').toLowerCase().trim(); if(em.indexOf('@') < 0) return;
+      const dt = new Date(r.ts); if(isNaN(dt)) return;
+      const brt = new Date(dt.getTime() - 3*3600*1000);
+      const dia = brt.toISOString().slice(0,10);
+      if(dia < d.from || dia > d.to) return;
+      const key = em + '|' + dia;
+      const m = brt.getUTCHours()*60 + brt.getUTCMinutes();
+      if(!(key in first) || m < first[key]) first[key] = m;
+    });
+    const rows = [];
+    Object.keys(first).forEach(key => {
+      const p = pontos[key]; if(!p) return;
+      const pp = p.split(':'); const pmin = (+pp[0])*60 + (+pp[1]);
+      const gap = first[key] - pmin;
+      if(gap > 10){ const parts = key.split('|'); rows.push({ em: parts[0], dia: parts[1], ponto: p, checkin: _rhHHMM(first[key]), gap }); }
+    });
+    rows.sort((a,b) => a.dia === b.dia ? b.gap - a.gap : (a.dia < b.dia ? 1 : -1));
+    banner.style.display = 'flex';
+    title.textContent = 'Gap ponto × carrinho — ' + rows.length + ' divergência(s) acima de 10min';
+    if(!details) return;
+    details.innerHTML = rows.length
+      ? rows.map(r => `<div style="display:flex;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--bd);font-size:13px;">
+          <span style="color:var(--rd);font-weight:800;min-width:54px;">${r.gap}min</span>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.em}</span>
+          <span style="color:var(--w2);min-width:44px;">${r.dia.slice(5)}</span>
+          <span style="font-family:monospace;color:var(--w2);">ponto ${r.ponto} → logou ${r.checkin}</span>
+        </div>`).join('')
+      : '<div style="color:var(--gn);padding:8px 4px;">✅ Nenhuma divergência no período.</div>';
+  });
+}
+
 function renderDashboard() {
+  renderRhidGaps();
   const recs = getRecords();
   const visibleBs = viewableBases();
   const sup = isSupervisor();
