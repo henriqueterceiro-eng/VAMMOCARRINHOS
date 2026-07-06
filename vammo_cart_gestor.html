@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v7';
+      const CACHE = 'vammo-gestor-v8';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -2234,6 +2234,24 @@ const DEFAULT_EMAILS = [
 ];
 
 function getRecords() { try { return JSON.parse(localStorage.getItem('vammo_registros')) || []; } catch { return []; } }
+// localStorage tem ~5MB por origem. O histórico cresceu (~2600 registros, ~5MB) e o setItem passou
+// a estourar QuotaExceededError SILENCIOSAMENTE → nenhum device conseguia gravar registros novos,
+// então carrinho recém-logado não aparecia pra ninguém. Este helper poda os registros mais antigos
+// (mantém os mais recentes — status/cards/registros só precisam do recente) até caber. (fix)
+function saveRecords(arr) {
+  let recs = Array.isArray(arr) ? arr.slice() : [];
+  recs.sort((a,b) => new Date(b.ts||0) - new Date(a.ts||0)); // mais novos primeiro
+  for (let tent = 0; tent < 10; tent++) {
+    try { localStorage.setItem('vammo_registros', JSON.stringify(recs)); return true; }
+    catch (e) {
+      const keep = Math.floor(recs.length * 0.75);
+      if (keep < 200 || keep >= recs.length) { console.warn('[VAMMO] quota localStorage: não deu pra podar mais', e); return false; }
+      console.warn('[VAMMO] quota localStorage — podando histórico:', recs.length, '→', keep);
+      recs = recs.slice(0, keep);
+    }
+  }
+  return false;
+}
 // Storage de colaboradores: array flat de e-mails em `vammo_colab_emails`
 // (mantém compat com vammo_colab antigo só pra ler nomes legados se preciso)
 function getColab() {
@@ -3857,11 +3875,11 @@ function confirmForceCheckout() {
     ferramentas: {}, fotos: {}, assinatura: false, nc_count: 0,
     forced: true, forcedBy: supervisor, forceMotivo: motivo, obs
   };
-  // Salva local
+  // Salva local (saveRecords poda se a quota estourar — senão o checkout forçado nem gravava local)
   try {
     const arr = JSON.parse(localStorage.getItem('vammo_registros')) || [];
     arr.unshift(rec);
-    localStorage.setItem('vammo_registros', JSON.stringify(arr));
+    saveRecords(arr);
   } catch {}
 
   showAlert('force-alert', 'az', '⏳ Forçando checkout no servidor...');
@@ -6537,7 +6555,7 @@ function syncAgora() {
       if (mudou) atualizadosFotos++;
     });
     existentes = Array.from(byId.values()).sort((a,b) => new Date(b.ts)-new Date(a.ts));
-    localStorage.setItem('vammo_registros', JSON.stringify(existentes));
+    saveRecords(existentes); // grava podando o histórico se estourar a quota do localStorage (fix)
     if (atualizadosFotos > 0) console.log('[VAMMO] fotos atualizadas em ' + atualizadosFotos + ' registro(s)');
     const hora = new Date().toLocaleTimeString('pt-BR');
     log('✅ ' + hora + ' — ' + (adicionados>0?'+'+adicionados+' novo(s)':'sem novidades') + ' · ' + records.length + ' total');
@@ -7250,7 +7268,7 @@ function importarRegistros(input) {
       });
 
       existentes.sort((a, b) => new Date(b.ts) - new Date(a.ts));
-      localStorage.setItem('vammo_registros', JSON.stringify(existentes));
+      saveRecords(existentes); // poda se estourar quota (fix)
       refreshAll();
       input.value = '';
 
