@@ -36,7 +36,7 @@
 
     // Service Worker inline via Blob
     const _swCode = `
-      const CACHE = 'vammo-cart-v6';
+      const CACHE = 'vammo-cart-v7';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -2397,13 +2397,47 @@ function enviarPost(url, rec, statusEl) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // text/plain evita preflight CORS
     body: JSON.stringify(body)
   }).then(() => {
-    statusEl.textContent = '✅ Enviado! Gestor receberá no próximo sync.';
-    statusEl.style.color = 'var(--gn)';
-    enableNovaOperacao();
+    // no-cors: a resposta é opaca, o .then dispara mesmo se o salvar() falhou no servidor.
+    // Confirma DE FATO consultando o cartstatus; se não gravou, reenvia pelo JSONP (confirmável). (fix)
+    statusEl.textContent = '⏳ Confirmando com o servidor...';
+    statusEl.style.color = 'var(--az)';
+    confirmarEnvio(url, rec, statusEl);
   }).catch((err) => {
     console.error('POST falhou, tentando fallback JSONP:', err);
     enviarJSONPSemFotos(url, rec, statusEl);
   });
+}
+
+// Sonda o servidor depois do POST no-cors. Para check-in: espera 'occupied' por este mecânico.
+// Para checkout: espera 'free'. Se não bater, o registro NÃO gravou → reenvia via JSONP action=post
+// (confirmável, sem fotos, mas garante o estado do carrinho — que é o que fica "online"/livre). (fix)
+function confirmarEnvio(url, rec, statusEl) {
+  setTimeout(() => {
+    gasGet(url, 'action=cartstatus&cart=' + encodeURIComponent(rec.carrinho), (data, err) => {
+      if (err || !data) {
+        // Não deu pra confirmar (rede) — não prende o mecânico, mas avisa que pode não ter ido.
+        statusEl.textContent = '⚠️ Enviado, mas não deu pra confirmar. Se o gestor não te ver online, refaça.';
+        statusEl.style.color = 'var(--yw)';
+        enableNovaOperacao();
+        return;
+      }
+      const meuMec = String(rec.mecanico || '').trim().toLowerCase();
+      const servMec = String(data.mecanico || '').trim().toLowerCase();
+      const ok = rec.tipo === 'checkin'
+        ? (data.status === 'occupied' && (!servMec || servMec === meuMec))
+        : (data.status === 'free');
+      if (ok) {
+        statusEl.textContent = '✅ Confirmado no servidor! Gestor já te vê.';
+        statusEl.style.color = 'var(--gn)';
+        enableNovaOperacao();
+      } else {
+        // Não gravou (ou gravou outro) → reenvia pelo caminho confirmável.
+        statusEl.textContent = '↻ Não gravou de primeira — reenviando...';
+        statusEl.style.color = 'var(--yw)';
+        enviarJSONPSemFotos(url, rec, statusEl);
+      }
+    });
+  }, 2500);
 }
 
 function enableNovaOperacao() {

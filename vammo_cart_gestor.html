@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v6';
+      const CACHE = 'vammo-gestor-v7';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -3843,7 +3843,12 @@ function confirmForceCheckout() {
   const cartName = _forceCart;
   const mecanicoOriginal = _forceMecOriginal;
   const id = 'VMO-FORCE-' + Date.now().toString(36).toUpperCase();
-  const ts = new Date().toISOString();
+  // ts precisa vencer o último registro do carrinho: o check-in do mecânico pode ter vindo com
+  // ts do celular dele adiantado — sem isso o card volta pra "Logado" no próximo sync. (fix)
+  const nameNF = normalizeCartName(cartName);
+  const ultTs = getRecords().reduce((mx, r) =>
+    normalizeCartName(r.carrinho) === nameNF ? Math.max(mx, Date.parse(r.ts) || 0) : mx, 0);
+  const ts = new Date(Math.max(Date.now(), ultTs + 1000)).toISOString();
   const obs = `${motivo} · Checkout forçado por ${supervisor}`;
   const rec = {
     id, ts, tipo: 'checkout',
@@ -3866,8 +3871,20 @@ function confirmForceCheckout() {
     body: JSON.stringify(rec)
   }).then(() => {
     closeForceModal();
-    showAlert('cart-alert-box', 'gn', `✅ Carrinho ${cartName} liberado por ${supervisor}.`);
+    showAlert('cart-alert-box', 'az', `⏳ Confirmando no servidor...`);
     renderCarrinhos();
+    // POST é no-cors (resposta ilegível) — confirma DE FATO consultando o servidor.
+    // Se ainda vier "occupied", o checkout não persistiu; avisa em vez de dar falso "liberado". (fix)
+    setTimeout(() => {
+      gasGet(cfg.webhookUrl, 'action=cartstatus&cart=' + encodeURIComponent(cartName), (d, e) => {
+        if (e) { showAlert('cart-alert-box', 'yw', `⚠️ ${cartName}: não deu pra confirmar no servidor (${e}). Puxe o sync e confira.`); return; }
+        if (d && d.status === 'occupied') {
+          showAlert('cart-alert-box', 'rd', `❌ ${cartName} AINDA consta ocupado no servidor — o checkout não gravou. Tente de novo.`);
+        } else {
+          showAlert('cart-alert-box', 'gn', `✅ Carrinho ${cartName} liberado por ${supervisor} (confirmado no servidor).`);
+        }
+      });
+    }, 2500);
   }).catch(err => {
     console.error('Falha no force checkout:', err);
     closeForceModal();
@@ -4514,8 +4531,8 @@ function renderDashboard() {
   // NCs do dashboard puxam do servidor (fonte da verdade)
   let ncsBaseFiltrados = _serverOpenNCs;
   if (sup) {
-    const cartsBase = new Set(getCarts().filter(c => visibleBs.includes(c.base)).map(c => normalizeCartName(c.nome)));
-    ncsBaseFiltrados = _serverOpenNCs.filter(nc => cartsBase.has(normalizeCartName(nc.carrinho)));
+    // base do carrinho via getCartBase (cadastro ou inferida) — não some NC de carrinho fora do cadastro (fix)
+    ncsBaseFiltrados = _serverOpenNCs.filter(nc => visibleBs.includes(getCartBase(nc.carrinho)));
   }
   const ncsServer = ncsBaseFiltrados.slice().sort((a,b) => new Date(b.ts) - new Date(a.ts)).slice(0, 8);
   if (!ncsServer.length) {
@@ -4943,10 +4960,12 @@ function renderNC() {
   // veem exatamente a mesma coisa porque ambos puxam do mesmo lugar.
   // Locais são usados só pra enriquecer (mecânico original, info de motivo).
   const localRecs = getRecords();
-  // Filtra _serverOpenNCs pelos carrinhos das bases visíveis (supervisor → 1 base)
-  const cartsBaseSet = new Set(getCarts().filter(c => viewableBases().includes(c.base)).map(c => normalizeCartName(c.nome)));
+  // Escopo por base do supervisor: mapeia o carrinho da NC pra uma base via getCartBase
+  // (cadastro OU inferida pelo prefixo MC/OC/SC). Antes filtrava só por carrinhos NO cadastro
+  // local — NC de carrinho ainda não cadastrado (ou com base divergente) sumia pro supervisor
+  // mas aparecia pro gestor. (fix)
   const ncsFonte = isSupervisor()
-    ? _serverOpenNCs.filter(nc => cartsBaseSet.has(normalizeCartName(nc.carrinho)))
+    ? _serverOpenNCs.filter(nc => viewableBases().includes(getCartBase(nc.carrinho)))
     : _serverOpenNCs;
   const ncs = ncsFonte.map(nc => {
     const cartN = normalizeCartName(nc.carrinho);
