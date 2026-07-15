@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v8';
+      const CACHE = 'vammo-gestor-v9';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1607,6 +1607,7 @@
           <div class="table-head">
             <h2>Cadastro de Carrinhos</h2>
             <div class="spacer"></div>
+            <button class="btn-sm btn-az" onclick="abrirImprimirQR()" title="Selecionar carrinhos e gerar folha A4 de QR Codes para impressão">🖨️ Imprimir QR</button>
             <button class="btn-sm btn-outline" onclick="resetCartsDefault()" title="Restaurar lista padrão das 3 bases">↺ Restaurar padrão</button>
           </div>
           <div style="padding:16px 20px;">
@@ -1881,6 +1882,22 @@
     <div style="font-size:12px;color:var(--gr);margin-bottom:14px;">Mostre esta tela pro mecânico escanear caso o QR físico esteja danificado.</div>
     <div id="qr-cart-box" style="display:flex;align-items:center;justify-content:center;background:#111;padding:18px;border-radius:14px;border:1px solid var(--bd);margin:0 auto 16px;width:fit-content;"></div>
     <button class="btn-sm btn-outline" style="width:100%;" onclick="printCartQR()">🖨️ Imprimir / Salvar PDF</button>
+  </div>
+</div>
+
+<!-- MODAL: Imprimir QR em massa (seleção por base) -->
+<div class="modal-ov hidden" id="modal-qr-print">
+  <div class="modal-box" style="max-width:560px;">
+    <h2 style="margin-bottom:4px;"><button class="modal-close" onclick="closeImprimirQR()">✕</button> 🖨️ Imprimir QR dos Carrinhos</h2>
+    <div style="font-size:12px;color:var(--gr);margin-bottom:12px;">Marque os carrinhos e gere uma folha A4 (12 QRs por página, 3×4) pronta pra imprimir ou salvar em PDF. O QR é idêntico ao físico.</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+      <button class="btn-sm btn-outline" onclick="_qrPrintSelectAll(true)">Selecionar todos</button>
+      <button class="btn-sm btn-outline" onclick="_qrPrintSelectAll(false)">Limpar</button>
+      <div class="spacer" style="flex:1;"></div>
+      <span id="qrp-count" style="font-size:12px;color:var(--gr);"></span>
+    </div>
+    <div id="qrp-list" style="max-height:50vh;overflow:auto;border:1px solid var(--bd);border-radius:10px;padding:10px 14px;"></div>
+    <button class="btn-sm btn-az" style="width:100%;margin-top:14px;" onclick="gerarImpressaoQR()">🖨️ Gerar impressão (<span id="qrp-btn-count">0</span>)</button>
   </div>
 </div>
 
@@ -7016,6 +7033,111 @@ function printCartQR() {
     h1{font-size:48px;letter-spacing:4px;margin:0 0 16px;} img{width:320px;height:320px;}</style></head>
     <body><h1>${_qrCartName}</h1><img src="${src}"><script>onload=function(){print();}<\/script></body></html>`);
   w.document.close();
+}
+
+// ─── Imprimir QR em massa (seleção por base → folha A4 3×4) ───────────────────
+function abrirImprimirQR() {
+  const carts = getCarts().slice().sort((a, b) =>
+    (a.base || '').localeCompare(b.base || '') || String(a.nome).localeCompare(String(b.nome)));
+  const porBase = {};
+  carts.forEach(c => {
+    const b = c.base || getCartBase(c.nome) || '—';
+    (porBase[b] = porBase[b] || []).push(c);
+  });
+  const ordem = ['Mooca', 'Osasco', 'SBC'];
+  const bases = Object.keys(porBase).sort((a, b) => {
+    const ia = ordem.indexOf(a), ib = ordem.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+  let html = '';
+  bases.forEach(b => {
+    const lista = porBase[b];
+    html += '<div style="margin-bottom:14px;">' +
+      '<label style="display:flex;align-items:center;gap:8px;font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:16px;letter-spacing:1px;text-transform:uppercase;color:var(--az);cursor:pointer;margin-bottom:6px;">' +
+      '<input type="checkbox" class="qrp-base" data-base="' + b + '" onchange="_qrPrintToggleBase(\'' + b + '\', this.checked)"> ' + b +
+      ' <span style="font-size:11px;color:var(--gr);font-weight:600;">(' + lista.length + ')</span></label>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px 12px;padding-left:8px;">';
+    lista.forEach(c => {
+      const canon = normalizeCartName(c.nome);
+      const val = canon.replace(/"/g, '&quot;');
+      html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">' +
+        '<input type="checkbox" class="qrp-cart" data-base="' + b + '" value="' + val + '"> ' + canon + '</label>';
+    });
+    html += '</div></div>';
+  });
+  if (!bases.length) html = '<div style="color:var(--gr);font-size:13px;">Nenhum carrinho cadastrado.</div>';
+  const listEl = document.getElementById('qrp-list');
+  listEl.innerHTML = html;
+  listEl.querySelectorAll('.qrp-cart').forEach(cb => cb.addEventListener('change', _qrPrintUpdateCount));
+  _qrPrintUpdateCount();
+  document.getElementById('modal-qr-print').classList.remove('hidden');
+}
+function closeImprimirQR() { document.getElementById('modal-qr-print').classList.add('hidden'); }
+function _qrPrintToggleBase(base, on) {
+  document.querySelectorAll('#qrp-list .qrp-cart[data-base="' + base + '"]').forEach(cb => cb.checked = on);
+  _qrPrintUpdateCount();
+}
+function _qrPrintSelectAll(on) {
+  document.querySelectorAll('#qrp-list .qrp-cart').forEach(cb => cb.checked = on);
+  _qrPrintUpdateCount();
+}
+function _qrPrintUpdateCount() {
+  const n = document.querySelectorAll('#qrp-list .qrp-cart:checked').length;
+  const cEl = document.getElementById('qrp-count'); if (cEl) cEl.textContent = n + ' selecionado(s)';
+  const bEl = document.getElementById('qrp-btn-count'); if (bEl) bEl.textContent = n;
+  document.querySelectorAll('#qrp-list .qrp-base').forEach(bcb => {
+    const base = bcb.dataset.base;
+    const all = document.querySelectorAll('#qrp-list .qrp-cart[data-base="' + base + '"]');
+    const sel = document.querySelectorAll('#qrp-list .qrp-cart[data-base="' + base + '"]:checked');
+    bcb.checked = all.length > 0 && sel.length === all.length;
+    bcb.indeterminate = sel.length > 0 && sel.length < all.length;
+  });
+}
+function gerarImpressaoQR() {
+  const nomes = Array.from(document.querySelectorAll('#qrp-list .qrp-cart:checked')).map(cb => cb.value);
+  if (!nomes.length) { alert('Selecione pelo menos um carrinho.'); return; }
+  if (typeof QRCode === 'undefined') { alert('Biblioteca de QR não carregou. Recarregue a página e tente de novo.'); return; }
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;';
+  document.body.appendChild(tmp);
+  const itens = [];
+  nomes.forEach(canon => {
+    tmp.innerHTML = '';
+    new QRCode(tmp, { text: canon, width: 300, height: 300, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    const cv = tmp.querySelector('canvas');
+    const im = tmp.querySelector('img');
+    let src = '';
+    if (cv) { try { src = cv.toDataURL('image/png'); } catch (e) { src = ''; } }
+    if (!src && im) src = im.src;
+    itens.push({ nome: canon, src });
+  });
+  document.body.removeChild(tmp);
+  const POR_PAGINA = 12;
+  let paginas = '';
+  for (let i = 0; i < itens.length; i += POR_PAGINA) {
+    const grupo = itens.slice(i, i + POR_PAGINA);
+    const celulas = grupo.map(it =>
+      '<div class="qcell"><img src="' + it.src + '" alt="' + it.nome + '"><div class="qname">' + it.nome + '</div></div>'
+    ).join('');
+    paginas += '<div class="qpage"><div class="qgrid">' + celulas + '</div></div>';
+  }
+  const w = window.open('', '_blank');
+  if (!w) { alert('Permita pop-ups para imprimir.'); return; }
+  const css = '*{box-sizing:border-box;}' +
+    'body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#fff;color:#000;}' +
+    '.qpage{page-break-after:always;padding:8mm;}' +
+    '.qpage:last-child{page-break-after:auto;}' +
+    '.qgrid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:62mm;gap:4mm;}' +
+    '.qcell{display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px dashed #bbb;border-radius:6px;padding:3mm;break-inside:avoid;}' +
+    '.qcell img{width:40mm;height:40mm;}' +
+    '.qname{font-weight:800;font-size:17pt;letter-spacing:2px;margin-top:2mm;font-family:Arial,sans-serif;}' +
+    '@page{size:A4 portrait;margin:8mm;}' +
+    '@media print{.qpage{padding:0;}}';
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>QR Carrinhos (' + itens.length + ')</title>' +
+    '<style>' + css + '</style></head><body>' + paginas +
+    '<script>onload=function(){setTimeout(function(){print();},300);}<\/script></body></html>');
+  w.document.close();
+  closeImprimirQR();
 }
 
 // ─── RESOLVER TODAS AS NCs DE UM CARRINHO ─────────────────────────────────────
