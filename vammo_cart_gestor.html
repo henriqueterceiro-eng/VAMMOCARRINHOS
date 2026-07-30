@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v10';
+      const CACHE = 'vammo-gestor-v11';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -6504,31 +6504,63 @@ function log(msg) {
 // JSONP via <script src> — único método que funciona com GAS (sem CORS)
 // Funciona em localhost:8080 e no Android. NÃO funciona em file://
 let _gasSeq = 0;
+
+// Ações de LEITURA — seguras pra repetir automaticamente. O GAS anda lento e instável
+// (medido 30/07: allOpenNCs levando 27s e devolvendo página 404 do Google em ~1 de cada 3
+// chamadas), e com timeout de 15s o painel de NC ficava vazio SEM avisar ninguém.
+// Escrita fica FORA daqui de propósito: estoqueAdjust usa delta, então retry daria baixa
+// dobrada no estoque. reporNC é idempotente mas já tem retry próprio.
+const GAS_READ_ACTIONS = new Set([
+  'sync','allOpenNCs','ncsResolvidasGet','cartstatus','cartsGet','colabGet','estoqueGet',
+  'acessosGet','logsGet','manualQrGet','osStatus','perfisGet','precosGet','flagIotGet',
+  'gameStartGet','tempoReparoGet','rhidPontoRange','devices','ping'
+]);
+const GAS_TIMEOUT_MS = 45000;
+
+// Assinatura pública inalterada: gasGet(url, params, callback). O contador de tentativas fica
+// em closure (não como 4º parâmetro) pra não colidir com nenhum call site existente.
 function gasGet(url, params, callback) {
-  const cbName = '_gas_' + Date.now() + '_' + (++_gasSeq);
-  const script = document.createElement('script');
-  let done = false;
+  const acao = (String(params).match(/(?:^|&)action=([a-zA-Z_]+)/) || [])[1] || '';
+  const repetivel = GAS_READ_ACTIONS.has(acao);
+  let tentativa = 0;
 
-  const timer = setTimeout(function() {
-    if (!done) { done=true; cleanup(); callback(null, 'Timeout 15s — GAS não respondeu'); }
-  }, 15000);
+  function disparar() {
+    const cbName = '_gas_' + Date.now() + '_' + (++_gasSeq);
+    const script = document.createElement('script');
+    let done = false;
 
-  window[cbName] = function(data) {
-    if (!done) { done=true; cleanup(); callback(data, null); }
-  };
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
 
-  function cleanup() {
-    clearTimeout(timer);
-    delete window[cbName];
-    if (script.parentNode) script.parentNode.removeChild(script);
+    function falhou(msg) {
+      if (done) return;
+      done = true; cleanup();
+      if (repetivel && tentativa < 2) {
+        tentativa++;
+        setTimeout(disparar, 1200 * tentativa); // backoff curto; costuma responder na 2ª/3ª
+        return;
+      }
+      callback(null, msg);
+    }
+
+    const timer = setTimeout(function() {
+      falhou('Timeout ' + (GAS_TIMEOUT_MS / 1000) + 's — GAS não respondeu');
+    }, GAS_TIMEOUT_MS);
+
+    window[cbName] = function(data) {
+      if (!done) { done = true; cleanup(); callback(data, null); }
+    };
+
+    script.onerror = function() { falhou('Erro — URL inválida ou GAS não publicado'); };
+
+    script.src = url + '?' + params + '&callback=' + cbName;
+    document.head.appendChild(script);
   }
 
-  script.onerror = function() {
-    if (!done) { done=true; cleanup(); callback(null, 'Erro — URL inválida ou GAS não publicado'); }
-  };
-
-  script.src = url + '?' + params + '&callback=' + cbName;
-  document.head.appendChild(script);
+  disparar();
 }
 
 function diagnostico() {

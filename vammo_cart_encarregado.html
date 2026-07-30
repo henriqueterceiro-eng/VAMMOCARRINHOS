@@ -620,19 +620,42 @@ function carrinhosDaBase() {
 }
 
 // ─── JSONP ─────────────────────────────────────────────────────
+// Leituras podem ser repetidas; manualQrSet (única escrita daqui) NÃO entra na lista.
+// O GAS anda lento/instável (medido 30/07: sync e allOpenNCs levando 27s+ e devolvendo página
+// 404 do Google de vez em quando) — sem retry o painel do encarregado ficava vazio calado.
+const GAS_READ_ACTIONS = new Set([
+  'sync','allOpenNCs','ncsResolvidasGet','cartsGet','devices','flagIotGet',
+  'manualQrGet','osStatus','perfisGet','tempoReparoGet'
+]);
+const GAS_TIMEOUT_MS = 45000;
+
 function gasGet(params, cb) {
-  const cbName = '_gas_' + Date.now() + '_' + Math.floor(Math.random()*9999);
-  const script = document.createElement('script');
-  let done = false;
-  const timer = setTimeout(() => { if (!done) { done=true; cleanup(); cb(null, 'timeout'); } }, 25000);
-  window[cbName] = function(data) { if (!done) { done=true; cleanup(); cb(data, null); } };
-  function cleanup() {
-    clearTimeout(timer); delete window[cbName];
-    if (script.parentNode) script.parentNode.removeChild(script);
+  const acao = (String(params).match(/(?:^|&)action=([a-zA-Z_]+)/) || [])[1] || '';
+  const repetivel = GAS_READ_ACTIONS.has(acao);
+  let tentativa = 0;
+
+  function disparar() {
+    const cbName = '_gas_' + Date.now() + '_' + Math.floor(Math.random()*9999);
+    const script = document.createElement('script');
+    let done = false;
+    function cleanup() {
+      clearTimeout(timer); delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    function falhou(msg) {
+      if (done) return;
+      done = true; cleanup();
+      if (repetivel && tentativa < 2) { tentativa++; setTimeout(disparar, 1200 * tentativa); return; }
+      cb(null, msg);
+    }
+    const timer = setTimeout(() => falhou('timeout'), GAS_TIMEOUT_MS);
+    window[cbName] = function(data) { if (!done) { done=true; cleanup(); cb(data, null); } };
+    script.onerror = function() { falhou('onerror'); };
+    script.src = WEBHOOK_URL + '?' + params + '&callback=' + cbName + '&_=' + Date.now();
+    document.head.appendChild(script);
   }
-  script.onerror = function() { if (!done) { done=true; cleanup(); cb(null, 'onerror'); } };
-  script.src = WEBHOOK_URL + '?' + params + '&callback=' + cbName + '&_=' + Date.now();
-  document.head.appendChild(script);
+
+  disparar();
 }
 
 // ─── PRESENÇA (celular online + bateria no Headwind) ───────────
