@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v11';
+      const CACHE = 'vammo-gestor-v12';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -4659,6 +4659,9 @@ function renderRegistros() {
 // ou houve falha de sincronia anterior).
 // Cache global das NCs abertas no servidor — fonte da verdade pra gestor e encarregado
 let _serverOpenNCs = [];
+// Por quanto tempo a marca local de "já repus" pode esconder uma NC que o servidor ainda
+// devolve como aberta. Só cobre a janela de propagação do GAS; depois disso o servidor manda.
+const NC_HIDE_WINDOW_MS = 3 * 60 * 1000;
 // Cache do histórico de NCs resolvidas
 let _historicoNCs = [];
 
@@ -4865,7 +4868,13 @@ function syncNCsComServidor(silent) {
     }
     const recs = getRecords();
     const rep = getNCRepostas();
-    // (carrinho|ferramenta) -> ts (ms) da resolução local mais recente
+    // (carrinho|ferramenta) -> ts (ms) da resolução local mais recente.
+    // JANELA CURTA (NC_HIDE_WINDOW_MS): a marca local existe só pra evitar a NC piscar de volta
+    // enquanto o servidor não propaga a resolução. Sem prazo de validade ela virava armadilha:
+    // se o reporNC falhasse, a marca ficava pra sempre, a NC continuava ABERTA no servidor e
+    // sumia da tela do gestor — e sem linha na tabela não existe botão "↻ Repor", então não
+    // havia como resolver naquele navegador. Passado o prazo, quem manda é o servidor. (fix)
+    const agora = Date.now();
     const repByCF = {};
     recs.forEach(r => {
       Object.keys(r.ferramentas || {}).forEach(f => {
@@ -4873,6 +4882,7 @@ function syncNCsComServidor(silent) {
         if (rep[k] && rep[k].ts) {
           const ck = normalizeCartName(r.carrinho) + '|' + f;
           const tms = Date.parse(rep[k].ts) || 0;
+          if (agora - tms > NC_HIDE_WINDOW_MS) return; // marca velha não esconde mais nada
           if (tms > (repByCF[ck] || 0)) repByCF[ck] = tms;
         }
       });
@@ -4976,6 +4986,10 @@ function confirmarResolverMassa() {
   const cfg = getConfig();
   showAlert('nc-alert-box','az',`⏳ Resolvendo ${checked.length} NC(s)...`);
   let done = 0, ok = 0, fail = 0;
+  // Só as que o servidor confirmou entram na marcação local. Antes marcava `checked` inteiro:
+  // NC recusada virava "reposta" no localStorage, sumia do painel no sync seguinte e continuava
+  // aberta no servidor — sem botão de repor, sem como resolver. (fix)
+  const sucessos = [];
   checked.forEach(nc => {
     gasGet(cfg.webhookUrl,
       'action=reporNC&cart=' + encodeURIComponent(nc.carrinho) +
@@ -4983,12 +4997,12 @@ function confirmarResolverMassa() {
       '&supervisor=' + encodeURIComponent(por.trim() + ' (Em massa)'),
       (data, err) => {
         done++;
-        if (!err && data?.ok) ok++; else fail++;
+        if (!err && data?.ok) { ok++; sucessos.push(nc); } else fail++;
         if (done === checked.length) {
           // Marca local como repostas também
           const rep = getNCRepostas();
           const recs = getRecords();
-          checked.forEach(nc => {
+          sucessos.forEach(nc => {
             const cartN = normalizeCartName(nc.carrinho);
             recs.forEach(r => {
               if (normalizeCartName(r.carrinho) === cartN &&
@@ -4998,6 +5012,13 @@ function confirmarResolverMassa() {
             });
           });
           saveNCRepostas(rep);
+          // Tira da lista em memória as que realmente fecharam (antes só sumiam no sync seguinte,
+          // dando a sensação de "resolvi e não sumiu"). As que falharam ficam na tela de propósito.
+          sucessos.forEach(nc => {
+            const cartN = normalizeCartName(nc.carrinho);
+            _serverOpenNCs = _serverOpenNCs.filter(o =>
+              !(normalizeCartName(o.carrinho) === cartN && o.ferramenta === nc.ferramenta));
+          });
           renderNC();
           if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
           showAlert('nc-alert-box', fail ? 'yw' : 'gn',
@@ -5193,15 +5214,43 @@ function executaRepor(ctx, tipo, qtd, obs) {
   saveNCRepostas(rep);
 
   // 3) registra histórico (ajuste fica registrado com qtd=0)
+  const baixaId = 'BX-' + Date.now().toString(36).toUpperCase();
   const baixas = getBaixas();
   baixas.unshift({
-    id: 'BX-' + Date.now().toString(36).toUpperCase(),
+    id: baixaId,
     ts: new Date().toISOString(),
     base, carrinho, ferramenta, motivo, qtd, obs,
     tipo, // 'reposicao' ou 'ajuste'
     recId
   });
   saveBaixas(baixas);
+
+  // Desfaz TUDO que os passos 1-3 fizeram de forma otimista. Antes o revert só recolocava a NC
+  // em memória: a marca local continuava escondendo a NC no sync seguinte, o estoque ficava
+  // debitado e a baixa lançada por uma reposição que o servidor nunca aceitou. (fix)
+  function desfazerReporLocal() {
+    const rep2 = getNCRepostas();
+    getRecords().forEach(r => {
+      if (normalizeCartName(r.carrinho) !== cartNorm) return;
+      if (r.ferramentas?.[ferramenta]?.status === 'nao_ok') delete rep2[ncKey(r.id, ferramenta)];
+    });
+    saveNCRepostas(rep2);
+    saveBaixas(getBaixas().filter(b => b.id !== baixaId));
+    if (tipo === 'reposicao' && qtd > 0) {
+      const est2 = getEstoque();
+      if (!est2[base]) est2[base] = {};
+      est2[base][ferramenta] = (Number(est2[base][ferramenta]) || 0) + qtd;
+      saveEstoque(est2);
+      const cfgR = getConfig();
+      if (cfgR.webhookUrl) {
+        gasGet(cfgR.webhookUrl,
+          'action=estoqueAdjust&base=' + encodeURIComponent(base) +
+          '&ferramenta=' + encodeURIComponent(ferramenta) +
+          '&delta=' + qtd,
+          (d, e) => { if (e || !d?.ok) console.warn('estorno de estoque falhou:', e || d); });
+      }
+    }
+  }
 
   // 4) Notifica GAS pra marcar a NC como reposta no servidor
   //    (essencial pra o checkin não pré-carregar essa NC de novo)
@@ -5241,10 +5290,11 @@ function executaRepor(ctx, tipo, qtd, obs) {
       logAcao(tipo === 'reposicao' ? 'nc_reposicao' : 'nc_ajuste', `${carrinho} · ${ferramenta} · por ${porQuem}${tipo==='reposicao'?' · baixou '+qtd+' de '+base:''}`, base);
       return; // já estava marcado como sucesso na UI, nada a fazer
     }
-    // Reverte: re-adiciona NC à lista local + avisa
+    // Reverte de verdade: desfaz marca local / baixa / estoque, e recoloca a NC na lista
+    desfazerReporLocal();
     _serverOpenNCs.push({ carrinho, ferramenta, motivo: motivo || 'nc', mecanico: '', ts: new Date().toISOString() });
     showAlert('cart-alert-box', 'rd',
-      `❌ Servidor não confirmou ${ferramenta} (${carrinho}): ${err || 'sem resposta'}. Tente novamente.`);
+      `❌ Servidor não confirmou ${ferramenta} (${carrinho}): ${err || 'sem resposta'}. Nada foi baixado do estoque. Tente novamente.`);
     renderNC(); renderEstoque(); refreshDetailIfOpen();
     if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
   });
