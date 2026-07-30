@@ -36,7 +36,7 @@
 
     // Service Worker inline via Blob
     const _swCode = `
-      const CACHE = 'vammo-cart-v7';
+      const CACHE = 'vammo-cart-v8';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1994,18 +1994,30 @@ function marcarTodasOk() {
   updateNextBtn();
 }
 
-// Chama GAS pra marcar a NC como reposta pelo próprio mecânico
-function resolverNCNoServidor(ferramenta) {
+// Chama GAS pra marcar a NC como reposta pelo próprio mecânico.
+// Se o servidor NÃO confirmar, devolve o item pra "não ok" na tela: antes só fazia
+// console.warn enquanto o item já tinha virado OK, então o mecânico seguia o check-in achando
+// que resolveu e a NC ficava aberta sem ninguém saber. Com o reporNC devolvendo ok:false
+// quando não acha a linha (v40), esse caminho viraria falso-sucesso invisível. (fix)
+function resolverNCNoServidor(ferramenta, tentativa) {
   const cfg = getConfig();
   if (!cfg.webhookUrl || !S.carrinho) return;
   const u = getStoredUser();
   const quem = u ? u.email : 'mecanico';
+  const t = tentativa || 0;
   gasGet(cfg.webhookUrl,
     'action=reporNC&cart=' + encodeURIComponent(S.carrinho) +
     '&ferramenta=' + encodeURIComponent(ferramenta) +
     '&supervisor=' + encodeURIComponent('Resolvido pelo mecânico: ' + quem),
     (data, err) => {
-      if (err || !data?.ok) console.warn('resolverNCNoServidor falhou:', err || data);
+      if (!err && data?.ok) return;
+      if (t < 2) { setTimeout(() => resolverNCNoServidor(ferramenta, t + 1), 1500 * (t + 1)); return; }
+      console.warn('resolverNCNoServidor falhou:', err || data);
+      // Desfaz na tela: a NC continua aberta no servidor
+      S.ferramentas[ferramenta] = { status: 'nao_ok', motivo: 'faltando', _persistent: true };
+      updateStats(); updateClProgress(); renderCurrentCategory(); updateNextBtn();
+      alert('⚠️ Não deu pra fechar a NC de "' + ferramenta + '" no servidor.\n\n' +
+            'O item voltou pra NÃO OK. Avise o supervisor — a NC continua aberta.');
     });
 }
 
