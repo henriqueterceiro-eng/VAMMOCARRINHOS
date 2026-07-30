@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v9';
+      const CACHE = 'vammo-gestor-v10';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -2415,7 +2415,10 @@ function defaultCarts() {
   return arr;
 }
 function inferBaseFromName(nome) {
-  const up = String(nome || '').toUpperCase().replace(/\s+/g,'');
+  // Usa o nome NORMALIZADO: "0C 12" (zero, de QR impresso errado) tem prefixo "0C", que não
+  // bate com nenhum BASE_PREFIX e caía no fallback 'Mooca' — NC de Osasco sumia pro supervisor
+  // de Osasco e aparecia fantasma pro de Mooca. normalizeCartName já converte zero → letra O.
+  const up = normalizeCartName(nome).replace(/\s+/g,'');
   for (const b of BASES) {
     if (up.startsWith(BASE_PREFIX[b])) return b;
   }
