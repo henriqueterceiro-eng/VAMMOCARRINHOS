@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v12';
+      const CACHE = 'vammo-gestor-v13';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -3331,6 +3331,70 @@ function mecDevice(mec){
   }
   return null;
 }
+// ─── RASTREIO: último carrinho em que o dono do aparelho se logou ─────────────
+// Inverso do mecDevice(): dado um APARELHO, acha o e-mail do dono e o registro de
+// check-in/out mais recente dele. Serve pra rastrear celular sumido — "esse aparelho
+// esteve no OC 21 há 3h" é pista mesmo quando não há coordenada.
+// Índice recalculado a cada render do painel (barato: ~2k registros) e memoizado por
+// timestamp do último sync pra não refazer no polling de 60s.
+let _ultCarrinhoCache = { chave: '', mapa: null };
+function _ultimoRegistroPorMecanico(){
+  const recs = getRecords();
+  const chave = recs.length + '|' + (recs[0] && recs[0].ts || '');
+  if (_ultCarrinhoCache.chave === chave && _ultCarrinhoCache.mapa) return _ultCarrinhoCache.mapa;
+  const mapa = {};
+  recs.forEach(r => {
+    const m = String(r.mecanico || '').toLowerCase().trim();
+    if (!m || !r.carrinho) return;
+    const ts = String(r.ts || '');
+    if (!mapa[m] || ts > mapa[m].ts) mapa[m] = { ts, carrinho: r.carrinho, tipo: r.tipo || '' };
+  });
+  _ultCarrinhoCache = { chave, mapa };
+  return mapa;
+}
+function deviceUltimoCarrinho(d){
+  const mapa = _ultimoRegistroPorMecanico();
+  if (d.email && mapa[d.email]) return mapa[d.email];
+  // sem e-mail no Headwind: casa pelo NOME do aparelho contra o e-mail do mecânico
+  const dt = d.tokens || [];
+  if (dt.length < 2) return null;
+  const first = dt[0], last = dt[dt.length-1];
+  for (const em in mapa){
+    const et = _nameTokens(em);
+    if (et.length >= 2 && et[0] === first && et[et.length-1] === last) return mapa[em];
+  }
+  for (const em in mapa){
+    const et = _nameTokens(em);
+    if (et.length >= 2 && _close(et[0], first) && _close(et[et.length-1], last)) return mapa[em];
+  }
+  return null;
+}
+
+// Mapa da posição do último ping. Sem biblioteca: iframe do OpenStreetMap com marcador.
+function abrirMapaPing(numero){
+  const d = (_presDevices || []).find(x => String(x.number) === String(numero));
+  if (!d || d.lat == null || d.lon == null) { alert('Esse aparelho ainda não reportou posição.'); return; }
+  const lat = d.lat, lon = d.lon, delta = 0.004;
+  const bbox = [lon-delta, lat-delta, lon+delta, lat+delta].join(',');
+  const quando = d.locTs ? new Date(d.locTs).toLocaleString('pt-BR') : '—';
+  const body = document.getElementById('detail-body');
+  if (!body) return;
+  body.innerHTML = `
+    <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:6px;">📍 ${d.number}</h3>
+    <div style="font-size:12px;color:var(--gr);margin-bottom:10px;">
+      Posição registrada pelo aparelho em <strong style="color:var(--w2);">${quando}</strong>
+      · <span style="font-family:monospace;">${lat.toFixed(5)}, ${lon.toFixed(5)}</span>
+    </div>
+    <iframe title="mapa" style="width:100%;height:min(55vh,420px);border:1px solid var(--bd);border-radius:8px;background:#111;"
+      src="https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lon}"></iframe>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn-sm btn-outline" style="flex:1;" onclick="closeDetail()">Fechar</button>
+      <a class="btn-sm btn-az" style="flex:2;text-align:center;text-decoration:none;line-height:1.9;"
+         href="https://www.google.com/maps/search/?api=1&query=${lat},${lon}" target="_blank" rel="noopener">Abrir no Google Maps</a>
+    </div>`;
+  document.getElementById('modal-detail').classList.remove('hidden');
+}
+
 // Ícone de bateria (SVG): preenchimento proporcional + cor por nível
 function batterySvg(lvl){
   lvl = Math.max(0, Math.min(100, lvl|0));
@@ -3343,7 +3407,10 @@ function refreshPresence(){
   if (!cfg.presenceUrl) return;
   gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
     if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
-    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), number: d.number || '', online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim(), serial: d.serial || '', imei: d.imei || '', lastUpdate: d.lastUpdate || 0 }));
+    _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), number: d.number || '', online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim(), serial: d.serial || '', imei: d.imei || '', lastUpdate: d.lastUpdate || 0,
+      // posição do último ping (só chega se a Configuration do Headwind estiver rastreando
+      // localização E o launcher tiver a permissão concedida)
+      lat: (typeof d.lat === 'number') ? d.lat : null, lon: (typeof d.lon === 'number') ? d.lon : null, locTs: d.locTs || 0 }));
     _presLoaded = true;
     try { renderCarrinhos(); } catch(e){}
     try { if (document.getElementById('panel-frota')?.classList.contains('active')) renderFrota(); } catch(e){}
@@ -3369,18 +3436,39 @@ function renderFrota(){
   filt.sort((a,b) => (b.online?1:0)-(a.online?1:0) || String(a.email||a.number).localeCompare(String(b.email||b.number)));
   const fmtSync = (ms) => { if(!ms) return '—'; const min=Math.floor((Date.now()-ms)/60000); if(min<1)return 'agora'; if(min<60)return min+'min'; const h=Math.floor(min/60); if(h<24)return h+'h'; return Math.floor(h/24)+'d'; };
   const td = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;';
-  const rows = filt.map(d => `<tr>
+  const fmtHora = (ms) => ms ? new Date(ms).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+  const comPos = devs.filter(d => d.lat != null).length;
+  const rows = filt.map(d => {
+    const uc = deviceUltimoCarrinho(d);
+    const ucHtml = uc
+      ? `<strong style="color:var(--wh);">${normalizeCartName(uc.carrinho)}</strong>
+         <span style="color:var(--gr);font-size:11px;">· ${getCartBase(uc.carrinho)}</span><br>
+         <span style="color:var(--gr);font-size:11px;">${uc.tipo === 'checkin' ? 'entrou' : 'saiu'} ${fmtSync(Date.parse(uc.ts))} atrás</span>`
+      : '<span style="color:var(--gr);">—</span>';
+    const pos = (d.lat != null)
+      ? `<button class="btn-sm btn-outline" style="padding:3px 9px;font-size:11px;" title="Ver no mapa onde foi o último ping" onclick="abrirMapaPing(${JSON.stringify(String(d.number)).replace(/"/g,'&quot;')})">📍 mapa</button>`
+      : '<span style="color:var(--gr);font-size:11px;" title="O aparelho ainda não reportou posição">—</span>';
+    return `<tr>
     <td style="${td}white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${d.online?'#22c55e':'#ef4444'};margin-right:7px;box-shadow:${d.online?'0 0 6px #22c55e':'none'};"></span>${d.online?'online':'offline'}</td>
     <td style="${td}font-weight:700;color:var(--wh);">${d.number || '—'}</td>
     <td style="${td}">${d.email ? d.email : '<span style="color:var(--yw);font-weight:700;">⚠ sem dono</span>'}</td>
     <td style="${td}font-family:monospace;font-size:11px;color:var(--w2);">${d.imei || '—'}</td>
     <td style="${td}text-align:center;">${d.battery != null ? d.battery+'%' : '—'}</td>
-    <td style="${td}text-align:center;color:var(--gr);">${fmtSync(d.lastUpdate)}</td>
-  </tr>`).join('');
-  body.innerHTML = stats + `<div class="table-wrap"><div class="table-head"><h2>Aparelhos (${filt.length})</h2></div>
+    <td style="${td}white-space:nowrap;color:var(--gr);" title="${fmtHora(d.lastUpdate)}">${fmtSync(d.lastUpdate)}<br><span style="font-size:10.5px;">${fmtHora(d.lastUpdate)}</span></td>
+    <td style="${td}text-align:center;">${pos}</td>
+    <td style="${td}line-height:1.5;">${ucHtml}</td>
+  </tr>`; }).join('');
+  const avisoPos = comPos === 0
+    ? `<div style="margin-bottom:14px;padding:10px 12px;border:1px solid var(--yw);border-radius:8px;background:rgba(245,158,11,.08);font-size:12px;color:var(--w2);">
+         ⚠ Nenhum aparelho está reportando posição. No Headwind, além de "Rastreamento de localização = GPS", a
+         Configuration precisa conceder a permissão de localização ao launcher — com <strong>"Pedir ao usuário todas
+         as permissões"</strong> o Android deixa a localização a cargo do mecânico e o aparelho não manda coordenada.
+       </div>`
+    : '';
+  body.innerHTML = stats + avisoPos + `<div class="table-wrap"><div class="table-head"><h2>Aparelhos (${filt.length})</h2></div>
     <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
-      <thead><tr>${['Status','Aparelho','Dono (e-mail)','IMEI','Bat.','Últ. sync'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
-      <tbody>${rows || '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--gr);">Nenhum aparelho.</td></tr>'}</tbody>
+      <thead><tr>${['Status','Aparelho','Dono (e-mail)','IMEI','Bat.','Últ. ping','Posição','Últ. carrinho logado'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows || '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--gr);">Nenhum aparelho.</td></tr>'}</tbody>
     </table></div></div>`;
 }
 
