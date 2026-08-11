@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v15';
+      const CACHE = 'vammo-gestor-v16';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -3715,7 +3715,19 @@ function computeCartState(nome, recs) {
 }
 
 function renderCarrinhos() {
-  const carts = getCarts();
+  // Carrinho com NC aberta que NÃO está no cadastro também ganha card. Antes esta tela só
+  // iterava getCarts() (= defaultCarts MC01-35/OC01-50/SC01-06 ∪ cartsGet), então MC 36, MC 37,
+  // MC 39 e Q01 não existiam aqui — e o MC 37, com 11 NCs abertas desde 15/07, ficava invisível
+  // justamente no painel onde o supervisor trabalha. No painel NC elas apareciam (renderNC lê
+  // _serverOpenNCs direto), o que dava o sintoma "a NC existe mas no carrinho não aparece". (fix)
+  const carts = getCarts().slice();
+  const jaTem = new Set(carts.map(c => normalizeCartName(c.nome)));
+  (_serverOpenNCs || []).forEach(nc => {
+    const nome = normalizeCartName(nc.carrinho);
+    if (!nome || jaTem.has(nome)) return;
+    jaTem.add(nome);
+    carts.push({ nome, base: getCartBase(nc.carrinho), _foraDoCadastro: true });
+  });
   const recs  = getRecords();
   const q     = (document.getElementById('cart-search')?.value || '').toLowerCase();
 
