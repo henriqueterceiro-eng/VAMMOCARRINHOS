@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v14';
+      const CACHE = 'vammo-gestor-v15';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -2754,7 +2754,27 @@ function getBaixas() { try { return JSON.parse(localStorage.getItem('vammo_baixa
 function saveBaixas(a) { localStorage.setItem('vammo_baixas', JSON.stringify(a)); }
 
 function getNCRepostas() { try { return JSON.parse(localStorage.getItem('vammo_nc_repostas')) || {}; } catch { return {}; } }
-function saveNCRepostas(o) { localStorage.setItem('vammo_nc_repostas', JSON.stringify(o)); }
+// setItem CRU aqui derrubava o callback inteiro do syncNCsComServidor: _serverOpenNCs já
+// estava preenchido, mas o renderNC logo abaixo nunca rodava — a tabela ficava vazia dizendo
+// "0 NC(s) abertas no servidor", sem erro nenhum na tela. E o cenário é real: esta chave cresce
+// sem poda e divide os ~5MB com vammo_registros, que só poda a SI MESMO ao estourar (quem
+// quebra é o vizinho). Agora, se estourar, poda as marcas mais antigas até caber. (fix)
+function saveNCRepostas(o) {
+  try { localStorage.setItem('vammo_nc_repostas', JSON.stringify(o)); return true; }
+  catch (e) {
+    const chaves = Object.keys(o)
+      .sort((a, b) => (Date.parse(o[a]?.ts) || 0) - (Date.parse(o[b]?.ts) || 0)); // + antigas 1º
+    let obj = o;
+    for (let tent = 0; tent < 10 && chaves.length; tent++) {
+      const corta = Math.max(1, Math.floor(chaves.length * 0.25));
+      chaves.splice(0, corta).forEach(k => { delete obj[k]; });
+      try { localStorage.setItem('vammo_nc_repostas', JSON.stringify(obj)); return true; }
+      catch (e2) { /* segue podando */ }
+    }
+    console.warn('[VAMMO] quota localStorage: nao deu pra gravar vammo_nc_repostas', e);
+    return false;
+  }
+}
 function ncKey(recId, ferramenta) { return recId + '|' + ferramenta; }
 function isNCReposta(recId, ferramenta) { return !!getNCRepostas()[ncKey(recId, ferramenta)]; }
 
@@ -7448,9 +7468,10 @@ function confirmResolverTodos() {
         () => {});
     }
     // 2) histórico local
+    const baixaId = 'BX-' + Date.now().toString(36).toUpperCase() + '-' + i;
     const baixas = getBaixas();
     baixas.unshift({
-      id: 'BX-' + Date.now().toString(36).toUpperCase() + '-' + i,
+      id: baixaId,
       ts: new Date().toISOString(),
       base, carrinho, ferramenta: it.ferramenta, motivo: it.motivo,
       qtd: it.qtd, obs: obsGeral || (it.tipo === 'ajuste' ? 'Ajuste em lote' : 'Reposição em lote'),
@@ -7481,6 +7502,28 @@ function confirmResolverTodos() {
           `${carrinho} · ${it.ferramenta} · por ${por}${it.tipo==='reposicao'?' · baixou '+it.qtd+' de '+base:''} · LOTE`, base);
       } else {
         falhas++;
+        // Mesmo revert do botão individual — faltava só aqui, e o lote é justamente o mais
+        // usado em carrinho com muitas NCs presas. Sem isto, um ok:false deixava a ferramenta
+        // baixada do estoque (local E planilha), a baixa lançada e a NC escondida pela marca
+        // local, com a NC seguindo ABERTA no servidor. (fix)
+        const rep2 = getNCRepostas();
+        getRecords().forEach(r => {
+          if (normalizeCartName(r.carrinho) !== cartNorm) return;
+          if (r.ferramentas?.[it.ferramenta]?.status === 'nao_ok') delete rep2[ncKey(r.id, it.ferramenta)];
+        });
+        saveNCRepostas(rep2);
+        saveBaixas(getBaixas().filter(b => b.id !== baixaId));
+        if (it.tipo === 'reposicao' && it.qtd > 0) {
+          const estR = getEstoque();
+          if (!estR[base]) estR[base] = {};
+          estR[base][it.ferramenta] = (Number(estR[base][it.ferramenta]) || 0) + it.qtd;
+          saveEstoque(estR);
+          gasGet(cfg.webhookUrl,
+            'action=estoqueAdjust&base=' + encodeURIComponent(base) +
+            '&ferramenta=' + encodeURIComponent(it.ferramenta) +
+            '&delta=' + it.qtd,
+            () => {});
+        }
       }
       processarProximo(i + 1);
     });
