@@ -623,8 +623,11 @@ function carrinhosDaBase() {
 // Leituras podem ser repetidas; manualQrSet (única escrita daqui) NÃO entra na lista.
 // O GAS anda lento/instável (medido 30/07: sync e allOpenNCs levando 27s+ e devolvendo página
 // 404 do Google de vez em quando) — sem retry o painel do encarregado ficava vazio calado.
+// `sync` ficou FORA da lista de propósito: ele traz ~11MB e o painel recarrega a cada 30s.
+// Com retry, um ciclo ruim chegava a ~135s e empilhava em cima dos próximos — três downloads
+// de 11MB simultâneos derrubavam o tablet. Retry só nas leituras pequenas. (fix)
 const GAS_READ_ACTIONS = new Set([
-  'sync','allOpenNCs','ncsResolvidasGet','cartsGet','devices','flagIotGet',
+  'allOpenNCs','ncsResolvidasGet','cartsGet','devices','flagIotGet',
   'manualQrGet','osStatus','perfisGet','tempoReparoGet'
 ]);
 const GAS_TIMEOUT_MS = 45000;
@@ -849,15 +852,21 @@ function aplicarFiltroResolvidas() {
   // Filtro 2 (inferência): se um check-in POSTERIOR à NC marcou a ferramenta como "ok",
   // significa que foi reposta — mesmo que o supervisor ainda não tenha registrado isso
   // como Reposta_TS no servidor. Isso elimina divergências entre os apps.
+  // Lê os DOIS formatos: o completo (ferramentas[nome].status === 'ok') e o slim do
+  // action=sync&slim=1, onde as ferramentas ok viram a lista de nomes `ok` — os 33 objetos
+  // "ok" por registro eram 84% dos 11MB. Manter os dois evita quebrar se o servidor voltar
+  // a responder completo (ou se um tablet estiver com HTML antigo em cache).
   _registros.forEach(r => {
-    if (!r.ferramentas) return;
     const cartN = normalizeCartName(r.carrinho);
     const rTs = Date.parse(r.ts) || 0;
-    Object.entries(r.ferramentas).forEach(([ferr, v]) => {
-      if (!v || v.status !== 'ok') return;
+    const marcar = (ferr) => {
       const k = cartN + '|' + ferr;
       if (rTs > (repByCF[k] || 0)) repByCF[k] = rTs;
-    });
+    };
+    if (r.ferramentas) {
+      Object.entries(r.ferramentas).forEach(([ferr, v]) => { if (v && v.status === 'ok') marcar(ferr); });
+    }
+    if (Array.isArray(r.ok)) r.ok.forEach(marcar);
   });
   _ncsAbertas = _ncsAbertas.filter(nc => {
     const k = normalizeCartName(nc.carrinho) + '|' + nc.ferramenta;
@@ -866,7 +875,14 @@ function aplicarFiltroResolvidas() {
   });
 }
 
+// Trava de ciclo: o painel recarrega a cada 30s, mas um ciclo pode demorar mais que isso
+// (o sync sozinho traz ~11MB). Sem a trava, os ciclos se sobrepõem e cada um segura mais um
+// parse de 11MB em memória — foi o que derrubou o tablet do encarregado. Se o ciclo anterior
+// ainda está de pé, este é descartado. Teto de 3min pra não travar pra sempre num ciclo morto.
+let _carregando = false, _carregandoDesde = 0;
 function carregarTudo() {
+  if (_carregando && (Date.now() - _carregandoDesde) < 180000) return;
+  _carregando = true; _carregandoDesde = Date.now();
   setSyncStatus('loading', 'Atualizando...');
   refreshPresence(); // celular online + bateria (Headwind)
   fetchCartList();   // lista de carrinhos cadastrada no gestor (inclui novos)
@@ -875,11 +891,15 @@ function carregarTudo() {
   syncFlagIotFromGAS();     // flag de rastreador IoT a remover
   let pending = 3;
   function done() { pending--; if (pending === 0) {
+    _carregando = false;
     aplicarFiltroResolvidas();
     setSyncStatus('ok', 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
     render();
   }}
-  gasGet('action=sync', (data) => {
+  // Janela de 45 dias + slim: 11MB -> ~2,7MB. Recarregar 11MB a cada 30s num tablet foi o
+  // que derrubou este painel. 45d cobre com folga a NC mais antiga em aberto.
+  const _desde = new Date(Date.now() - 45*24*60*60*1000).toISOString().slice(0,10);
+  gasGet('action=sync&slim=1&desde=' + _desde, (data) => {
     if (data && Array.isArray(data.records)) _registros = data.records;
     done();
   });
