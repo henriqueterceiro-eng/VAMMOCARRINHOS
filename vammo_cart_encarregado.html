@@ -758,7 +758,13 @@ function fetchCartList(){
 // Fallback: usa aba Carrinhos do GAS principal (cadastrado via cartAdd/cartRemove)
 function fetchCartListMain(){
   gasGet('action=cartsGet', (d) => {
-    if (!d || !d.ok || !Array.isArray(d.carts) || !d.carts.length) return;
+    if (!d || !d.ok || !Array.isArray(d.carts) || !d.carts.length) {
+      // Timeout ou resposta vazia: desenha com o que já temos (cache do localStorage ou a
+      // lista padrão da base). Antes era um `return` seco — no cold start do GAS a tela
+      // ficava presa no "Carregando…" sem nunca mostrar carrinho nenhum.
+      try { render(); } catch(e) {}
+      return;
+    }
     _cartListServer = d.carts.map(c => ({ nome: c.nome, base: c.base }));
     try { localStorage.setItem('vammo_carts_server_cache', JSON.stringify(_cartListServer)); } catch {}
     try { render(); } catch(e) {}
@@ -863,6 +869,12 @@ function carregarTudo() {
   if (_carregando && (Date.now() - _carregandoDesde) < 180000) return;
   _carregando = true; _carregandoDesde = Date.now();
   setSyncStatus('loading', 'Atualizando...');
+  // Pinta JÁ com o cache local (ou a lista padrão da base) em vez de segurar a tela no
+  // "Carregando…" até o GAS voltar. O Apps Script leva ~28s no cold start — mais que os 25s
+  // de timeout do gasGet — então quem abre o painel esporadicamente (encarregado) caía sempre
+  // nesse buraco: 25s de tela morta, ele recarregava achando que travou, e o ciclo recomeçava
+  // do zero, sem nunca chegar ao render. Os dados reais entram por cima quando chegarem.
+  if (_base) { try { render(); } catch(e) {} }
   refreshPresence(); // celular online + bateria (Headwind)
   fetchCartList();   // lista de carrinhos cadastrada no gestor (inclui novos)
   refreshOsStatus(); // em moto / ocioso por mecânico
