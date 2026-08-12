@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v17';
+      const CACHE = 'vammo-gestor-v18';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -2387,6 +2387,18 @@ const ENCARREGADOS_EMAILS = [
   'thiago.santos@vammo.com',
   'adelino.salome@vammo.com'
 ];
+
+// Supervisores de base que TAMBÉM enxergam a aba 📱 Frota Vammo (celulares do Headwind).
+// Por padrão o supervisor não vê essa aba — ela é do gestor central. Esta é a lista de
+// exceções nominais: pra liberar mais alguém, basta somar o e-mail aqui.
+// (Gestor central sempre vê; isto só afeta quem entra com ?role=supervisor.)
+const FROTA_EMAILS = [
+  'ronaldo.oliveira@vammo.com'
+];
+function podeVerFrota() {
+  const e = String(getStoredAuth()?.email || '').toLowerCase().trim();
+  return FROTA_EMAILS.map(x => x.toLowerCase()).includes(e);
+}
 
 // ─── ROLE / SUPERVISOR DE BASE ──────────────────────────────────────────────
 // Modo supervisor: URL ?role=supervisor&base=Mooca → vê só uma base, sem cadastros/dashboard geral
@@ -7763,8 +7775,12 @@ function aplicarRoleSupervisor() {
     badge.textContent = `Supervisor · ${_SUPERVISOR_BASE}`;
     badge.style.display = 'inline-block';
   }
-  // Esconde Configurações e Perfis de Carrinho (colab/links/logs ele vê, mas restrito)
-  ['config','perfis','frota'].forEach(p => {
+  // Esconde Configurações e Perfis de Carrinho (colab/links/logs ele vê, mas restrito).
+  // A Frota Vammo sai da lista para quem estiver em FROTA_EMAILS. A lista é calculada UMA vez
+  // e reusada no bloqueio de navegação lá embaixo — antes as duas eram literais separados, o
+  // que deixava fácil liberar a aba num ponto e continuar bloqueando no outro.
+  const _abasOcultas = podeVerFrota() ? ['config','perfis'] : ['config','perfis','frota'];
+  _abasOcultas.forEach(p => {
     const navEl = document.querySelector(`.nav-item[data-panel="${p}"]`);
     if (navEl) navEl.style.display = 'none';
     const panelEl = document.getElementById('panel-' + p);
@@ -7787,7 +7803,7 @@ function aplicarRoleSupervisor() {
   // Bloqueia navegação direta pras abas escondidas
   const originalShowPanel = window.showPanel;
   window.showPanel = function(id) {
-    if (['config','perfis','frota'].includes(id)) {
+    if (_abasOcultas.includes(id)) {
       id = 'dashboard';
     }
     return originalShowPanel.call(this, id);
