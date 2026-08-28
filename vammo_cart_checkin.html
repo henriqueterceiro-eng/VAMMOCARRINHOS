@@ -36,7 +36,7 @@
 
     // Service Worker inline via Blob
     const _swCode = `
-      const CACHE = 'vammo-cart-v10';
+      const CACHE = 'vammo-cart-v11';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1257,6 +1257,7 @@ function baseDoCarrinho(nome){
   const up = String(nome||'').toUpperCase().replace(/[\s\-_]+/g,'');
   if (up.startsWith('MC')) return 'Mooca';
   if (up.startsWith('OC')) return 'Osasco';
+  if (up.startsWith('SM')) return 'São Mateus';
   if (up.startsWith('SC')) return 'SBC';
   return '';
 }
@@ -1479,7 +1480,7 @@ function normalizeCartName(nome) {
   // Aceita "0C" (zero+C) como alias de "OC" — QR codes impressos com zero em vez de letra O
   let raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
   if (/^0C\d+$/.test(raw)) raw = 'OC' + raw.slice(2);
-  const m = raw.match(/^(MC|OC|SC)(\d+)$/);
+  const m = raw.match(/^(MC|OC|SC|SM)(\d+)$/);
   if (!m) return String(nome || '').trim().toUpperCase();
   return m[1] + ' ' + m[2].padStart(2,'0');
 }

@@ -524,6 +524,7 @@
     <button class="picker-btn" onclick="escolherBase('Mooca')">📍 Base Mooca</button>
     <button class="picker-btn" onclick="escolherBase('Osasco')">📍 Base Osasco</button>
     <button class="picker-btn" onclick="escolherBase('SBC')">📍 Base SBC</button>
+    <button class="picker-btn" onclick="escolherBase('São Mateus')">📍 Base São Mateus</button>
   </div>
 </div>
 
@@ -560,9 +561,9 @@
 
 <script>
 const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
-const BASES = ['Mooca', 'Osasco', 'SBC'];
-const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC' };
-const BASE_COUNT  = { Mooca: 35, Osasco: 50, SBC: 6 };
+const BASES = ['Mooca', 'Osasco', 'SBC', 'São Mateus'];
+const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC', 'São Mateus': 'SM' };
+const BASE_COUNT  = { Mooca: 35, Osasco: 50, SBC: 6, 'São Mateus': 6 };
 
 let _registros = [];
 let _ncsAbertas = [];
@@ -601,7 +602,7 @@ function normalizeCartName(nome) {
   // Aceita "0C" (zero+C) como alias de "OC" — QR codes impressos com zero em vez de letra O
   let raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
   if (/^0C\d+$/.test(raw)) raw = 'OC' + raw.slice(2);
-  const m = raw.match(/^(MC|OC|SC)(\d+)$/);
+  const m = raw.match(/^(MC|OC|SC|SM)(\d+)$/);
   if (!m) return String(nome || '').trim().toUpperCase();
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
