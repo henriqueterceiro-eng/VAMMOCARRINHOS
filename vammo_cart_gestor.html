@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v20';
+      const CACHE = 'vammo-gestor-v21';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1590,6 +1590,7 @@
           <div class="table-head">
             <h2>Status em Tempo Real</h2>
             <div class="spacer"></div>
+            <button class="btn-sm btn-az" onclick="abrirSorteioAuditoria()" title="Sorteia carrinhos aleatórios de todas as bases para fiscalização">🎲 Sortear Auditoria</button>
             <button class="btn-sm btn-outline" onclick="abrirRelatorioNC()" title="Relatório de NCs abertas por base — ferramentas necessárias">📋 Relatório NC</button>
             <button class="btn-sm btn-outline" onclick="abrirBuscaAparelho()" title="Buscar aparelho por IMEI, serial, nome ou e-mail">🔎 Buscar aparelho</button>
             <input type="text" class="search-inp" id="cart-search" placeholder="Filtrar carrinho..." oninput="renderCarrinhos()">
@@ -1977,6 +1978,28 @@
     <div style="display:flex;gap:10px;">
       <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closePedidoModal()">Cancelar</button>
       <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="confirmarPedido()">📦 Registrar Pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Sortear Auditoria (fiscalização aleatória de carrinhos) -->
+<div class="modal-ov hidden" id="modal-sorteio">
+  <div class="modal-box" style="max-width:540px;">
+    <h2 style="margin-bottom:8px;"><button class="modal-close" onclick="closeSorteioModal()">✕</button> 🎲 Sortear Auditoria</h2>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:14px;">Sorteia carrinhos aleatórios de <strong>todas as bases</strong> para fiscalização. O resultado fica registrado no log de auditoria.</div>
+
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:var(--w2);letter-spacing:1.5px;text-transform:uppercase;">Quantidade *</div>
+      <input type="number" id="sorteio-qtd" min="1" value="5" class="select-filt" style="padding:11px 12px;font-size:15px;" onkeydown="if(event.key==='Enter') rodarSorteioAuditoria()">
+    </div>
+    <div id="sorteio-info" style="font-size:12px;color:var(--gr);margin-bottom:12px;">–</div>
+
+    <div id="sorteio-result" style="margin-bottom:14px;"></div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn-sm btn-outline" style="flex:1;padding:12px;" onclick="closeSorteioModal()">Fechar</button>
+      <button class="btn-sm btn-outline" id="sorteio-copy" style="flex:1;padding:12px;display:none;" onclick="copiarSorteio()">📋 Copiar lista</button>
+      <button class="btn-sm btn-az" style="flex:2;padding:12px;font-weight:900;" onclick="rodarSorteioAuditoria()">🎲 Sortear</button>
     </div>
   </div>
 </div>
@@ -4089,6 +4112,62 @@ function confirmForceCheckout() {
     showAlert('cart-alert-box', 'yw', '⚠️ Salvo localmente; servidor pode não ter recebido — tente sincronizar.');
     renderCarrinhos();
   });
+}
+
+// ─── Sorteio de auditoria: sorteia N carrinhos aleatórios (todas as bases visíveis) ───
+let _ultimoSorteio = [];
+function abrirSorteioAuditoria() {
+  _ultimoSorteio = [];
+  const uni = getCarts().filter(c => viewableBases().includes(c.base));
+  document.getElementById('sorteio-info').textContent =
+    `Universo do sorteio: ${uni.length} carrinho(s) cadastrado(s) em ${viewableBases().length} base(s).`;
+  document.getElementById('sorteio-result').innerHTML = '';
+  document.getElementById('sorteio-copy').style.display = 'none';
+  document.getElementById('modal-sorteio').classList.remove('hidden');
+  setTimeout(() => document.getElementById('sorteio-qtd')?.focus(), 50);
+}
+function closeSorteioModal() { document.getElementById('modal-sorteio').classList.add('hidden'); }
+function rodarSorteioAuditoria() {
+  const uni = getCarts().filter(c => viewableBases().includes(c.base));
+  const resEl = document.getElementById('sorteio-result');
+  let n = parseInt(document.getElementById('sorteio-qtd')?.value, 10);
+  if (!n || n < 1) { resEl.innerHTML = '<div style="color:var(--yw);font-size:13px;">⚠ Informe uma quantidade válida.</div>'; return; }
+  if (!uni.length) { resEl.innerHTML = '<div style="color:var(--yw);font-size:13px;">⚠ Nenhum carrinho cadastrado.</div>'; return; }
+  if (n > uni.length) n = uni.length;
+  // Fisher-Yates: embaralha e pega os N primeiros — sem repetição
+  const pool = uni.slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const sorteados = pool.slice(0, n).sort((a,b) => a.base.localeCompare(b.base) || a.nome.localeCompare(b.nome));
+  _ultimoSorteio = sorteados;
+  const porBase = {};
+  sorteados.forEach(c => { (porBase[c.base] = porBase[c.base] || []).push(c.nome); });
+  resEl.innerHTML = `
+    <div style="background:var(--c2);border:1px solid var(--az);border-radius:10px;padding:14px;">
+      <div style="font-size:11px;font-weight:800;color:var(--az);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;">🎲 Sorteados pra fiscalização (${sorteados.length} de ${uni.length})</div>
+      ${Object.keys(porBase).map(b => `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:7px;">
+          <span style="font-size:11px;color:var(--gr);text-transform:uppercase;letter-spacing:1px;font-weight:700;min-width:80px;">${b}</span>
+          ${porBase[b].map(nm => `<span style="background:rgba(46,194,255,.12);border:1px solid var(--az);color:var(--wh);padding:4px 12px;border-radius:6px;font-weight:800;font-size:14px;">${nm}</span>`).join('')}
+        </div>`).join('')}
+    </div>`;
+  document.getElementById('sorteio-copy').style.display = '';
+  // registro de auditoria — o sorteio precisa deixar rastro pra não virar "escolhi na mão"
+  logAcao('sorteio_auditoria', `${sorteados.length} de ${uni.length}: ` + sorteados.map(c => c.nome).join(', '), '');
+}
+function copiarSorteio() {
+  if (!_ultimoSorteio.length) return;
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const txt = `🎲 Auditoria de carrinhos — ${hoje}\n` + _ultimoSorteio.map(c => `- ${c.nome} (${c.base})`).join('\n');
+  const ok = () => showAlert('cart-alert-box', 'gn', '📋 Lista do sorteio copiada!');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(ok, () => {});
+  } else {
+    const ta = document.createElement('textarea'); ta.value = txt;
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); ok();
+  }
 }
 
 // Cadastra o próximo número da sequência da base com 1 clique (ex.: SM 17 existe → cria SM 18).
