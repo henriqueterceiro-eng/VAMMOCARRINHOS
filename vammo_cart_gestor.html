@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v19';
+      const CACHE = 'vammo-gestor-v20';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -3781,7 +3781,10 @@ function renderCarrinhos() {
           : `<span style="color:var(--gr);font-size:13px;">Nenhum carrinho.</span>`;
         return `
           <div style="margin-bottom:14px;">
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gr);letter-spacing:2px;text-transform:uppercase;font-weight:800;margin-bottom:6px;">Base ${b} <span style="color:var(--w2);">(${list.length})</span></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gr);letter-spacing:2px;text-transform:uppercase;font-weight:800;">Base ${b} <span style="color:var(--w2);">(${list.length})</span></div>
+              <button class="btn-sm btn-az" style="padding:2px 10px;font-size:11px;" onclick="addCartSequencial('${b}')" title="Cadastra o próximo número da sequência de ${b}">+ Novo carrinho</button>
+            </div>
             <div class="cart-list-chips">${chipsHtml}</div>
           </div>`;
       }).join('');
@@ -4086,6 +4089,32 @@ function confirmForceCheckout() {
     showAlert('cart-alert-box', 'yw', '⚠️ Salvo localmente; servidor pode não ter recebido — tente sincronizar.');
     renderCarrinhos();
   });
+}
+
+// Cadastra o próximo número da sequência da base com 1 clique (ex.: SM 17 existe → cria SM 18).
+// Olha o MAIOR número já cadastrado do prefixo, não a contagem — buraco na sequência não gera duplicata.
+function addCartSequencial(base) {
+  const pre = BASE_PREFIX[base];
+  if (!pre) return;
+  const carts = getCarts();
+  let max = 0;
+  carts.forEach(c => {
+    const m = normalizeCartName(c.nome).match(/^([A-Z]{2}) (\d+)$/);
+    if (m && m[1] === pre) max = Math.max(max, parseInt(m[2], 10));
+  });
+  const nome = pre + ' ' + String(max + 1).padStart(2, '0');
+  if (carts.some(c => c.nome === nome)) {
+    showAlert('cart-alert-box', 'yw', `⚠️ ${nome} já cadastrado.`);
+    return;
+  }
+  carts.push({ nome, base });
+  carts.sort((a,b) => a.nome.localeCompare(b.nome));
+  saveCarts(carts);
+  pushCartListToGAS();
+  pushCartToGAS(nome, base);
+  _currentBaseTab = base;
+  renderCarrinhos();
+  showAlert('cart-alert-box', 'gn', `✅ Carrinho ${nome} cadastrado em ${base}!`);
 }
 
 function addCart() {
