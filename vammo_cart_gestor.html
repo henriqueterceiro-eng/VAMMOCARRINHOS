@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v22';
+      const CACHE = 'vammo-gestor-v23';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1698,13 +1698,13 @@
         <div class="table-head" style="margin-bottom:14px;">
           <h2>📱 Frota Vammo</h2>
           <div class="spacer"></div>
-          <select class="select-filt" id="frota-filt-base" onchange="renderFrota()" title="Base do celular = base do último carrinho em que ele logou; sem registro, cai na Configuration do Headwind">
+          <select class="select-filt" id="frota-filt-base" onchange="renderFrota()" title="Mostra os celulares cujo mecânico já fez check-in em algum carrinho da base escolhida">
             <option value="">Todas as bases</option>
-            <option value="Mooca">Mooca</option>
-            <option value="Osasco">Osasco</option>
-            <option value="SBC">SBC</option>
-            <option value="São Mateus">São Mateus</option>
-            <option value="__sem">Sem base</option>
+            <option value="Mooca">Check-in em Mooca</option>
+            <option value="Osasco">Check-in em Osasco</option>
+            <option value="SBC">Check-in em SBC</option>
+            <option value="São Mateus">Check-in em São Mateus</option>
+            <option value="__sem">Sem check-in em carrinho</option>
           </select>
           <input type="text" class="search-inp" id="frota-search" placeholder="Filtrar nome / e-mail / IMEI..." oninput="renderFrota()">
           <button class="btn-sm btn-az" onclick="refreshPresence()">🔄 Atualizar</button>
@@ -3358,6 +3358,7 @@ function ncListFromRec(rec) {
 // ─── PRESENÇA (celular online no Headwind) ──────────────────────────────────
 let _presDevices = [];   // [{tokens:[...nome...], online:bool}]
 let _presLoaded  = false;
+let _presErro    = '';   // último erro do action=devices (mostrado na Frota enquanto nada carregou)
 let _presTimer   = null;
 
 function _deburr(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,''); }
@@ -3453,16 +3454,50 @@ function deviceUltimoCarrinho(d){
   return null;
 }
 
-// Base de um celular, para o filtro da Frota. Ordem: (1) base do último carrinho em que ele
-// logou — é onde o aparelho de fato trabalha; (2) Configuration do Headwind, que só existe
-// para Mooca e Osasco (SBC e São Mateus não têm config própria). Sem nenhum dos dois: ''.
-const HEADWIND_CONFIG_BASE = { 10: 'Mooca', 2: 'Osasco' };
+// Bases em que cada mecânico já fez CHECK-IN em carrinho, a partir dos registros locais:
+// e-mail -> { base: ts do check-in mais recente naquela base }. É a regra do filtro da Frota
+// ("celulares que fizeram check-in em algum carrinho da base"), pedida pelo Terceiro em 15/09.
+// Só conta tipo 'checkin' (reposição/ajuste/checkout não dizem onde a pessoa trabalha).
+let _basesCheckinCache = { chave: '', mapa: null };
+function _basesCheckinPorMecanico(){
+  const recs = getRecords();
+  const chave = recs.length + '|' + (recs[0] && recs[0].ts || '');
+  if (_basesCheckinCache.chave === chave && _basesCheckinCache.mapa) return _basesCheckinCache.mapa;
+  // base por carrinho resolvida UMA vez (getCartBase relê o localStorage a cada chamada)
+  const baseDoCarrinho = {};
+  getCarts().forEach(c => { baseDoCarrinho[normalizeCartName(c.nome)] = c.base; });
+  const mapa = {};
+  recs.forEach(r => {
+    if (r.tipo !== 'checkin' || !r.carrinho) return;
+    const m = String(r.mecanico || '').toLowerCase().trim();
+    if (!m) return;
+    const b = baseDoCarrinho[normalizeCartName(r.carrinho)] || inferBaseFromName(r.carrinho);
+    if (!b) return;
+    const ts = String(r.ts || '');
+    if (!mapa[m]) mapa[m] = {};
+    if (!mapa[m][b] || ts > mapa[m][b]) mapa[m][b] = ts;
+  });
+  _basesCheckinCache = { chave, mapa };
+  return mapa;
+}
+// Qual e-mail de mecânico (chave de `mapa`) corresponde ao aparelho: o e-mail cadastrado no
+// Headwind ou, sem ele, o NOME do aparelho casado com o e-mail (mesma regra do deviceUltimoCarrinho).
+function _chaveMecanicoDoDevice(d, mapa){
+  if (d.email && mapa[d.email]) return d.email;
+  const dt = d.tokens || [];
+  if (dt.length < 2) return null;
+  const first = dt[0], last = dt[dt.length-1];
+  for (const em in mapa){ const et = _nameTokens(em); if (et.length >= 2 && et[0] === first && et[et.length-1] === last) return em; }
+  for (const em in mapa){ const et = _nameTokens(em); if (et.length >= 2 && _close(et[0], first) && _close(et[et.length-1], last) ) return em; }
+  return null;
+}
+// Bases do celular (onde o dono já fez check-in), da mais recente pra mais antiga.
 function deviceBase(d){
-  const uc = deviceUltimoCarrinho(d);
-  if (uc) { const b = getCartBase(uc.carrinho); if (b) return { base: b, fonte: 'carrinho', uc }; }
-  const b = HEADWIND_CONFIG_BASE[d.configId];
-  if (b) return { base: b, fonte: 'config', uc };
-  return { base: '', fonte: '', uc };
+  const mapa = _basesCheckinPorMecanico();
+  const k = _chaveMecanicoDoDevice(d, mapa);
+  const porBase = k ? mapa[k] : {};
+  const bases = Object.keys(porBase).sort((a, b) => String(porBase[b]).localeCompare(String(porBase[a])));
+  return { bases, porBase, uc: deviceUltimoCarrinho(d) };
 }
 
 // Mapa da posição do último ping. Sem biblioteca: iframe do OpenStreetMap com marcador.
@@ -3502,7 +3537,13 @@ function refreshPresence(){
   const cfg = getConfig();
   if (!cfg.presenceUrl) return;
   gasGet(cfg.presenceUrl, 'action=devices', (data, err) => {
-    if (err || !data || !data.ok || !Array.isArray(data.devices)) return;
+    if (err || !data || !data.ok || !Array.isArray(data.devices)) {
+      // Guarda o motivo pra Frota mostrar em vez de ficar em "Carregando…" pra sempre
+      // (15/09: Headwind com login travado -> GAS devolvia ok:false e ninguém via nada).
+      _presErro = err || (data && data.error) || 'resposta inesperada do serviço de presença';
+      try { if (!_presLoaded && document.getElementById('panel-frota')?.classList.contains('active')) renderFrota(); } catch(e){}
+      return;
+    }
     _presDevices = data.devices.map(d => ({ tokens: _nameTokens(d.number), number: d.number || '', online: !!d.online, battery: (typeof d.battery === 'number' ? d.battery : null), email: (d.email || '').toLowerCase().trim(), serial: d.serial || '', imei: d.imei || '', lastUpdate: d.lastUpdate || 0,
       // Posição do último ping. Vem do LOG do plugin devicelog do Headwind (o agente registra
       // "GPS location update: lat=..., lon=..." a cada minuto) — não do deviceInfo, que nesta
@@ -3510,9 +3551,9 @@ function refreshPresence(){
       lat: (typeof d.lat === 'number') ? d.lat : null, lon: (typeof d.lon === 'number') ? d.lon : null,
       locTs: d.locTs || 0, locFonte: d.locFonte || '',
       // Configuration do Headwind em que o aparelho está (10 = Mecânicos Mooca, 2 = Mecânicos Osasco).
-      // Serve de base "reserva" no filtro da Frota quando o celular nunca logou num carrinho.
       configId: (d.configId != null) ? d.configId : null }));
     _presLoaded = true;
+    _presErro = '';
     try { renderCarrinhos(); } catch(e){}
     try { if (document.getElementById('panel-frota')?.classList.contains('active')) renderFrota(); } catch(e){}
   });
@@ -3522,7 +3563,18 @@ function refreshPresence(){
 function renderFrota(){
   const body = document.getElementById('frota-body');
   if (!body) return;
-  if (!_presLoaded) { body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando frota do Headwind…</div>'; return; }
+  if (!_presLoaded) {
+    body.innerHTML = _presErro
+      ? `<div style="margin:10px 0;padding:16px 18px;border:1px solid var(--yw);border-radius:8px;background:rgba(245,158,11,.08);font-size:13px;color:var(--w2);line-height:1.6;">
+           <strong style="color:var(--yw);">⚠ Não consegui carregar a frota do Headwind.</strong><br>
+           <span style="font-family:monospace;font-size:11.5px;color:var(--gr);">${String(_presErro).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]))}</span><br>
+           Quase sempre é o <strong>servidor do Headwind</strong> lento ou fora (o login dele não responde). Os carrinhos e
+           registros continuam funcionando; só esta aba depende dele. Tento de novo sozinho a cada minuto.
+           <div style="margin-top:10px;"><button class="btn-sm btn-az" onclick="_presErro='';renderFrota();refreshPresence();">🔄 Tentar agora</button></div>
+         </div>`
+      : '<div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando frota do Headwind…</div>';
+    return;
+  }
   // Filtro por base. O supervisor já entra na própria base (pode trocar); o gestor vê todas.
   const selBase = document.getElementById('frota-filt-base');
   if (selBase && !renderFrota._baseInit) {
@@ -3531,8 +3583,8 @@ function renderFrota(){
   }
   const fb = selBase ? selBase.value : '';
   const todos = (_presDevices || []).map(d => Object.assign({}, d, { _b: deviceBase(d) }));
-  const devs = todos.filter(d => !fb || (fb === '__sem' ? !d._b.base : d._b.base === fb));
-  const subFrota = !fb ? 'na frota (Headwind)' : (fb === '__sem' ? `sem base definida · ${todos.length} no total` : `em ${fb} · ${todos.length} no total`);
+  const devs = todos.filter(d => !fb || (fb === '__sem' ? d._b.bases.length === 0 : d._b.bases.includes(fb)));
+  const subFrota = !fb ? 'na frota (Headwind)' : (fb === '__sem' ? `sem check-in em carrinho · ${todos.length} no total` : `com check-in em ${fb} · ${todos.length} no total`);
   const online = devs.filter(d => d.online).length;
   const semDono = devs.filter(d => !d.email).length;
   const stats = `<div class="stat-grid" style="margin-bottom:18px;">
@@ -3552,9 +3604,12 @@ function renderFrota(){
   const comPos = todos.filter(d => d.lat != null).length;
   const rows = filt.map(d => {
     const uc = d._b.uc;
-    const baseHtml = d._b.base
-      ? `<strong style="color:var(--wh);">${d._b.base}</strong>${d._b.fonte === 'config' ? '<div style="font-size:10px;color:var(--gr);" title="Nunca logou num carrinho; base tirada da Configuration do Headwind">via Headwind</div>' : ''}`
-      : '<span style="color:var(--gr);" title="Sem carrinho logado e sem Configuration conhecida">—</span>';
+    // Todas as bases com check-in, a mais recente em destaque. Com filtro, mostra há quanto tempo
+    // foi o último check-in NAQUELA base.
+    const baseHtml = d._b.bases.length
+      ? d._b.bases.map((b, i) => i === 0 ? `<strong style="color:var(--wh);">${b}</strong>` : `<span style="color:var(--w2);">${b}</span>`).join('<span style="color:var(--gr);"> · </span>')
+        + (fb && fb !== '__sem' && d._b.porBase[fb] ? `<div style="font-size:10px;color:var(--gr);">check-in ${fmtSync(Date.parse(d._b.porBase[fb]))} atrás</div>` : '')
+      : '<span style="color:var(--gr);" title="Nenhum check-in em carrinho encontrado para o dono deste aparelho">—</span>';
     const ucHtml = uc
       ? `<strong style="color:var(--wh);">${normalizeCartName(uc.carrinho)}</strong>
          <span style="color:var(--gr);font-size:11px;">· ${getCartBase(uc.carrinho)}</span><br>
