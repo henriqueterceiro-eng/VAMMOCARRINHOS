@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v23';
+      const CACHE = 'vammo-gestor-v24';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1705,6 +1705,10 @@
             <option value="SBC">Check-in em SBC</option>
             <option value="São Mateus">Check-in em São Mateus</option>
             <option value="__sem">Sem check-in em carrinho</option>
+          </select>
+          <select class="select-filt" id="frota-sort" onchange="renderFrota()" title="Ordem da lista">
+            <option value="online">Online primeiro</option>
+            <option value="checkin">Check-in mais recente</option>
           </select>
           <input type="text" class="search-inp" id="frota-search" placeholder="Filtrar nome / e-mail / IMEI..." oninput="renderFrota()">
           <button class="btn-sm btn-az" onclick="refreshPresence()">🔄 Atualizar</button>
@@ -3427,11 +3431,17 @@ function _ultimoRegistroPorMecanico(){
   const chave = recs.length + '|' + (recs[0] && recs[0].ts || '');
   if (_ultCarrinhoCache.chave === chave && _ultCarrinhoCache.mapa) return _ultCarrinhoCache.mapa;
   const mapa = {};
+  // Por mecânico: o último registro de QUALQUER tipo (diz se ainda está logado) e, à parte, o último
+  // CHECK-IN (ciTs/ciCarrinho). Pedido do Terceiro em 15/09: "quero saber os últimos check-ins e não
+  // somente os que estão online no carrinho" — quem já saiu continua com o horário em que entrou.
   recs.forEach(r => {
     const m = String(r.mecanico || '').toLowerCase().trim();
     if (!m || !r.carrinho) return;
     const ts = String(r.ts || '');
-    if (!mapa[m] || ts > mapa[m].ts) mapa[m] = { ts, carrinho: r.carrinho, tipo: r.tipo || '' };
+    if (!mapa[m]) mapa[m] = { ts: '', carrinho: '', tipo: '', ciTs: '', ciCarrinho: '' };
+    const e = mapa[m];
+    if (ts > e.ts) { e.ts = ts; e.carrinho = r.carrinho; e.tipo = r.tipo || ''; }
+    if (r.tipo === 'checkin' && ts > e.ciTs) { e.ciTs = ts; e.ciCarrinho = r.carrinho; }
   });
   _ultCarrinhoCache = { chave, mapa };
   return mapa;
@@ -3595,7 +3605,14 @@ function renderFrota(){
   </div>`;
   const q = (document.getElementById('frota-search')?.value || '').toLowerCase().trim();
   let filt = devs.filter(d => !q || (String(d.number)+' '+String(d.email)+' '+String(d.imei)).toLowerCase().includes(q));
-  filt.sort((a,b) => (b.online?1:0)-(a.online?1:0) || String(a.email||a.number).localeCompare(String(b.email||b.number)));
+  const ordem = (document.getElementById('frota-sort') || {}).value || 'online';
+  if (ordem === 'checkin') {
+    // check-in mais recente primeiro; quem nunca fez check-in vai pro fim
+    const ci = d => (d._b.uc && d._b.uc.ciTs) ? Date.parse(d._b.uc.ciTs) : 0;
+    filt.sort((a,b) => ci(b) - ci(a) || (b.online?1:0)-(a.online?1:0) || String(a.email||a.number).localeCompare(String(b.email||b.number)));
+  } else {
+    filt.sort((a,b) => (b.online?1:0)-(a.online?1:0) || String(a.email||a.number).localeCompare(String(b.email||b.number)));
+  }
   const fmtSync = (ms) => { if(!ms) return '—'; const min=Math.floor((Date.now()-ms)/60000); if(min<1)return 'agora'; if(min<60)return min+'min'; const h=Math.floor(min/60); if(h<24)return h+'h'; return Math.floor(h/24)+'d'; };
   const td = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;';
   const fmtHora = (ms) => ms ? new Date(ms).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
@@ -3610,11 +3627,25 @@ function renderFrota(){
       ? d._b.bases.map((b, i) => i === 0 ? `<strong style="color:var(--wh);">${b}</strong>` : `<span style="color:var(--w2);">${b}</span>`).join('<span style="color:var(--gr);"> · </span>')
         + (fb && fb !== '__sem' && d._b.porBase[fb] ? `<div style="font-size:10px;color:var(--gr);">check-in ${fmtSync(Date.parse(d._b.porBase[fb]))} atrás</div>` : '')
       : '<span style="color:var(--gr);" title="Nenhum check-in em carrinho encontrado para o dono deste aparelho">—</span>';
-    const ucHtml = uc
-      ? `<strong style="color:var(--wh);">${normalizeCartName(uc.carrinho)}</strong>
+    // Último CHECK-IN do dono do aparelho (com data/hora), esteja ele logado ou não. Abaixo, a
+    // situação de agora: ainda no carrinho, ou saiu há quanto tempo (último registro de saída).
+    let ucHtml = '<span style="color:var(--gr);" title="O dono deste aparelho nunca fez check-in em carrinho">—</span>';
+    if (uc && uc.ciTs) {
+      const ciMs = Date.parse(uc.ciTs);
+      const aindaLogado = uc.tipo === 'checkin' && normalizeCartName(uc.carrinho) === normalizeCartName(uc.ciCarrinho);
+      const agora = aindaLogado
+        ? `<span style="color:#22c55e;font-weight:700;">● ainda logado</span>`
+        : `<span style="color:var(--gr);">○ saiu ${fmtSync(Date.parse(uc.ts))} atrás</span>`;
+      ucHtml = `<strong style="color:var(--wh);">${normalizeCartName(uc.ciCarrinho)}</strong>
+         <span style="color:var(--gr);font-size:11px;">· ${getCartBase(uc.ciCarrinho)}</span><br>
+         <span style="color:var(--w2);font-size:11px;" title="${fmtHora(ciMs)}">check-in ${fmtHora(ciMs)} <span style="color:var(--gr);">(${fmtSync(ciMs)} atrás)</span></span><br>
+         <span style="font-size:11px;">${agora}</span>`;
+    } else if (uc) {
+      // só registros de saída/ajuste no histórico local (check-in ficou fora da janela sincronizada)
+      ucHtml = `<strong style="color:var(--wh);">${normalizeCartName(uc.carrinho)}</strong>
          <span style="color:var(--gr);font-size:11px;">· ${getCartBase(uc.carrinho)}</span><br>
-         <span style="color:var(--gr);font-size:11px;">${uc.tipo === 'checkin' ? 'entrou' : 'saiu'} ${fmtSync(Date.parse(uc.ts))} atrás</span>`
-      : '<span style="color:var(--gr);">—</span>';
+         <span style="color:var(--gr);font-size:11px;">saiu ${fmtSync(Date.parse(uc.ts))} atrás · check-in fora do histórico local</span>`;
+    }
     const pos = (d.lat != null)
       ? `<button class="btn-sm btn-outline" style="padding:3px 9px;font-size:11px;" title="Ver no mapa onde foi o último ping" onclick="abrirMapaPing(${JSON.stringify(String(d.number)).replace(/"/g,'&quot;')})">📍 mapa</button>
          <div style="font-size:10px;color:var(--gr);margin-top:3px;">${d.locFonte || ''} · ${fmtSync(d.locTs)}</div>`
@@ -3640,7 +3671,7 @@ function renderFrota(){
        </div>`;
   body.innerHTML = stats + avisoPos + `<div class="table-wrap"><div class="table-head"><h2>Aparelhos (${filt.length})</h2></div>
     <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
-      <thead><tr>${['Status','Aparelho','Base','Dono (e-mail)','IMEI','Bat.','Últ. ping','Posição','Últ. carrinho logado'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
+      <thead><tr>${['Status','Aparelho','Base','Dono (e-mail)','IMEI','Bat.','Últ. ping','Posição','Último check-in'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
       <tbody>${rows || '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gr);">Nenhum aparelho' + (fb ? ' nessa base' : '') + '.</td></tr>'}</tbody>
     </table></div></div>`;
 }
