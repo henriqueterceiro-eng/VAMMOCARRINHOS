@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v21';
+      const CACHE = 'vammo-gestor-v22';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1698,6 +1698,14 @@
         <div class="table-head" style="margin-bottom:14px;">
           <h2>📱 Frota Vammo</h2>
           <div class="spacer"></div>
+          <select class="select-filt" id="frota-filt-base" onchange="renderFrota()" title="Base do celular = base do último carrinho em que ele logou; sem registro, cai na Configuration do Headwind">
+            <option value="">Todas as bases</option>
+            <option value="Mooca">Mooca</option>
+            <option value="Osasco">Osasco</option>
+            <option value="SBC">SBC</option>
+            <option value="São Mateus">São Mateus</option>
+            <option value="__sem">Sem base</option>
+          </select>
           <input type="text" class="search-inp" id="frota-search" placeholder="Filtrar nome / e-mail / IMEI..." oninput="renderFrota()">
           <button class="btn-sm btn-az" onclick="refreshPresence()">🔄 Atualizar</button>
         </div>
@@ -3445,6 +3453,18 @@ function deviceUltimoCarrinho(d){
   return null;
 }
 
+// Base de um celular, para o filtro da Frota. Ordem: (1) base do último carrinho em que ele
+// logou — é onde o aparelho de fato trabalha; (2) Configuration do Headwind, que só existe
+// para Mooca e Osasco (SBC e São Mateus não têm config própria). Sem nenhum dos dois: ''.
+const HEADWIND_CONFIG_BASE = { 10: 'Mooca', 2: 'Osasco' };
+function deviceBase(d){
+  const uc = deviceUltimoCarrinho(d);
+  if (uc) { const b = getCartBase(uc.carrinho); if (b) return { base: b, fonte: 'carrinho', uc }; }
+  const b = HEADWIND_CONFIG_BASE[d.configId];
+  if (b) return { base: b, fonte: 'config', uc };
+  return { base: '', fonte: '', uc };
+}
+
 // Mapa da posição do último ping. Sem biblioteca: iframe do OpenStreetMap com marcador.
 function abrirMapaPing(numero){
   const d = (_presDevices || []).find(x => String(x.number) === String(numero));
@@ -3488,7 +3508,10 @@ function refreshPresence(){
       // "GPS location update: lat=..., lon=..." a cada minuto) — não do deviceInfo, que nesta
       // instalação traz `location` sempre nulo. locFonte = 'GPS' (preciso) ou 'Rede' (torre/wifi).
       lat: (typeof d.lat === 'number') ? d.lat : null, lon: (typeof d.lon === 'number') ? d.lon : null,
-      locTs: d.locTs || 0, locFonte: d.locFonte || '' }));
+      locTs: d.locTs || 0, locFonte: d.locFonte || '',
+      // Configuration do Headwind em que o aparelho está (10 = Mecânicos Mooca, 2 = Mecânicos Osasco).
+      // Serve de base "reserva" no filtro da Frota quando o celular nunca logou num carrinho.
+      configId: (d.configId != null) ? d.configId : null }));
     _presLoaded = true;
     try { renderCarrinhos(); } catch(e){}
     try { if (document.getElementById('panel-frota')?.classList.contains('active')) renderFrota(); } catch(e){}
@@ -3500,11 +3523,20 @@ function renderFrota(){
   const body = document.getElementById('frota-body');
   if (!body) return;
   if (!_presLoaded) { body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--gr);font-size:13px;">⏳ Carregando frota do Headwind…</div>'; return; }
-  const devs = (_presDevices || []).slice();
+  // Filtro por base. O supervisor já entra na própria base (pode trocar); o gestor vê todas.
+  const selBase = document.getElementById('frota-filt-base');
+  if (selBase && !renderFrota._baseInit) {
+    renderFrota._baseInit = true;
+    try { if (isSupervisor() && BASES.includes(_SUPERVISOR_BASE)) selBase.value = _SUPERVISOR_BASE; } catch(e){}
+  }
+  const fb = selBase ? selBase.value : '';
+  const todos = (_presDevices || []).map(d => Object.assign({}, d, { _b: deviceBase(d) }));
+  const devs = todos.filter(d => !fb || (fb === '__sem' ? !d._b.base : d._b.base === fb));
+  const subFrota = !fb ? 'na frota (Headwind)' : (fb === '__sem' ? `sem base definida · ${todos.length} no total` : `em ${fb} · ${todos.length} no total`);
   const online = devs.filter(d => d.online).length;
   const semDono = devs.filter(d => !d.email).length;
   const stats = `<div class="stat-grid" style="margin-bottom:18px;">
-    <div class="stat-card"><div class="sc-label">Celulares Vammo</div><div class="sc-num sc-az">${devs.length}</div><div class="sc-sub">na frota (Headwind)</div></div>
+    <div class="stat-card"><div class="sc-label">Celulares Vammo</div><div class="sc-num sc-az">${devs.length}</div><div class="sc-sub">${subFrota}</div></div>
     <div class="stat-card"><div class="sc-label">Online agora</div><div class="sc-num sc-gn">${online}</div><div class="sc-sub">conectados</div></div>
     <div class="stat-card"><div class="sc-label">Offline</div><div class="sc-num">${devs.length - online}</div><div class="sc-sub">sem sync recente</div></div>
     <div class="stat-card" ${semDono?'style="border-color:var(--yw);"':''}><div class="sc-label">Sem dono</div><div class="sc-num ${semDono?'sc-yw':''}">${semDono}</div><div class="sc-sub">sem e-mail na descrição</div></div>
@@ -3515,9 +3547,14 @@ function renderFrota(){
   const fmtSync = (ms) => { if(!ms) return '—'; const min=Math.floor((Date.now()-ms)/60000); if(min<1)return 'agora'; if(min<60)return min+'min'; const h=Math.floor(min/60); if(h<24)return h+'h'; return Math.floor(h/24)+'d'; };
   const td = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;';
   const fmtHora = (ms) => ms ? new Date(ms).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
-  const comPos = devs.filter(d => d.lat != null).length;
+  // Conta sobre a frota INTEIRA (todos), não a filtrada: o aviso é sobre o plugin do Headwind,
+  // e filtrar uma base sem aparelho com posição não pode disparar alarme falso.
+  const comPos = todos.filter(d => d.lat != null).length;
   const rows = filt.map(d => {
-    const uc = deviceUltimoCarrinho(d);
+    const uc = d._b.uc;
+    const baseHtml = d._b.base
+      ? `<strong style="color:var(--wh);">${d._b.base}</strong>${d._b.fonte === 'config' ? '<div style="font-size:10px;color:var(--gr);" title="Nunca logou num carrinho; base tirada da Configuration do Headwind">via Headwind</div>' : ''}`
+      : '<span style="color:var(--gr);" title="Sem carrinho logado e sem Configuration conhecida">—</span>';
     const ucHtml = uc
       ? `<strong style="color:var(--wh);">${normalizeCartName(uc.carrinho)}</strong>
          <span style="color:var(--gr);font-size:11px;">· ${getCartBase(uc.carrinho)}</span><br>
@@ -3530,6 +3567,7 @@ function renderFrota(){
     return `<tr>
     <td style="${td}white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${d.online?'#22c55e':'#ef4444'};margin-right:7px;box-shadow:${d.online?'0 0 6px #22c55e':'none'};"></span>${d.online?'online':'offline'}</td>
     <td style="${td}font-weight:700;color:var(--wh);">${d.number || '—'}</td>
+    <td style="${td}white-space:nowrap;">${baseHtml}</td>
     <td style="${td}">${d.email ? d.email : '<span style="color:var(--yw);font-weight:700;">⚠ sem dono</span>'}</td>
     <td style="${td}font-family:monospace;font-size:11px;color:var(--w2);">${d.imei || '—'}</td>
     <td style="${td}text-align:center;">${d.battery != null ? d.battery+'%' : '—'}</td>
@@ -3543,12 +3581,12 @@ function renderFrota(){
          Headwind — confira se o plugin está ativo e se a Configuration está com "Rastreamento de localização = GPS".
        </div>`
     : `<div style="margin-bottom:14px;font-size:11.5px;color:var(--gr);">
-         📍 ${comPos} de ${devs.length} aparelhos reportando posição · origem: log do Headwind (atualiza a cada ~1min)
+         📍 ${comPos} de ${todos.length} aparelhos reportando posição · origem: log do Headwind (atualiza a cada ~1min)
        </div>`;
   body.innerHTML = stats + avisoPos + `<div class="table-wrap"><div class="table-head"><h2>Aparelhos (${filt.length})</h2></div>
     <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
-      <thead><tr>${['Status','Aparelho','Dono (e-mail)','IMEI','Bat.','Últ. ping','Posição','Últ. carrinho logado'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
-      <tbody>${rows || '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--gr);">Nenhum aparelho.</td></tr>'}</tbody>
+      <thead><tr>${['Status','Aparelho','Base','Dono (e-mail)','IMEI','Bat.','Últ. ping','Posição','Últ. carrinho logado'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows || '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gr);">Nenhum aparelho' + (fb ? ' nessa base' : '') + '.</td></tr>'}</tbody>
     </table></div></div>`;
 }
 
