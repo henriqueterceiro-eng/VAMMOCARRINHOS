@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v24';
+      const CACHE = 'vammo-gestor-v25';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -2375,7 +2375,7 @@ function saveConfig(c) { localStorage.setItem('vammo_config', JSON.stringify(c))
 // ─── BASES ────────────────────────────────────────────────────────────────────
 // ─── AUTH (Google Sign-In) ─────────────────────────────────────────────────
 const GOOGLE_CLIENT_ID = '662702497307-qom2jv0sboe0n4686jsaisftov6bqrep.apps.googleusercontent.com';
-const GESTOR_EMAILS = ['henrique.terceiro@vammo.com','marcelo@vammo.com','joao.chalela@vammo.com'];
+const GESTOR_EMAILS = ['henrique.terceiro@vammo.com','marcelo@vammo.com','joao.chalela@vammo.com','isabelle.gomes@vammo.com'];
 function getSupervisorEmails() {
   try { return JSON.parse(localStorage.getItem('vammo_supervisor_emails')) || {}; } catch { return {}; }
 }
