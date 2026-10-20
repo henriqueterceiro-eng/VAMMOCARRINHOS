@@ -36,7 +36,7 @@
 
     // Service Worker inline via Blob
     const _swCode = `
-      const CACHE = 'vammo-cart-v11';
+      const CACHE = 'vammo-cart-v12';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -951,6 +951,7 @@
         <div>
           <div class="cart-lbl">Carrinho identificado</div>
           <div class="cart-num" id="cart-num-display">–</div>
+          <div id="cart-perfil-display" style="font-size:13px;opacity:.75;margin-top:2px;"></div>
         </div>
         <div style="margin-left:auto; font-size:32px">✅</div>
       </div>
@@ -1131,11 +1132,46 @@ const TOOLS_FULL = [
 // Catálogo ativo do check-in = perfil do carrinho (default = catálogo completo "Mecânico")
 let TOOLS = TOOLS_FULL;
 // ─── PERFIS DE CARRINHO (config vem do servidor; Mecânico = catálogo completo) ──
-let _perfisCfg = null; // { perfis: {Diagnóstico:[...], Qualidade:[...]}, carrinhos: {cart: perfil} }
 // Perfis ficam no serviço de presença (mesma URL do gestor)
 const PERFIS_URL = 'https://script.google.com/macros/s/AKfycbz-yRCeTwX-zxgUVSTAdaRe6ILlnkYgasqBK_lrTMoDFrRnatFQl7YLSYoHZ774ekmIlA/exec';
-function fetchPerfis() {
-  gasGet(PERFIS_URL, 'action=perfisGet', (d) => { if (d && d.ok && d.config) _perfisCfg = d.config; });
+// ⚠️ 20/10: o perfil era buscado UMA vez, ao abrir o app, sem cache e sem nova tentativa. O celular da base fica com o app
+// aberto o dia todo → perfil trocado no gestor depois disso nunca chegava, e uma falha dessa única leitura (GAS frio > 25 s,
+// sinal ruim) caía em "Mecânico" a sessão inteira. Caso real: SC 13 (Diagnóstico) e SC 14 (Qualidade) em SBC pedindo o
+// checklist de rampa com o perfil CERTO gravado no servidor. Agora: cache local → busca de novo a CADA carrinho escaneado
+// → nova tentativa se falhar → atualização a cada 5 min.
+const PERFIS_LS = 'vammo_perfis_cfg';
+let _perfisCfg = (function () { try { const c = JSON.parse(localStorage.getItem(PERFIS_LS) || 'null'); return c && c.config ? c.config : null; } catch { return null; } })();
+let _perfisTentativa = 0;
+function fetchPerfis(cb) {
+  gasGet(PERFIS_URL, 'action=perfisGet&_=' + Date.now(), (d) => {
+    if (d && d.ok && d.config) {
+      _perfisCfg = d.config; _perfisTentativa = 0;
+      try { localStorage.setItem(PERFIS_LS, JSON.stringify({ ts: Date.now(), config: d.config })); } catch (e) {}
+    } else if (_perfisTentativa++ < 3) {
+      setTimeout(() => fetchPerfis(), 10000);   // falhou: tenta de novo em 10 s (até 3×); o cache segura enquanto isso
+    }
+    if (cb) cb(!!(d && d.ok && d.config));
+  });
+}
+setInterval(() => fetchPerfis(), 5 * 60 * 1000);   // app aberto o dia todo: perfil novo do gestor chega em até 5 min
+// Ao escanear um carrinho: aplica o perfil que já tem e busca o atual; se mudou e o checklist ainda não começou, troca.
+function atualizaPerfilDoCarrinho(cart) {
+  mostraPerfil(cart);
+  fetchPerfis(() => {
+    if (S.carrinho !== cart) return;
+    const antes = TOOLS;
+    aplicarPerfilCarrinho(cart);
+    mostraPerfil(cart);
+    const comecou = Object.values(S.ferramentas || {}).some((f) => f && f.status);
+    if (TOOLS !== antes && !comecou && document.getElementById('screen-checklist') &&
+        document.getElementById('screen-checklist').classList.contains('active') && typeof renderChecklist === 'function') renderChecklist();
+  });
+}
+function mostraPerfil(cart) {
+  const el = document.getElementById('cart-perfil-display');
+  if (!el) return;
+  const p = getCartPerfil(cart);
+  el.textContent = _perfisCfg ? 'Perfil: ' + p : 'Perfil: carregando…';
 }
 function _manualUrl() {
   const cfg = (function(){ try { return JSON.parse(localStorage.getItem('vammo_config')) || {}; } catch { return {}; } })();
@@ -1592,6 +1628,7 @@ function resetScan() {
 function setCart(num) {
   S.carrinho = normalizeCartName(num); // garante formato canônico
   aplicarPerfilCarrinho(S.carrinho);   // checklist = ferramentas do perfil do carrinho
+  atualizaPerfilDoCarrinho(S.carrinho); // e confere no servidor (perfil trocado no gestor vale já neste scan)
   S.cartLocked = false; // reseta status
   S.cartChecking = false;
   document.getElementById('cart-num-display').textContent = S.carrinho;
