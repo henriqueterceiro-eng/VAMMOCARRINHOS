@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v25';
+      const CACHE = 'vammo-gestor-v26';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -3879,10 +3879,35 @@ function osBadgeHtml(mec, cartTs){
   return '<div class="ccv-os idle" title="Sem moto em andamento">💤 Ocioso<span class="ccv-os-t">há '+fmtElapsedMs(sinceMs)+'</span></div>';
 }
 
+// Último check-in/checkout de cada carrinho segundo o SERVIDOR (registrosRange, 45 dias, só metadados).
+// O histórico local (vammo_registros) é podado pela quota do localStorage e pode ficar atrasado: o
+// supervisor via "Sem registro" num carrinho que o servidor dava como ocupado — e sem card "Logado"
+// não aparece o Forçar checkout, então ninguém destravava (MC 05/09/19 Mooca presos de 06/10 a 27/10). (fix)
+let _serverLastByCart = {};
+function syncServerLastFromGAS() {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  const dia = d => d.toISOString().slice(0, 10);
+  const ini = dia(new Date(Date.now() - 45 * 864e5)), fim = dia(new Date(Date.now() + 864e5));
+  gasGet(cfg.webhookUrl, 'action=registrosRange&ini=' + ini + '&fim=' + fim + '&_=' + Date.now(), (d, err) => {
+    if (err || !d || !Array.isArray(d.regs)) return; // falhou: fica com o último mapa (ou só o local)
+    const m = {};
+    d.regs.forEach(r => {
+      const k = normalizeCartName(r.carrinho);
+      if (k && (!m[k] || (Date.parse(r.ts) || 0) >= (Date.parse(m[k].ts) || 0))) m[k] = r;
+    });
+    _serverLastByCart = m;
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
+  });
+}
+
 function computeCartState(nome, recs) {
   const nameN = normalizeCartName(nome);
   // último registro (compara normalizado pra casar "MC01" com "MC 01")
-  const last = recs.find(r => normalizeCartName(r.carrinho) === nameN);
+  let last = recs.find(r => normalizeCartName(r.carrinho) === nameN);
+  // o do servidor vale quando é mais novo que o local (ou o local nem tem o carrinho)
+  const srv = _serverLastByCart[nameN];
+  if (srv && (!last || (Date.parse(srv.ts) || 0) > (Date.parse(last.ts) || 0))) last = srv;
   let status = 'sem-reg';
   if (last) status = last.tipo === 'checkin' ? 'logado' : 'deslogado';
 
@@ -4032,7 +4057,7 @@ function renderCarrinhos() {
       // recId pro click: prioriza último COM fotos (skip force-checkouts), fallback no último em si
       const nameN = normalizeCartName(c.nome);
       const lastComFotos = recs.find(r => normalizeCartName(r.carrinho) === nameN && r.fotos && ['sup','inf','elv'].some(k => typeof r.fotos[k] === 'string' && r.fotos[k]));
-      const recIdAttr = (lastComFotos && lastComFotos.id) || (st.last ? st.last.id : '');
+      const recIdAttr = (lastComFotos && lastComFotos.id) || (st.last && st.last.id) || ''; // registro do servidor não tem id
       const forceBtn = st.status === 'logado'
         ? `<button class="cart-force-btn" onclick="event.stopPropagation(); forcarCheckout('${c.nome}', '${mec.replace(/'/g,'')}')" title="Forçar checkout">🔓 Forçar checkout</button>`
         : '';
@@ -4098,8 +4123,12 @@ function openCartDetail(nome, recId) {
   const recs = getRecords();
   const st = computeCartState(nome, recs);
   const nomeEsc = String(nome || '').replace(/'/g,'');
+  // Sem registro local mas com registro no servidor (fotos não vêm no registrosRange): mostra o último
+  const ultTxt = st.last
+    ? `Último: ${st.last.tipo === 'checkin' ? 'check-in' : 'checkout'} · ${st.last.mecanico || '—'} · ${new Date(st.last.ts).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}`
+    : 'Sem registros ainda';
   let html = `<h3 style="font-family:'Barlow Condensed',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">Carrinho ${nome}</h3>
-    <div style="color:var(--gr);font-size:13px;margin-bottom:12px;">Base ${getCartBase(nome)} · Sem registros ainda</div>
+    <div style="color:var(--gr);font-size:13px;margin-bottom:12px;">Base ${getCartBase(nome)} · ${ultTxt}</div>
     <button class="btn-sm btn-az" style="margin-bottom:12px;" onclick="openCartQR('${nomeEsc}')" title="Abrir QR Code deste carrinho (backup do físico)">📱 Ver QR Code</button>`;
   if (st.ncAbertas.length) {
     html += `<div style="margin-top:12px;"><strong>NCs em aberto:</strong><ul>` +
@@ -4191,8 +4220,10 @@ function confirmForceCheckout() {
   // ts precisa vencer o último registro do carrinho: o check-in do mecânico pode ter vindo com
   // ts do celular dele adiantado — sem isso o card volta pra "Logado" no próximo sync. (fix)
   const nameNF = normalizeCartName(cartName);
+  const srvF = _serverLastByCart[nameNF];
   const ultTs = getRecords().reduce((mx, r) =>
-    normalizeCartName(r.carrinho) === nameNF ? Math.max(mx, Date.parse(r.ts) || 0) : mx, 0);
+    normalizeCartName(r.carrinho) === nameNF ? Math.max(mx, Date.parse(r.ts) || 0) : mx,
+    srvF ? (Date.parse(srvF.ts) || 0) : 0);
   const ts = new Date(Math.max(Date.now(), ultTs + 1000)).toISOString();
   const obs = `${motivo} · Checkout forçado por ${supervisor}`;
   const rec = {
@@ -8095,6 +8126,9 @@ function bootApp() {
   // Re-sync periódico (silencioso — só atualiza cache; UI atualiza quando user troca de aba ou clica Atualizar)
   setInterval(syncBaixasFromGAS, 120000); // 2 min
   setInterval(() => syncCartsFromGAS(), 180000); // 3 min
+  // Último check-in/out por carrinho direto do servidor (não depende do histórico local podado)
+  setTimeout(syncServerLastFromGAS, 2000);
+  setInterval(syncServerLastFromGAS, 120000); // 2 min
   // Log de login (best effort) — só uma vez por sessão
   if (!sessionStorage.getItem('vammo_login_logged')) {
     setTimeout(() => {
