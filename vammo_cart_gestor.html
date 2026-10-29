@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v26';
+      const CACHE = 'vammo-gestor-v27';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1609,12 +1609,12 @@
             <h2>Cadastro de Carrinhos</h2>
             <div class="spacer"></div>
             <button class="btn-sm btn-az" onclick="abrirImprimirQR()" title="Selecionar carrinhos e gerar folha A4 de QR Codes para impressão">🖨️ Imprimir QR</button>
-            <button class="btn-sm btn-outline" onclick="resetCartsDefault()" title="Restaurar lista padrão das 4 bases">↺ Restaurar padrão</button>
+            <button class="btn-sm btn-outline" onclick="resetCartsDefault()" title="Restaurar lista padrão das 5 bases">↺ Restaurar padrão</button>
           </div>
           <div style="padding:16px 20px;">
             <div class="field-label" style="font-size:11px;color:var(--gr);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Adicionar carrinho</div>
             <div class="add-cart-form">
-              <input type="text" id="inp-cart" placeholder="Ex: MC 36, OC 51, SC 07, SM 07..." maxlength="10"
+              <input type="text" id="inp-cart" placeholder="Ex: MC 36, OC 51, SC 07, SM 07, CP 21..." maxlength="10"
                 onkeydown="if(event.key==='Enter') addCart()"
                 style="text-transform:uppercase;">
               <select class="select-filt" id="inp-cart-base">
@@ -1622,6 +1622,7 @@
                 <option value="Osasco">Osasco</option>
                 <option value="SBC">SBC</option>
                 <option value="São Mateus">São Mateus</option>
+                <option value="Campinas">Campinas</option>
               </select>
               <button class="btn-sm btn-az" onclick="addCart()">+ Adicionar</button>
             </div>
@@ -1678,6 +1679,7 @@
               <option value="Osasco">Osasco</option>
               <option value="SBC">SBC</option>
               <option value="São Mateus">São Mateus</option>
+              <option value="Campinas">Campinas</option>
             </select>
           </div>
           <div class="table-scroll">
@@ -1704,6 +1706,7 @@
             <option value="Osasco">Check-in em Osasco</option>
             <option value="SBC">Check-in em SBC</option>
             <option value="São Mateus">Check-in em São Mateus</option>
+            <option value="Campinas">Check-in em Campinas</option>
             <option value="__sem">Sem check-in em carrinho</option>
           </select>
           <select class="select-filt" id="frota-sort" onchange="renderFrota()" title="Ordem da lista">
@@ -1774,6 +1777,7 @@
               <option value="Osasco">Osasco</option>
               <option value="SBC">SBC</option>
               <option value="São Mateus">São Mateus</option>
+              <option value="Campinas">Campinas</option>
               <option value="Estoque Mooca">Estoque Mooca</option>
             </select>
             <span style="color:var(--gr);font-size:11px;">de</span>
@@ -1966,6 +1970,7 @@
         <option value="Osasco">Osasco</option>
         <option value="SBC">SBC</option>
         <option value="São Mateus">São Mateus</option>
+        <option value="Campinas">Campinas</option>
         <option value="Estoque Mooca">📦 Estoque Mooca (reserva)</option>
       </select>
 
@@ -2029,6 +2034,7 @@
         <option value="Osasco">Osasco</option>
         <option value="SBC">SBC</option>
         <option value="São Mateus">São Mateus</option>
+        <option value="Campinas">Campinas</option>
         <option value="Estoque Mooca">📦 Estoque Mooca (reserva)</option>
       </select>
 
@@ -2065,6 +2071,7 @@
           <option value="Osasco">Osasco</option>
           <option value="SBC">SBC</option>
           <option value="São Mateus">São Mateus</option>
+          <option value="Campinas">Campinas</option>
           <option value="Estoque Mooca">📦 Estoque Mooca</option>
         </select>
       </div>
@@ -2076,6 +2083,7 @@
           <option value="Osasco">Osasco</option>
           <option value="SBC">SBC</option>
           <option value="São Mateus">São Mateus</option>
+          <option value="Campinas">Campinas</option>
           <option value="Estoque Mooca">📦 Estoque Mooca</option>
         </select>
       </div>
@@ -2419,9 +2427,9 @@ function getStoredAuth() { try { return JSON.parse(localStorage.getItem('vammo_a
 function saveAuth(o) { localStorage.setItem('vammo_auth', JSON.stringify(o)); }
 function clearAuth() { localStorage.removeItem('vammo_auth'); }
 
-const BASES = ['Mooca', 'Osasco', 'SBC', 'São Mateus'];
+const BASES = ['Mooca', 'Osasco', 'SBC', 'São Mateus', 'Campinas'];
 // Bases que recebem estoque (inclui overflow do armário Mooca). Carrinhos só usam BASES.
-const ESTOQUE_BASES = ['Mooca', 'Osasco', 'SBC', 'São Mateus', 'Estoque Mooca'];
+const ESTOQUE_BASES = ['Mooca', 'Osasco', 'SBC', 'São Mateus', 'Campinas', 'Estoque Mooca'];
 // Encarregados — não deveriam logar em carrinho de mecânico (destacado no log)
 const ENCARREGADOS_EMAILS = [
   'clebert.silva@vammo.com',
@@ -2455,8 +2463,8 @@ function viewableEstoqueBases() {
   return _SUPERVISOR_BASE === 'Mooca' ? ['Mooca', 'Estoque Mooca'] : [_SUPERVISOR_BASE];
 }
 function podeVerBase(b) { return viewableBases().includes(b); }
-const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC', 'São Mateus': 'SM' };
-const BASE_COUNT  = { Mooca: 35,   Osasco: 50,   SBC: 6,   'São Mateus': 6 };
+const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC', 'São Mateus': 'SM', Campinas: 'CP' };
+const BASE_COUNT  = { Mooca: 35,   Osasco: 50,   SBC: 6,   'São Mateus': 6,    Campinas: 20 };
 
 function defaultCarts() {
   const arr = [];
@@ -2483,7 +2491,7 @@ function normalizeCartName(nome) {
   // Aceita "0C" (zero+C) como alias de "OC" (letra O) — QR codes impressos com zero
   let raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
   if (/^0C\d+$/.test(raw)) raw = 'OC' + raw.slice(2);
-  const m = raw.match(/^(MC|OC|SC|SM)(\d+)$/);
+  const m = raw.match(/^(MC|OC|SC|SM|CP)(\d+)$/);
   if (!m) return String(nome || '').trim().toUpperCase();
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
@@ -2552,6 +2560,26 @@ function getCarts() {
       localStorage.setItem('vammo_carts', JSON.stringify(raw));
     }
     localStorage.setItem('vammo_carts_seeded_v5_sm', '1');
+  }
+  // v6: injeta os carrinhos padrão de Campinas (CP 01–20) em cadastros já existentes.
+  // Só os de Campinas (diferente do v5, que repõe qualquer default faltante): quem já recebeu o v5
+  // e removeu um carrinho de outra base não o recebe de volta. Compara pela chave normalizada.
+  if (!localStorage.getItem('vammo_carts_seeded_v6_cp')) {
+    const nomes = new Set(raw.map(c => normalizeCartName(c.nome)));
+    let mudou = false;
+    const injetados = [];
+    defaultCarts().filter(d => d.base === 'Campinas').forEach(d => {
+      if (!nomes.has(d.nome)) { raw.push(d); nomes.add(d.nome); injetados.push(d.nome); mudou = true; }
+    });
+    if (mudou) {
+      raw.sort((a,b) => a.nome.localeCompare(b.nome));
+      localStorage.setItem('vammo_carts', JSON.stringify(raw));
+      // Fila pra subir na aba Carrinhos do GAS (consumida no bootApp, só gestor central). Sem isso
+      // os CP ficam só neste aparelho: outra aba/aparelho do gestor não os recebe no merge do
+      // cartsGet e republica o cartList do servidor SEM Campinas.
+      localStorage.setItem('vammo_carts_v6_cp_subir', JSON.stringify(injetados));
+    }
+    localStorage.setItem('vammo_carts_seeded_v6_cp', '1');
   }
   _cartsCache = raw;
   return raw;
@@ -2892,6 +2920,7 @@ function renderLinks() {
         { rotulo: 'Supervisor Osasco (Ronaldo)', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=Osasco`, perfil: 'Repor, transfer, inventário · só Osasco' },
         { rotulo: 'Supervisor SBC (Edson)', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=SBC`, perfil: 'Repor, transfer, inventário · só SBC' },
         { rotulo: 'Supervisor São Mateus', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=S%C3%A3o%20Mateus`, perfil: 'Repor, transfer, inventário · só São Mateus' },
+        { rotulo: 'Supervisor Campinas', url: `${LINKS_GITHUB}/vammo_cart_gestor.html?role=supervisor&base=${encodeURIComponent('Campinas')}`, perfil: 'Repor, transfer, inventário · só Campinas' },
       ]
     },
     {
@@ -2903,6 +2932,7 @@ function renderLinks() {
         { rotulo: 'Encarregado Osasco', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=Osasco`, perfil: 'Só visualiza · Osasco' },
         { rotulo: 'Encarregado SBC', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=SBC`, perfil: 'Só visualiza · SBC' },
         { rotulo: 'Encarregado São Mateus', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=S%C3%A3o%20Mateus`, perfil: 'Só visualiza · São Mateus' },
+        { rotulo: 'Encarregado Campinas', url: `${LINKS_GITHUB}/vammo_cart_encarregado.html?base=${encodeURIComponent('Campinas')}`, perfil: 'Só visualiza · Campinas' },
       ]
     },
     {
@@ -4384,7 +4414,7 @@ function removeCart(nome) {
 }
 
 function resetCartsDefault() {
-  if (!confirm('Restaurar lista padrão das 4 bases?\nIsso recadastra MC 01–MC 35 (Mooca), OC 01–OC 50 (Osasco), SC 01–SC 06 (SBC) e SM 01–SM 06 (São Mateus).\nCarrinhos extras criados manualmente serão mantidos.')) return;
+  if (!confirm('Restaurar lista padrão das 5 bases?\nIsso recadastra MC 01–MC 35 (Mooca), OC 01–OC 50 (Osasco), SC 01–SC 06 (SBC), SM 01–SM 06 (São Mateus) e CP 01–CP 20 (Campinas).\nCarrinhos extras criados manualmente serão mantidos.')) return;
   const existing = getCarts();
   const existingNames = new Set(existing.map(c => c.nome));
   const def = defaultCarts();
@@ -4879,7 +4909,7 @@ function renderDashboard() {
     return `<button class="dash-tab ${p===_dashPeriodo?'active':''}" onclick="setDashPeriodo('${p}')">${label}</button>`;
   }).join('');
 
-  // Supervisor só vê a métrica da sua base; gestor vê VAMMO + 3 bases
+  // Supervisor só vê a métrica da sua base; gestor vê VAMMO + cada base
   const metricas = sup
     ? [{ key: _SUPERVISOR_BASE, label: `📍 ${_SUPERVISOR_BASE}`, cls: 'metric-total' }]
     : [
@@ -4887,7 +4917,8 @@ function renderDashboard() {
         { key:'Mooca', label:'📍 Mooca', cls:'' },
         { key:'Osasco', label:'📍 Osasco', cls:'' },
         { key:'SBC', label:'📍 SBC', cls:'' },
-        { key:'São Mateus', label:'📍 São Mateus', cls:'' }
+        { key:'São Mateus', label:'📍 São Mateus', cls:'' },
+        { key:'Campinas', label:'📍 Campinas', cls:'' }
       ];
 
   // Estoque atual: quantidade + valor por base (sempre disponível, independe do período)
@@ -5122,6 +5153,7 @@ function renderHistoricoNCs() {
     if (c.startsWith('MC')) return 'Mooca';
     if (c.startsWith('OC') || c.startsWith('0C')) return 'Osasco';
     if (c.startsWith('SM')) return 'São Mateus';
+    if (c.startsWith('CP')) return 'Campinas';
     if (c.startsWith('SC')) return 'SBC';
     return '';
   }
@@ -5200,6 +5232,7 @@ function exportHistoricoNCsCSV() {
     if (c.startsWith('MC')) return 'Mooca';
     if (c.startsWith('OC') || c.startsWith('0C')) return 'Osasco';
     if (c.startsWith('SM')) return 'São Mateus';
+    if (c.startsWith('CP')) return 'Campinas';
     if (c.startsWith('SC')) return 'SBC';
     return '';
   }
@@ -5459,7 +5492,7 @@ function renderNC() {
   // Locais são usados só pra enriquecer (mecânico original, info de motivo).
   const localRecs = getRecords();
   // Escopo por base do supervisor: mapeia o carrinho da NC pra uma base via getCartBase
-  // (cadastro OU inferida pelo prefixo MC/OC/SC). Antes filtrava só por carrinhos NO cadastro
+  // (cadastro OU inferida pelo prefixo MC/OC/SC/SM/CP). Antes filtrava só por carrinhos NO cadastro
   // local — NC de carrinho ainda não cadastrado (ou com base divergente) sumia pro supervisor
   // mas aparecia pro gestor. (fix)
   const ncsFonte = isSupervisor()
@@ -6384,6 +6417,7 @@ function syncBaixasFromGAS(retry) {
       const base = cart.startsWith('MC') ? 'Mooca' :
                    (cart.startsWith('OC') || cart.startsWith('0C')) ? 'Osasco' :
                    cart.startsWith('SM') ? 'São Mateus' :
+                   cart.startsWith('CP') ? 'Campinas' :
                    cart.startsWith('SC') ? 'SBC' : '?';
       return {
         ts: nc.reposta_ts,
@@ -6435,7 +6469,7 @@ function syncEstornosFromGAS() {
 function gastoPorBase() {
   const game = getGameStartTs();
   const gameMs = game ? new Date(game).getTime() : 0;
-  const out = { Mooca: 0, Osasco: 0, SBC: 0, 'São Mateus': 0, _total: 0 };
+  const out = { Mooca: 0, Osasco: 0, SBC: 0, 'São Mateus': 0, Campinas: 0, _total: 0 };
   // Dedup por recId+ferramenta (chave única da NC) — evita contar 2× quando havia
   // baixa local duplicada (bug da NC reaparecendo) ou local+servidor da mesma resolução.
   const seen = new Set();
@@ -6471,7 +6505,7 @@ function gastoPorBaseNoPeriodo(startTs, endTs) {
   const startMs = startTs ? new Date(startTs).getTime() : 0;
   const endMs = endTs ? new Date(endTs).getTime() : Infinity;
   const gameMs = game ? new Date(game).getTime() : 0;
-  const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0, 'São Mateus': 0 };
+  const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0, 'São Mateus': 0, Campinas: 0 };
   const chaves = new Set();
   getBaixas().forEach(b => {
     if (b.tipo === 'ajuste') return;
@@ -6516,7 +6550,7 @@ function ncsPorBaseNoPeriodo(startTs, endTs) {
       if (!ex || ts < ex.ts) primeiraOcorrencia.set(k, { ts, base: getCartBase(cartN) });
     });
   });
-  const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0, 'São Mateus': 0 };
+  const out = { VAMMO: 0, Mooca: 0, Osasco: 0, SBC: 0, 'São Mateus': 0, Campinas: 0 };
   primeiraOcorrencia.forEach(({ts, base}) => {
     if (ts < gameMs || ts < startMs || ts >= endMs) return;
     if (out[base] != null) out[base]++;
@@ -7527,7 +7561,7 @@ function abrirImprimirQR() {
     const b = c.base || getCartBase(c.nome) || '—';
     (porBase[b] = porBase[b] || []).push(c);
   });
-  const ordem = ['Mooca', 'Osasco', 'SBC', 'São Mateus'];
+  const ordem = ['Mooca', 'Osasco', 'SBC', 'São Mateus', 'Campinas'];
   const bases = Object.keys(porBase).sort((a, b) => {
     const ia = ordem.indexOf(a), ib = ordem.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
@@ -8112,6 +8146,18 @@ function bootApp() {
     // Se servidor está vazio E temos cadastros locais, semeia tudo (1ª vez após v24)
     if (ok && (!count || count < getCarts().length)) {
       setTimeout(seedCartsToGAS, 2000);
+    }
+    // Seed v6 (Campinas): sobe pra aba Carrinhos os CP que este aparelho injetou, uma vez.
+    // A condição acima nunca dispara com servidor não-vazio (count já é o tamanho do merge).
+    if (ok && !isSupervisor()) {
+      let subir = [];
+      try { subir = JSON.parse(localStorage.getItem('vammo_carts_v6_cp_subir')) || []; } catch {}
+      if (subir.length) {
+        const locais = new Set(getCarts().map(c => normalizeCartName(c.nome)));
+        subir.filter(n => locais.has(normalizeCartName(n)))
+          .forEach((n, i) => setTimeout(() => pushCartToGAS(n, 'Campinas'), 2500 + i * 300));
+        localStorage.removeItem('vammo_carts_v6_cp_subir');
+      }
     }
     if (document.getElementById('panel-carrinhos')?.classList.contains('active')) renderCarrinhos();
   });

@@ -317,10 +317,11 @@
   /* Tela de escolha de base (1ª vez) */
   .picker-ov {
     position:fixed; inset:0; background:var(--bk);
-    z-index:200; display:flex; align-items:center; justify-content:center;
-    padding:20px;
+    z-index:200; display:flex; align-items:flex-start; justify-content:center;
+    padding:20px; overflow-y:auto;
   }
-  .picker-box { max-width:420px; width:100%; text-align:center; }
+  /* margin:auto centraliza quando cabe e deixa rolar quando não cabe (celular deitado, 5 bases) */
+  .picker-box { max-width:420px; width:100%; text-align:center; margin:auto; }
   .picker-title {
     font-family:'Barlow Condensed', sans-serif;
     font-size:32px; font-weight:900; color:var(--az);
@@ -525,6 +526,7 @@
     <button class="picker-btn" onclick="escolherBase('Osasco')">📍 Base Osasco</button>
     <button class="picker-btn" onclick="escolherBase('SBC')">📍 Base SBC</button>
     <button class="picker-btn" onclick="escolherBase('São Mateus')">📍 Base São Mateus</button>
+    <button class="picker-btn" onclick="escolherBase('Campinas')">📍 Base Campinas</button>
   </div>
 </div>
 
@@ -561,9 +563,9 @@
 
 <script>
 const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx9npOLbFbx0rqiimfhMO35MHf9GMp7sgQX5D4SpDf_wm4jl88vi1CsI_7q0ZXNujeBBg/exec';
-const BASES = ['Mooca', 'Osasco', 'SBC', 'São Mateus'];
-const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC', 'São Mateus': 'SM' };
-const BASE_COUNT  = { Mooca: 35, Osasco: 50, SBC: 6, 'São Mateus': 6 };
+const BASES = ['Mooca', 'Osasco', 'SBC', 'São Mateus', 'Campinas'];
+const BASE_PREFIX = { Mooca: 'MC', Osasco: 'OC', SBC: 'SC', 'São Mateus': 'SM', Campinas: 'CP' };
+const BASE_COUNT  = { Mooca: 35, Osasco: 50, SBC: 6, 'São Mateus': 6, Campinas: 20 };
 
 let _registros = [];
 let _ncsAbertas = [];
@@ -602,7 +604,7 @@ function normalizeCartName(nome) {
   // Aceita "0C" (zero+C) como alias de "OC" — QR codes impressos com zero em vez de letra O
   let raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
   if (/^0C\d+$/.test(raw)) raw = 'OC' + raw.slice(2);
-  const m = raw.match(/^(MC|OC|SC|SM)(\d+)$/);
+  const m = raw.match(/^(MC|OC|SC|SM|CP)(\d+)$/);
   if (!m) return String(nome || '').trim().toUpperCase();
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
