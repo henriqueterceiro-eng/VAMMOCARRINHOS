@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v27';
+      const CACHE = 'vammo-gestor-v28';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -3453,11 +3453,13 @@ function mecDevice(mec){
 // Inverso do mecDevice(): dado um APARELHO, acha o e-mail do dono e o registro de
 // check-in/out mais recente dele. Serve pra rastrear celular sumido — "esse aparelho
 // esteve no OC 21 há 3h" é pista mesmo quando não há coordenada.
-// Índice recalculado a cada render do painel (barato: ~2k registros) e memoizado por
-// timestamp do último sync pra não refazer no polling de 60s.
+// Índice memoizado por timestamp do último sync pra não refazer no polling.
+// ⚠ getRecords() faz JSON.parse do histórico inteiro (~5 MB): quem chama por aparelho tem que
+// passar `recs` já lido. Antes eram 2 parses POR APARELHO (438 por render, 10–57 s com 219
+// celulares) e a Frota travava a cada tecla do filtro e a cada refresh de 30 s (30/10).
 let _ultCarrinhoCache = { chave: '', mapa: null };
-function _ultimoRegistroPorMecanico(){
-  const recs = getRecords();
+function _ultimoRegistroPorMecanico(recs){
+  recs = recs || getRecords();
   const chave = recs.length + '|' + (recs[0] && recs[0].ts || '');
   if (_ultCarrinhoCache.chave === chave && _ultCarrinhoCache.mapa) return _ultCarrinhoCache.mapa;
   const mapa = {};
@@ -3476,19 +3478,26 @@ function _ultimoRegistroPorMecanico(){
   _ultCarrinhoCache = { chave, mapa };
   return mapa;
 }
-function deviceUltimoCarrinho(d){
-  const mapa = _ultimoRegistroPorMecanico();
+// Tokens do e-mail memoizados: os laços abaixo rodam e-mails × aparelhos sem dono a cada render.
+const _tokensEmailCache = new Map();
+function _tokensDoEmail(em){
+  let t = _tokensEmailCache.get(em);
+  if (!t) { t = _nameTokens(em); _tokensEmailCache.set(em, t); }
+  return t;
+}
+function deviceUltimoCarrinho(d, recs){
+  const mapa = _ultimoRegistroPorMecanico(recs);
   if (d.email && mapa[d.email]) return mapa[d.email];
   // sem e-mail no Headwind: casa pelo NOME do aparelho contra o e-mail do mecânico
   const dt = d.tokens || [];
   if (dt.length < 2) return null;
   const first = dt[0], last = dt[dt.length-1];
   for (const em in mapa){
-    const et = _nameTokens(em);
+    const et = _tokensDoEmail(em);
     if (et.length >= 2 && et[0] === first && et[et.length-1] === last) return mapa[em];
   }
   for (const em in mapa){
-    const et = _nameTokens(em);
+    const et = _tokensDoEmail(em);
     if (et.length >= 2 && _close(et[0], first) && _close(et[et.length-1], last)) return mapa[em];
   }
   return null;
@@ -3499,8 +3508,8 @@ function deviceUltimoCarrinho(d){
 // ("celulares que fizeram check-in em algum carrinho da base"), pedida pelo Terceiro em 15/09.
 // Só conta tipo 'checkin' (reposição/ajuste/checkout não dizem onde a pessoa trabalha).
 let _basesCheckinCache = { chave: '', mapa: null };
-function _basesCheckinPorMecanico(){
-  const recs = getRecords();
+function _basesCheckinPorMecanico(recs){
+  recs = recs || getRecords();
   const chave = recs.length + '|' + (recs[0] && recs[0].ts || '');
   if (_basesCheckinCache.chave === chave && _basesCheckinCache.mapa) return _basesCheckinCache.mapa;
   // base por carrinho resolvida UMA vez (getCartBase relê o localStorage a cada chamada)
@@ -3527,17 +3536,18 @@ function _chaveMecanicoDoDevice(d, mapa){
   const dt = d.tokens || [];
   if (dt.length < 2) return null;
   const first = dt[0], last = dt[dt.length-1];
-  for (const em in mapa){ const et = _nameTokens(em); if (et.length >= 2 && et[0] === first && et[et.length-1] === last) return em; }
-  for (const em in mapa){ const et = _nameTokens(em); if (et.length >= 2 && _close(et[0], first) && _close(et[et.length-1], last) ) return em; }
+  for (const em in mapa){ const et = _tokensDoEmail(em); if (et.length >= 2 && et[0] === first && et[et.length-1] === last) return em; }
+  for (const em in mapa){ const et = _tokensDoEmail(em); if (et.length >= 2 && _close(et[0], first) && _close(et[et.length-1], last) ) return em; }
   return null;
 }
 // Bases do celular (onde o dono já fez check-in), da mais recente pra mais antiga.
-function deviceBase(d){
-  const mapa = _basesCheckinPorMecanico();
+// `recs` = getRecords() lido UMA vez por render (ver o aviso no _ultimoRegistroPorMecanico).
+function deviceBase(d, recs){
+  const mapa = _basesCheckinPorMecanico(recs);
   const k = _chaveMecanicoDoDevice(d, mapa);
   const porBase = k ? mapa[k] : {};
   const bases = Object.keys(porBase).sort((a, b) => String(porBase[b]).localeCompare(String(porBase[a])));
-  return { bases, porBase, uc: deviceUltimoCarrinho(d) };
+  return { bases, porBase, uc: deviceUltimoCarrinho(d, recs) };
 }
 
 // Mapa da posição do último ping. Sem biblioteca: iframe do OpenStreetMap com marcador.
@@ -3594,7 +3604,9 @@ function refreshPresence(){
       configId: (d.configId != null) ? d.configId : null }));
     _presLoaded = true;
     _presErro = '';
-    try { renderCarrinhos(); } catch(e){}
+    // Só redesenha os Carrinhos se o painel estiver aberto (~250 ms; showPanel('carrinhos') redesenha ao entrar).
+    // Sem a guarda rodava escondido a cada 30 s, inclusive com a Frota na tela.
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) { try { renderCarrinhos(); } catch(e){} }
     try { if (document.getElementById('panel-frota')?.classList.contains('active')) renderFrota(); } catch(e){}
   });
 }
@@ -3622,7 +3634,8 @@ function renderFrota(){
     try { if (isSupervisor() && BASES.includes(_SUPERVISOR_BASE)) selBase.value = _SUPERVISOR_BASE; } catch(e){}
   }
   const fb = selBase ? selBase.value : '';
-  const todos = (_presDevices || []).map(d => Object.assign({}, d, { _b: deviceBase(d) }));
+  const recs = getRecords(); // 1 parse por render, não 2 por aparelho
+  const todos = (_presDevices || []).map(d => Object.assign({}, d, { _b: deviceBase(d, recs) }));
   const devs = todos.filter(d => !fb || (fb === '__sem' ? d._b.bases.length === 0 : d._b.bases.includes(fb)));
   const subFrota = !fb ? 'na frota (Headwind)' : (fb === '__sem' ? `sem check-in em carrinho · ${todos.length} no total` : `com check-in em ${fb} · ${todos.length} no total`);
   const online = devs.filter(d => d.online).length;
@@ -3699,11 +3712,16 @@ function renderFrota(){
     : `<div style="margin-bottom:14px;font-size:11.5px;color:var(--gr);">
          📍 ${comPos} de ${todos.length} aparelhos reportando posição · origem: log do Headwind (atualiza a cada ~1min)
        </div>`;
+  // O refresh de 30 s redesenha a tabela inteira: guarda a rolagem lateral (no celular a tabela rola
+  // para ver IMEI/posição/check-in) senão ela volta para o começo no meio da investigação.
+  const roloAnt = body.querySelector('.frota-rolo');
+  const scrollAnt = roloAnt ? roloAnt.scrollLeft : 0;
   body.innerHTML = stats + avisoPos + `<div class="table-wrap"><div class="table-head"><h2>Aparelhos (${filt.length})</h2></div>
-    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+    <div class="frota-rolo" style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
       <thead><tr>${['Status','Aparelho','Base','Dono (e-mail)','IMEI','Bat.','Últ. ping','Posição','Último check-in'].map(h=>`<th style="text-align:left;padding:9px 10px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gr);border-bottom:1px solid var(--bd);">${h}</th>`).join('')}</tr></thead>
       <tbody>${rows || '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gr);">Nenhum aparelho' + (fb ? ' nessa base' : '') + '.</td></tr>'}</tbody>
     </table></div></div>`;
+  if (scrollAnt) { const rolo = body.querySelector('.frota-rolo'); if (rolo) rolo.scrollLeft = scrollAnt; }
 }
 
 // ─── STATUS DE OS: em moto (IN_PROGRESS via Metabase) · ocioso = timer no app ───
@@ -3729,7 +3747,7 @@ function refreshOsStatus(){
     });
     if (changed) _saveIdleStart();
     _osByEmail = inprog;
-    try { renderCarrinhos(); } catch(e){}
+    if (document.getElementById('panel-carrinhos')?.classList.contains('active')) { try { renderCarrinhos(); } catch(e){} }
   });
 }
 function fmtElapsedMs(ms){
@@ -4803,8 +4821,9 @@ function renderRhidGaps(){
     const pontos = d.pontos || {}, turnos = d.turnos || {}, inprog = d.inprogress || {};
     const colab = new Set((getColab() || []).map(e => String(e).toLowerCase().trim()));
     const cartBase = {}; (getCarts() || []).forEach(c => { cartBase[c.nome] = c.base; });
-    // Registros FRESCOS (o cache local pode não ter hoje/ontem)
-    gasGet(cfg.webhookUrl, 'action=sync', (sd) => {
+    // Registros FRESCOS (o cache local pode não ter hoje/ontem). Só ontem+hoje: sem `desde` o servidor
+    // devolve o histórico inteiro (25 MB em 30/10) só pra achar o 1º check-in de dois dias.
+    gasGet(cfg.webhookUrl, 'action=sync&desde=' + from, (sd) => {
       const recs = (sd && Array.isArray(sd.records)) ? sd.records : (getRecords() || []);
       const first = {};
       recs.forEach(r => {
@@ -7075,7 +7094,13 @@ function syncAgora() {
   if (!cfg.webhookUrl) return;
   const statusEl = document.getElementById('sync-status');
   if (statusEl) statusEl.textContent = '🔄';
-  gasGet(cfg.webhookUrl, 'action=sync', (data, err) => {
+  // Janela incremental (30/10). Sem `desde` o servidor devolvia o histórico INTEIRO a cada 30 s
+  // (12.955 registros, 25 MB); o localStorage só guarda ~2.300, então todo ciclo "achava" ~10.600
+  // novos, regravava 5 MB várias vezes e redesenhava a tela — a aba Frota vivia travada. Agora pede
+  // a partir de 3 dias antes do registro mais novo que já temos (pega envio atrasado e foto que chega
+  // depois); sem histórico local, 30 dias (mais que isso nem cabe no localStorage).
+  const desde = _syncDesde();
+  gasGet(cfg.webhookUrl, 'action=sync&desde=' + desde, (data, err) => {
     if (err || !data) {
       if (statusEl) statusEl.textContent = '🔴';
       log('❌ ' + (err||'Sem resposta') + '\n\nUse 🔍 Diagnóstico para detalhes.');
@@ -7108,7 +7133,7 @@ function syncAgora() {
     saveRecords(existentes); // grava podando o histórico se estourar a quota do localStorage (fix)
     if (atualizadosFotos > 0) console.log('[VAMMO] fotos atualizadas em ' + atualizadosFotos + ' registro(s)');
     const hora = new Date().toLocaleTimeString('pt-BR');
-    log('✅ ' + hora + ' — ' + (adicionados>0?'+'+adicionados+' novo(s)':'sem novidades') + ' · ' + records.length + ' total');
+    log('✅ ' + hora + ' — ' + (adicionados>0?'+'+adicionados+' novo(s)':'sem novidades') + ' · ' + records.length + ' desde ' + desde);
     if (statusEl) statusEl.textContent = adicionados>0 ? '🟢 +'+adicionados : '🟢';
     if (adicionados > 0) {
       const active = document.querySelector('.panel.active')?.id?.replace('panel-', '');
@@ -7122,6 +7147,16 @@ function syncAgora() {
     // SEMPRE sincroniza NCs também (silenciosamente) — gestor sempre vê estado real
     syncNCsComServidor(true);
   });
+}
+
+function _syncDesde() {
+  // o ts vem do relógio do celular: um aparelho com data adiantada travaria a janela no futuro
+  // e o gestor pararia de receber registros — horário à frente de agora não conta.
+  const agora = Date.now();
+  let maisNovo = 0;
+  getRecords().forEach(r => { const t = Date.parse(r.ts); if (t > maisNovo && t <= agora) maisNovo = t; });
+  const ref = maisNovo ? maisNovo - 3*864e5 : Date.now() - 30*864e5;
+  return new Date(ref).toISOString().slice(0,10);
 }
 
 function iniciarAutoSync() {
