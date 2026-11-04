@@ -36,7 +36,7 @@
 
     // Service Worker inline via Blob
     const _swCode = `
-      const CACHE = 'vammo-cart-v13';
+      const CACHE = 'vammo-cart-v14';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -1954,12 +1954,25 @@ function renderCurrentCategory() {
   const total = cat.items.length;
   const okN = cat.items.filter(t => S.ferramentas[t]?.status === 'ok').length;
   const ncN = cat.items.filter(t => S.ferramentas[t]?.status === 'nao_ok').length;
+  const pendN = total - okN - ncN;
 
   // Mensagem do rodapé varia conforme estado e se é última categoria
+  // ⚠️ 04/11: "Checklist completo" saía só porque a ÚLTIMA categoria estava completa — com itens
+  // sem resposta lá atrás o Avançar ficava travado e o mecânico não sabia onde (Osasco, print 07h37).
+  // Agora a última categoria completa com pendência em outra mostra QUAIS faltam e leva até lá.
+  const catsPend = TOOLS.map((c, i) => ({ i, cat: c.cat, n: c.items.filter(t => !S.ferramentas[t]?.status).length })).filter(c => c.n);
   let footerHtml = '';
   if (done && !isLast) {
     footerHtml = `<button class="cl-btn-big cl-ok" style="margin-top:10px;" onclick="nextCategory()">
       <span class="cwb-icon">→</span><span>Próxima categoria</span>
+    </button>`;
+  } else if (done && isLast && catsPend.length) {
+    const nPend = catsPend.reduce((a, c) => a + c.n, 0);
+    footerHtml = `<div style="margin-top:10px;padding:14px;border-radius:12px;background:rgba(245,158,11,.12);border:1px solid var(--yw);text-align:center;color:var(--yw);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">
+      ⚠️ Falta${nPend > 1 ? 'm' : ''} ${nPend} ${nPend > 1 ? 'itens' : 'item'} sem resposta em: ${catsPend.map(c => c.cat).join(' · ')}
+    </div>
+    <button class="cl-btn-big cl-ok" style="margin-top:10px;" onclick="irParaPendente()">
+      <span class="cwb-icon">→</span><span>Ir para o que falta</span>
     </button>`;
   } else if (done && isLast) {
     footerHtml = `<div style="margin-top:10px;padding:14px;border-radius:12px;background:rgba(34,197,94,.12);border:1px solid var(--gn);text-align:center;color:var(--gn);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;">
@@ -1994,9 +2007,9 @@ function renderCurrentCategory() {
         </div>`;
       }).join('')}
     </div>
-    <button class="cl-todas-ok-btn" onclick="marcarTodasOk()">
-      ✅ Marcar todas como OK
-    </button>
+    ${pendN ? `<button class="cl-todas-ok-btn" onclick="marcarTodasOk()">
+      ✅ ${ncN ? 'Marcar as outras ' + pendN + ' como OK' : 'Marcar todas como OK'}
+    </button>` : ''}
     ${footerHtml}
   `;
   // Habilita/desabilita anterior/pular
@@ -2005,27 +2018,16 @@ function renderCurrentCategory() {
   if (navBtns[1]) navBtns[1].disabled = _clIdx === TOOLS.length - 1;
 }
 
+// Marca como OK só o que está SEM resposta. ⚠️ 04/11: antes marcava a categoria inteira — apagava
+// sem aviso o ❌ que o mecânico tinha acabado de marcar, e com NC aberta do servidor só oferecia
+// "resolver todas" ou cancelar (e cancelar não marcava nada). Quem queria registrar a falta e seguir
+// era obrigado a dar OK na ferramenta que faltava (Osasco, o carrinho com mais NC aberta).
+// Fechar NC aberta continua possível, uma a uma, no ✅ do item (setTool pede confirmação).
 function marcarTodasOk() {
   const cat = TOOLS[_clIdx];
   if (!cat) return;
-  // Se há NCs persistentes, confirma resolução em massa
-  const ncsPersistentes = cat.items.filter(t =>
-    S.ferramentas[t]?._persistent && S.ferramentas[t]?.status === 'nao_ok'
-  );
-  if (ncsPersistentes.length > 0) {
-    const ok = confirm(
-      '✅ Resolver ' + ncsPersistentes.length + ' NC(s) ABERTA(s) e marcar todas como OK?\n\n' +
-      ncsPersistentes.map(t => '• ' + t).join('\n') + '\n\n' +
-      'As NCs vão ser fechadas e o supervisor verá no histórico.\n\n' +
-      'Confirma?'
-    );
-    if (!ok) return;
-    // Fecha cada NC persistente no servidor
-    ncsPersistentes.forEach(t => resolverNCNoServidor(t));
-  }
   cat.items.forEach(item => {
-    const wasPersistent = S.ferramentas[item]?._persistent && S.ferramentas[item]?.status === 'nao_ok';
-    S.ferramentas[item] = { status: 'ok', motivo: null, _resolvedByMec: wasPersistent || undefined };
+    if (!S.ferramentas[item]?.status) S.ferramentas[item] = { status: 'ok', motivo: null };
   });
   updateStats();
   updateClProgress();
@@ -2157,6 +2159,16 @@ function setMotivo(motivo) {
 function cancelNC() {
   document.getElementById('modal-nc').classList.add('hidden');
   pendingNCtool = null;
+}
+
+// Leva à 1ª categoria com item sem resposta (rodapé da última categoria quando sobrou pendência)
+function irParaPendente() {
+  const i = TOOLS.findIndex(c => !catComplete(c));
+  if (i < 0) return;
+  _clIdx = i;
+  renderCurrentCategory();
+  updateClProgress();
+  document.getElementById('cl-current')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function nextCategory() {
