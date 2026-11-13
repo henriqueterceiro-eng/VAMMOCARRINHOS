@@ -571,6 +571,7 @@ let _registros = [];
 let _ncsAbertas = [];
 let _base = null;
 let _manualGrants = []; // carrinhos com digitação manual de QR liberada agora (uso único)
+const _manualPend = {}; // liberação em andamento (botão "⏳ Liberando…") — fix 13/11
 
 // Prioridade: URL ?base=X (sempre vence) → localStorage → picker.
 // Se ?base= vier explícito, ATUALIZA o localStorage (permite trocar via link).
@@ -605,7 +606,8 @@ function normalizeCartName(nome) {
   let raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
   if (/^0C\d+$/.test(raw)) raw = 'OC' + raw.slice(2);
   const m = raw.match(/^(MC|OC|SC|SM|CP)(\d+)$/);
-  if (!m) return String(nome || '').trim().toUpperCase();
+  // fora do padrão de base (Q01, R22): sem espaço, igual ao check-in, ao servidor e aos perfis (fix 13/11)
+  if (!m) return raw;
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
 function fmtDateFull(iso) { return new Date(iso).toLocaleString('pt-BR'); }
@@ -761,6 +763,9 @@ function fetchCartList(){
 // Fallback: usa aba Carrinhos do GAS principal (cadastrado via cartAdd/cartRemove)
 function fetchCartListMain(){
   gasGet('action=cartsGet', (d) => {
+    // Já tem lista (do perfisGet ou do cache)? Não troca pela do cadastro, que é mais curta (28 × 39
+    // carrinhos na Mooca): os carrinhos em uso fora dele sumiam do tablet até o ciclo seguinte. (fix 13/11)
+    if (Array.isArray(_cartListServer) && _cartListServer.length) { try { render(); } catch(e) {} return; }
     if (!d || !d.ok || !Array.isArray(d.carts) || !d.carts.length) {
       // Timeout ou resposta vazia: desenha com o que já temos (cache do localStorage ou a
       // lista padrão da base). Antes era um `return` seco — no cold start do GAS a tela
@@ -914,13 +919,16 @@ function carregarTudo() {
 
 // Supervisor libera entrada manual de QR pra UM carrinho (uso único). O encarregado é
 // gated por link de base, então manda origem=encarregado (o backend aceita).
+// Sem retorno na hora o encarregado tocava de novo (MC 30: 5 liberações em 2 min; 45 cliques
+// repetidos em <10 s no total) e o "já está liberado" vinha de estado local velho (liberação já
+// usada/expirada). Agora: "⏳ Liberando…" até o servidor responder; liberar de novo só renova. (fix 13/11)
 function liberarManualCart(nome) {
-  if (_manualGrants.indexOf(nome) >= 0) {
-    alert(nome + ' já está liberado pra entrada manual — aguardando o mecânico usar (vale 1x).');
-    return;
-  }
+  if (_manualPend[nome]) return;
+  _manualPend[nome] = true;
+  render();
   gasGet('action=manualQrSet&cart=' + encodeURIComponent(nome) + '&por=' + encodeURIComponent('encarregado:' + (_base||'')) + '&origem=encarregado', (d, err) => {
-    if (err || !d || d.error) { alert('Erro ao liberar: ' + ((d && d.error) || err || 'tente de novo')); return; }
+    delete _manualPend[nome];
+    if (err || !d || d.error) { render(); alert('Erro ao liberar: ' + ((d && d.error) || err || 'tente de novo')); return; }
     _manualGrants = (d && Array.isArray(d.carts)) ? d.carts : _manualGrants.concat([nome]);
     render();
   });
@@ -949,11 +957,27 @@ document.addEventListener('visibilitychange', () => {
 });
 function atualizar() { carregarTudo(); }
 
+// Check-in esquecido há mais de 45 dias (fora da janela do sync): Q01 (16/06), MC 43 e MC 48 (12/09)
+// apareciam "Sem registro" aqui enquanto o app do mecânico os dava como OCUPADOS. História inteira
+// lida a cada 30 min; só entra carrinho cujo último evento é check-in. (fix 13/11)
+let _travasAntigas = {};
+function syncTravasAntigas() {
+  const dia = d => d.toISOString().slice(0, 10);
+  gasGet('action=registrosRange&ini=' + dia(new Date(Date.now() - 400 * 864e5)) + '&fim=' + dia(new Date(Date.now() + 864e5)) + '&_=' + Date.now(), (d) => {
+    if (!d || !Array.isArray(d.regs)) return;
+    const m = {};
+    d.regs.forEach(r => { const k = normalizeCartName(r.carrinho); if (k && (!m[k] || (Date.parse(r.ts) || 0) >= (Date.parse(m[k].ts) || 0))) m[k] = r; });
+    const t = {};
+    Object.keys(m).forEach(k => { if (m[k].tipo === 'checkin') t[k] = m[k]; });
+    _travasAntigas = t;
+    try { render(); } catch (e) {}
+  });
+}
 function computeCartState(nome) {
   const nameN = normalizeCartName(nome);
   const recsDoCart = _registros.filter(r => normalizeCartName(r.carrinho) === nameN);
   recsDoCart.sort((a,b) => new Date(b.ts) - new Date(a.ts));
-  const last = recsDoCart[0] || null;
+  const last = recsDoCart[0] || _travasAntigas[nameN] || null;
   let status = 'sem-reg';
   if (last) status = last.tipo === 'checkin' ? 'logado' : 'deslogado';
   const abertas = _ncsAbertas.filter(nc => normalizeCartName(nc.carrinho) === nameN);
@@ -1021,7 +1045,9 @@ function render() {
       <div>
         ${mec ? `<div class="ccv-mec">👤 ${mec}</div>` : ''}
         ${hora ? `<div class="ccv-time">${data} · ${hora}</div>` : ''}
-        ${(_manualGrants.indexOf(c.nome) >= 0)
+        ${_manualPend[c.nome]
+          ? `<button class="ccv-libqr" disabled style="opacity:.6">⏳ Liberando…</button>`
+          : (_manualGrants.indexOf(c.nome) >= 0)
           ? `<button class="ccv-libqr on" onclick="event.stopPropagation(); liberarManualCart('${c.nome}')">✅ QR manual liberado (1x)</button>`
           : `<button class="ccv-libqr" onclick="event.stopPropagation(); liberarManualCart('${c.nome}')">⌨️ Liberar QR manual</button>`}
       </div>
@@ -1203,6 +1229,8 @@ function initApp() {
   render();
   carregarTudo();
   setInterval(carregarTudo, 30000);
+  setTimeout(syncTravasAntigas, 8000);
+  setInterval(syncTravasAntigas, 30 * 60000); // check-in esquecido há mais de 45 dias (fix 13/11)
   // Sync EXTRA só das NCs a cada 12s — NCs são críticas pro encarregado ver fresh
   setInterval(() => {
     let waiting = 2;

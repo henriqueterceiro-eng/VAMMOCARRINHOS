@@ -34,34 +34,13 @@
     const _blob = new Blob([JSON.stringify(_manifest)], {type:'application/manifest+json'});
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
-    // Service Worker inline via Blob
-    const _swCode = `
-      const CACHE = 'vammo-cart-v14';
-      self.addEventListener('install', e => {
-        e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
-        self.skipWaiting();
-      });
-      self.addEventListener('activate', e => {
-        // limpa caches antigos (v1, v2, ...) — força refresh do HTML
-        e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
-      });
-      self.addEventListener('fetch', e => {
-        if (new URL(e.request.url).origin !== self.location.origin) return;
-        if (e.request.method !== 'GET') return;
-        // Network-first: sempre tenta rede; cache é só fallback offline. Garante que updates do HTML chegam ao usuário.
-        e.respondWith(
-          fetch(e.request).then(resp => {
-            const copy = resp.clone();
-            caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
-            return resp;
-          }).catch(() => caches.match(e.request))
-        );
-      });
-    `;
+    // Versão do app — subir a cada deploy (antes era o CACHE do SW de blob, que nunca funcionou)
+    const APP_VERSAO = 'vammo-cart-v15';
+    // Service Worker de verdade (sw.js ao lado do HTML). O antigo era registrado por URL blob: — o
+    // Chrome recusa, então nunca existiu cache offline e uma recarga sem sinal não abria o app.
+    // sw.js: rede primeiro para esta página (cache só sem rede) + jsQR da CDN em cache. (fix 13/11)
     if ('serviceWorker' in navigator) {
-      const _swBlob = new Blob([_swCode], {type:'text/javascript'});
-      navigator.serviceWorker.register(URL.createObjectURL(_swBlob))
-        .catch(() => {});
+      navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW não registrou:', e));
     }
   </script>
   <title>VAMMO · Carrinho</title>
@@ -452,6 +431,7 @@
       position: absolute; inset: 0;
       width: 100%; height: 100%; object-fit: cover;
     }
+    .photo-slot img[src=""], .photo-slot img:not([src]) { display: none; } /* quadro vazio mostrava ícone de imagem quebrada */
     .photo-slot .pi { font-size: 36px; z-index:1; }
     .photo-slot .pl {
       font-family: 'Barlow Condensed', sans-serif;
@@ -478,6 +458,20 @@
     .photo-slot.done .photo-retake { display: block; }
     /* esconde todos os file inputs — ativados via label for= */
     input[type="file"] { display: none !important; position: absolute; }
+
+    /* câmera do app (fix 13/11) */
+    .cam-ov { position: fixed; inset: 0; z-index: 9000; background: #000; display: flex; flex-direction: column; }
+    .cam-ov.hidden { display: none; }
+    .cam-ov video { flex: 1; width: 100%; min-height: 0; object-fit: cover; background: #000; }
+    .cam-top { position: absolute; top: 0; left: 0; right: 0; padding: 14px 16px; background: linear-gradient(rgba(0,0,0,.75), transparent);
+      color: #fff; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: 1px; text-transform: uppercase; }
+    .cam-msg { position: absolute; left: 16px; right: 16px; top: 40%; text-align: center; color: #fff; font-size: 15px; line-height: 1.5; }
+    .cam-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 18px 20px calc(18px + env(safe-area-inset-bottom)); background: #000; }
+    .cam-btn-x { width: 54px; height: 54px; border-radius: 50%; border: 1px solid #444; background: transparent; color: #fff; font-size: 20px; cursor: pointer; }
+    .cam-btn-shot { width: 78px; height: 78px; border-radius: 50%; border: 5px solid #fff; background: var(--az); cursor: pointer; }
+    .cam-btn-shot:disabled { opacity: .35; }
+    .cam-btn-alt { width: 92px; font-size: 11px; line-height: 1.3; color: #ccc; text-align: center; border: 1px solid #444; border-radius: 10px; padding: 8px 6px; cursor: pointer; }
 
     /* ─── ASSINATURA ─── */
     .sig-wrap {
@@ -998,7 +992,7 @@
 
     <div class="photo-grid">
       <!-- label for="file-sup" → toque no card = toque direto no input, sem JS -->
-      <label class="photo-slot" id="slot-sup" for="file-sup">
+      <label class="photo-slot" id="slot-sup" for="file-sup" onclick="return abrirCamApp('sup', event)">
         <div class="photo-check">✓</div>
         <div class="photo-retake">📷 Tirar nova</div>
         <div class="pi">📸</div>
@@ -1006,7 +1000,7 @@
         <img id="img-sup" src="" alt="">
       </label>
 
-      <label class="photo-slot" id="slot-inf" for="file-inf">
+      <label class="photo-slot" id="slot-inf" for="file-inf" onclick="return abrirCamApp('inf', event)">
         <div class="photo-check">✓</div>
         <div class="photo-retake">📷 Tirar nova</div>
         <div class="pi">📸</div>
@@ -1014,13 +1008,26 @@
         <img id="img-inf" src="" alt="">
       </label>
 
-      <label class="photo-slot" id="slot-elv" for="file-elv">
+      <label class="photo-slot" id="slot-elv" for="file-elv" onclick="return abrirCamApp('elv', event)">
         <div class="photo-check">✓</div>
         <div class="photo-retake">📷 Tirar nova</div>
         <div class="pi">📸</div>
         <div class="pl">5S do Elevador</div>
         <img id="img-elv" src="" alt="">
       </label>
+    </div>
+    <div style="font-size:11px;color:var(--gr);text-align:center;margin-top:4px;">A foto é tirada aqui no app. Se a câmera não abrir, use “📷 Câmera do celular”.</div>
+  </div>
+
+  <!-- CÂMERA DO APP (foto sem sair do Chrome — fix 13/11) -->
+  <div id="cam-ov" class="cam-ov hidden">
+    <video id="cam-video" playsinline muted autoplay></video>
+    <div class="cam-top" id="cam-titulo">📸 Foto</div>
+    <div class="cam-msg" id="cam-msg"></div>
+    <div class="cam-bar">
+      <button type="button" class="cam-btn-x" onclick="fechaCamApp()" aria-label="Fechar câmera">✕</button>
+      <button type="button" class="cam-btn-shot" id="cam-shot" onclick="capturaCamApp()" aria-label="Tirar foto" disabled></button>
+      <label class="cam-btn-alt" id="cam-alt" for="file-sup" onclick="camAltClick()">📷 Câmera do celular</label>
     </div>
   </div>
 
@@ -1180,7 +1187,8 @@ function _manualUrl() {
 function fetchManualQrFlag() {
   // Liberações de entrada manual moram no webhook (gas-mecanicos). São POR CARRINHO e de
   // uso único: o supervisor libera, aparece aqui, o mecânico usa 1x e some.
-  gasGet(_manualUrl(), 'action=manualQrGet', (d) => {
+  clearTimeout(window._mqTimer); // uma cadeia só: cada chamada extra (ex.: após consumir) criava outra cadeia de 30 s (fix 13/11)
+  gasGet(_manualUrl(), 'action=manualQrGet&_=' + Date.now(), (d) => {
     const wrap = document.getElementById('qr-manual-wrap');
     const box = document.getElementById('qr-manual-carts');
     if (!wrap || !box) return;
@@ -1196,14 +1204,24 @@ function fetchManualQrFlag() {
       box.appendChild(b);
     });
   });
-  setTimeout(fetchManualQrFlag, 30000); // re-checa a cada 30s
+  window._mqTimer = setTimeout(fetchManualQrFlag, 30000); // re-checa a cada 30s
 }
 // Usa a liberação de um carrinho (uso único): consome no servidor e entra como se tivesse escaneado.
+// A liberação era gasta no TOQUE: se o carrinho estava ocupado (popup de trava) ou a aba caía na
+// foto, ela sumia e o encarregado tinha de liberar de novo (369 liberações × 76 usos em 7 semanas).
+// Agora só é gasta quando o mecânico passa da tela do carrinho (trava conferida). (fix 13/11)
 function useManualCart(name) {
-  gasGet(_manualUrl(), 'action=manualQrConsume&cart=' + encodeURIComponent(name), () => { fetchManualQrFlag(); });
   stopQR();
   setCart(normalizeCartName(name));
+  S._manualGrant = name;
   const area = document.getElementById('qr-scan-area'); if (area) area.style.display = 'none';
+}
+function consomeLiberacaoManual() {
+  const name = S._manualGrant;
+  if (!name || normalizeCartName(name) !== S.carrinho) return;
+  S._manualGrant = null;
+  const me = (getStoredUser() || {}).email || S.mecanico || '';
+  gasGet(_manualUrl(), 'action=manualQrConsume&cart=' + encodeURIComponent(name) + '&por=' + encodeURIComponent(me), () => { fetchManualQrFlag(); });
 }
 function getCartPerfil(nome) {
   if (!_perfisCfg || !_perfisCfg.carrinhos) return 'Mecânico';
@@ -1425,8 +1443,11 @@ function goTo(idx) {
     document.querySelector('.screen.active')?.classList.remove('active');
     document.getElementById(SCREENS[idx]).classList.add('active');
     curScreen = idx;
+    _ultimaTroca = Date.now();
+    if (TELAS_FLUXO.indexOf(SCREENS[idx]) >= 0) armaVoltar();
     updateBar();
 
+    if (idx !== SCREENS.indexOf('screen-fotos')) fechaCamApp();
     if (idx === SCREENS.indexOf('screen-scan')) {
       // só inicia câmera se ainda não houver carrinho identificado
       if (!S.carrinho) startQR();
@@ -1445,8 +1466,10 @@ function goTo(idx) {
     if (isLogin) {
       bb.innerHTML = ''; // login: sem barra de navegação
     } else if (isOK) {
-      // Botão ativo desde o início — envio continua em segundo plano
-      bb.innerHTML = `<button class="btn-novo" id="btn-novo" onclick="resetApp()">➕ Nova Operação</button>`;
+      // Envio continua em segundo plano. O botão nasce travado 2 s: ele ocupa o mesmo lugar do
+      // "Confirmar Registro", e o 2º toque de um toque duplo zerava a tela na hora. (fix 13/11)
+      bb.innerHTML = `<button class="btn-novo" id="btn-novo" onclick="resetApp()" disabled style="opacity:.45">➕ Nova Operação</button>`;
+      setTimeout(() => { const b = document.getElementById('btn-novo'); if (b) { b.disabled = false; b.style.opacity = '1'; } }, 2000);
     } else {
       bb.innerHTML = `<button class="btn-back" id="btn-back" onclick="goBack()" style="${isTipo?'display:none':''}">←</button>
            <button class="btn-next" id="btn-next" onclick="goNext()">Avançar →</button>`;
@@ -1459,10 +1482,40 @@ function goTo(idx) {
   }
 }
 
+// Botão/gesto VOLTAR do Android no meio da operação fechava o app (não havia histórico) e tudo
+// recomeçava do login. Dentro do fluxo, o voltar agora volta UMA tela (ou fecha a câmera). (fix 13/11)
+const TELAS_FLUXO = ['screen-scan', 'screen-checklist', 'screen-fotos', 'screen-assin', 'screen-resumo'];
+let _voltarArmado = false;
+function armaVoltar() {
+  if (_voltarArmado) return;
+  try { history.pushState({ vammoFluxo: 1 }, ''); _voltarArmado = true; } catch (_) {}
+}
+window.addEventListener('popstate', () => {
+  _voltarArmado = false;
+  const ov = document.getElementById('cam-ov');
+  if (ov && !ov.classList.contains('hidden')) { fechaCamApp(); armaVoltar(); return; }
+  const lp = document.getElementById('lock-popup');
+  if (lp && !lp.classList.contains('hidden')) { closeLockPopup(); armaVoltar(); return; }
+  if (TELAS_FLUXO.indexOf(SCREENS[curScreen]) >= 0) { goBack(); armaVoltar(); }
+});
+
+let _ultimaTroca = 0;
 function goNext() {
   if (!canAdvance()) return;
+  // Toque duplo no "Avançar" da assinatura caía direto no "✓ Confirmar Registro" (mesmo lugar)
+  // e registrava sem o mecânico ver o resumo. Toque < 600 ms depois de trocar de tela é ignorado. (fix 13/11)
+  if (Date.now() - _ultimaTroca < 600) return;
+  if (SCREENS[curScreen] === 'screen-scan') consomeLiberacaoManual();
   const maxStep = SCREENS.indexOf('screen-resumo');
-  if (curScreen === maxStep) { submit(); return; }
+  if (curScreen === maxStep) {
+    // Toque duplo: o 2º toque caía no "Nova Operação" (mesmo lugar da tela) e apagava a tela de
+    // confirmação antes de o mecânico ver se foi. (fix 13/11)
+    if (S._enviando) return;
+    S._enviando = true;
+    const b = document.getElementById('btn-next'); if (b) b.disabled = true;
+    submit();
+    return;
+  }
   if (curScreen < SCREENS.length - 1) goTo(curScreen + 1);
 }
 
@@ -1485,7 +1538,8 @@ function updateNextBtn() {
   if (!btn) return;
   const isResumo = curScreen === SCREENS.indexOf('screen-resumo');
   btn.textContent = isResumo ? '✓ Confirmar Registro' : 'Avançar →';
-  btn.disabled = !canAdvance();
+  btn.disabled = !canAdvance() || !!S._enviando;
+  salvaRascunho(); // toda mudança de estado passa por aqui (marcar ferramenta, foto, tela)
 }
 
 function canAdvance() {
@@ -1504,8 +1558,13 @@ function canAdvance() {
 
 // ─── SCREEN: TIPO ─────────────────────────────────────────────────────────────
 function selectTipo(tipo) {
+  const mudou = S.tipo !== tipo;
   S.tipo = tipo;
+  if (!S._rascId) S._rascId = 'R' + Date.now().toString(36);
   goTo(SCREENS.indexOf('screen-scan'));
+  // Voltou da tela do carrinho e trocou entrada↔saída: refaz a conferência do carrinho para o
+  // novo tipo (senão um checkout passava com a conferência feita para check-in). (fix 13/11)
+  if (mudou && S.carrinho) setCart(S.carrinho);
 }
 
 // ─── SCREEN: QR ───────────────────────────────────────────────────────────────
@@ -1518,7 +1577,10 @@ function normalizeCartName(nome) {
   let raw = String(nome || '').toUpperCase().replace(/[\s\-_]+/g,'');
   if (/^0C\d+$/.test(raw)) raw = 'OC' + raw.slice(2);
   const m = raw.match(/^(MC|OC|SC|SM|CP)(\d+)$/);
-  if (!m) return String(nome || '').trim().toUpperCase();
+  // Fora do padrão de base (ex.: Q01, carrinho da Qualidade): sem espaço, igual à chave do
+  // servidor (normCart_) e à do cadastro de perfis. Antes "q 01" virava "Q 01", não casava com
+  // o perfil "Q01" e o checklist caía no de rampa (34 ferramentas). (fix 13/11)
+  if (!m) return raw;
   return m[1] + ' ' + m[2].padStart(2,'0');
 }
 
@@ -1531,23 +1593,41 @@ async function startQR() {
   const video = document.getElementById('qr-video');
   const statusEl = document.getElementById('qr-status');
   if (!video) return;
+  // Não existe campo de digitação: a entrada manual é a liberação do supervisor/encarregado. (fix 13/11)
+  const SEM_QR = ' Peça ao encarregado/supervisor para <b>liberar a entrada manual</b> deste carrinho.';
+  const TENTA = ' <button type="button" onclick="stopQR(); startQR();" style="margin-top:8px;padding:8px 14px;border-radius:8px;border:1px solid var(--az);background:transparent;color:var(--az);font-weight:700;cursor:pointer;">📷 Tentar a câmera de novo</button>';
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    statusEl.innerHTML = '<span style="color:var(--rd)">❌ Navegador sem suporte de câmera. Use entrada manual abaixo.</span>';
+    statusEl.innerHTML = '<span style="color:var(--rd)">❌ Este navegador não abre a câmera.' + SEM_QR + '</span>';
+    return;
+  }
+  if (typeof jsQR !== 'function') {
+    // jsQR vem da CDN; sem ele o scanLoop engolia o erro e a câmera ficava aberta sem ler nada. (fix 13/11)
+    statusEl.innerHTML = '<span style="color:var(--rd)">❌ O leitor de QR não carregou (internet fraca?).</span> <button type="button" onclick="location.reload()" style="margin-top:8px;padding:8px 14px;border-radius:8px;border:1px solid var(--az);background:transparent;color:var(--az);font-weight:700;cursor:pointer;">↻ Recarregar o app</button><br><span style="font-size:12px;color:var(--gr)">Ou' + SEM_QR + '</span>';
     return;
   }
   statusEl.textContent = '📷 Iniciando câmera...';
+  const geracao = ++_qrGeracao;
   try {
-    qrStream = await navigator.mediaDevices.getUserMedia({
+    const s = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false
     });
+    // Enquanto a câmera abria, o mecânico saiu da tela ou já identificou o carrinho (toque duplo
+    // em Entrada/Saída): sem isto o stream ficava órfão, ligado até fechar a página. (fix 13/11)
+    if (geracao !== _qrGeracao || qrStream || SCREENS[curScreen] !== 'screen-scan' || S.carrinho) {
+      s.getTracks().forEach(t => t.stop());
+      return;
+    }
+    qrStream = s;
     video.srcObject = qrStream;
     await video.play().catch(()=>{});
+    if (geracao !== _qrGeracao) return; // stopQR rodou durante o play()
+    if (qrRafId) { cancelAnimationFrame(qrRafId); qrRafId = null; }
     statusEl.textContent = '🎯 Aponte para o QR Code';
     scanLoop();
   } catch (e) {
     console.error('Camera erro:', e);
-    statusEl.innerHTML = '<span style="color:var(--rd)">❌ Câmera bloqueada — autorize nas permissões do navegador. Ou digite o código abaixo.</span>';
+    statusEl.innerHTML = '<span style="color:var(--rd)">❌ A câmera não abriu (permissão negada ou outro app usando).' + SEM_QR + '</span>' + TENTA;
   }
 }
 
@@ -1571,7 +1651,9 @@ function scanLoop() {
   qrRafId = requestAnimationFrame(scanLoop);
 }
 
+let _qrGeracao = 0;
 function stopQR() {
+  _qrGeracao++;
   if (qrRafId) { cancelAnimationFrame(qrRafId); qrRafId = null; }
   if (qrStream) {
     qrStream.getTracks().forEach(t => t.stop());
@@ -1612,6 +1694,7 @@ function confirmManualCart() {
 
 function resetScan() {
   S.carrinho = null;
+  S.ferramentas = {}; S.openNCs = []; _clIdx = 0; S._manualGrant = null; // nada do carrinho anterior (fix 13/11)
   S.cartLocked = false;
   S.cartChecking = false;
   closeLockPopup();
@@ -1627,7 +1710,10 @@ function resetScan() {
 }
 
 function setCart(num) {
-  S.carrinho = normalizeCartName(num); // garante formato canônico
+  const novo = normalizeCartName(num);
+  // Escaneou OUTRO carrinho: as NCs pré-marcadas do anterior iam junto para o checklist deste. (fix 13/11)
+  if (S.carrinho && novo !== S.carrinho) { S.ferramentas = {}; S.openNCs = []; _clIdx = 0; S._manualGrant = null; }
+  S.carrinho = novo; // garante formato canônico
   aplicarPerfilCarrinho(S.carrinho);   // checklist = ferramentas do perfil do carrinho
   atualizaPerfilDoCarrinho(S.carrinho); // e confere no servidor (perfil trocado no gestor vale já neste scan)
   S.cartLocked = false; // reseta status
@@ -1640,6 +1726,8 @@ function setCart(num) {
   updateNextBtn();
   // Para check-in: valida se o carrinho não está ocupado por outro
   if (S.tipo === 'checkin') checkCartLock(S.carrinho);
+  // Para checkout: confere se o carrinho está mesmo aberto (e com quem). (fix 13/11)
+  else if (S.tipo === 'checkout') checkCartCheckout(S.carrinho);
   // Sempre: pré-carrega NCs abertas pra esse carrinho (persistem entre operações)
   loadOpenNCs(S.carrinho);
 }
@@ -1652,6 +1740,7 @@ function loadOpenNCs(cart) {
   S.openNCs = []; // pendentes
   gasGet(cfg.webhookUrl, 'action=openNCs&cart=' + encodeURIComponent(cart), (data, err) => {
     if (err || !data || !Array.isArray(data.ncs)) return;
+    if (S.carrinho !== cart) return; // NCs de um carrinho anterior não marcam o checklist do atual (fix 13/11)
     S.openNCs = data.ncs;
     data.ncs.forEach(nc => {
       // só pré-marca se o user ainda não tocou nessa ferramenta nesta sessão
@@ -1693,7 +1782,8 @@ function checkCartLock(cartName) {
   statusBox.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--bd);border-top-color:var(--az);border-radius:50%;vertical-align:middle;margin-right:6px;animation:spin 0.8s linear infinite;"></span> Verificando se o carrinho está livre...';
   foundBox.appendChild(statusBox);
 
-  gasGet(cfg.webhookUrl, 'action=cartstatus&cart=' + encodeURIComponent(cartName), (data, err) => {
+  gasGet(cfg.webhookUrl, 'action=cartstatus&cart=' + encodeURIComponent(cartName) + '&_=' + Date.now(), (data, err) => {
+    if (S.carrinho !== cartName || S.tipo !== 'checkin') return; // resposta atrasada de outro carrinho/operação (fix 13/11)
     S.cartChecking = false;
     if (err || !data) {
       statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.1);font-size:12px;color:var(--yw);text-align:center;';
@@ -1711,8 +1801,9 @@ function checkCartLock(cartName) {
       const mec = String(data.mecanico || '').toLowerCase();
       const u = getStoredUser();
       const me = u ? u.email.toLowerCase() : '';
-      const quando = data.ts ? new Date(data.ts).toLocaleString('pt-BR', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' }) : '';
+      const quando = quandoTrava(data.ts);
       const isSelf = mec && mec === me;
+      S._travaTs = data.ts || '';
       // Bloqueia em qualquer caso (mesmo se for o próprio mecânico — ele precisa fazer checkout primeiro)
       statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--rd);background:rgba(239,68,68,.12);font-size:12px;color:var(--rd);text-align:center;font-weight:700;';
       statusBox.innerHTML = `🔒 ${isSelf ? 'Você já está logado neste carrinho' : 'Ocupado por ' + mec}`;
@@ -1723,6 +1814,72 @@ function checkCartLock(cartName) {
     }
   });
 }
+
+// CHECKOUT sem conferência deixava fechar carrinho que ninguém abriu ou que está com outra pessoa
+// (13/11 07:54: checkout do MC 46, que nunca teve check-in, por quem queria fazer check-in — 19 min
+// depois ele abriu o MC 33). Livre = bloqueia e oferece trocar para check-in; com outra pessoa =
+// pede confirmação explícita; sem resposta do servidor = deixa seguir com aviso. (fix 13/11)
+function checkCartCheckout(cartName) {
+  const cfg = getConfig();
+  if (!cfg.webhookUrl) return;
+  const foundBox = document.getElementById('cart-found-box');
+  if (!foundBox) return;
+  S.cartChecking = true;
+  updateNextBtn();
+  const statusBox = document.createElement('div');
+  statusBox.id = 'cart-lock-box';
+  statusBox.style.cssText = 'margin-top:10px;padding:12px 14px;border-radius:10px;border:1px solid var(--bd);background:var(--c2);font-size:13px;color:var(--gr);text-align:center;';
+  statusBox.textContent = '⏳ Conferindo se este carrinho está com você...';
+  foundBox.appendChild(statusBox);
+  gasGet(cfg.webhookUrl, 'action=cartstatus&cart=' + encodeURIComponent(cartName) + '&_=' + Date.now(), (data, err) => {
+    if (S.carrinho !== cartName || S.tipo !== 'checkout') return; // trocou de carrinho/operação no meio
+    S.cartChecking = false;
+    const u = getStoredUser();
+    const me = u ? String(u.email || '').toLowerCase() : '';
+    if (err || !data || !data.status) {
+      statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.1);font-size:12px;color:var(--yw);text-align:center;';
+      statusBox.textContent = '⚠️ Não consegui conferir no servidor (internet?) — confira se o carrinho é mesmo o seu antes de seguir.';
+      updateNextBtn();
+      return;
+    }
+    const mec = String(data.mecanico || '').toLowerCase();
+    if (data.status === 'occupied' && (!mec || mec === me)) {
+      statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--gn);background:rgba(34,197,94,.1);font-size:13px;color:var(--gn);text-align:center;font-weight:700;';
+      statusBox.textContent = '✅ Carrinho está com você — pode fazer o checkout';
+      updateNextBtn();
+      return;
+    }
+    S.cartLocked = true;
+    if (data.status === 'free') {
+      statusBox.style.cssText = 'margin-top:10px;padding:12px;border-radius:10px;border:1px solid var(--rd);background:rgba(239,68,68,.12);font-size:13px;color:var(--rd);text-align:center;font-weight:700;';
+      // Aviso com escolha, não bloqueio: 101 saídas em carrinho "livre" em 30 dias eram devolução de
+      // verdade (entrada esquecida ou perdida). Só não pode passar calado. (fix 13/11)
+      statusBox.innerHTML = '🚫 Este carrinho está LIVRE — não tem check-in aberto.<br><span style="font-weight:500;color:var(--w2)">Você queria PEGAR o carrinho (check-in)?</span>' +
+        '<button type="button" onclick="trocarParaCheckin()" style="display:block;width:100%;margin-top:10px;padding:12px;border:none;border-radius:10px;background:var(--az);color:var(--bk);font-weight:800;font-size:14px;cursor:pointer;">Fazer CHECK-IN neste carrinho</button>' +
+        '<button type="button" onclick="confirmarCheckoutDeOutro()" style="display:block;width:100%;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:transparent;color:var(--gr);font-weight:700;font-size:13px;cursor:pointer;">Não — estou devolvendo (esqueci de fazer a entrada)</button>';
+    } else {
+      const quando = quandoTrava(data.ts);
+      statusBox.style.cssText = 'margin-top:10px;padding:12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.12);font-size:13px;color:var(--yw);text-align:center;font-weight:700;';
+      statusBox.innerHTML = '⚠️ Este carrinho está com <b>' + escHtml(mec) + '</b>' + (quando ? ' desde ' + quando : '') + '.<br><span style="font-weight:500;color:var(--w2)">Só faça o checkout se você está devolvendo o carrinho dele.</span>' +
+        '<button type="button" onclick="confirmarCheckoutDeOutro()" style="display:block;width:100%;margin-top:10px;padding:12px;border:1px solid var(--yw);border-radius:10px;background:transparent;color:var(--yw);font-weight:800;font-size:14px;cursor:pointer;">Sim, estou devolvendo este carrinho</button>';
+    }
+    updateNextBtn();
+    if (navigator.vibrate) try { navigator.vibrate([200, 100, 200]); } catch(_) {}
+  });
+}
+function trocarParaCheckin() {
+  const cart = S.carrinho;
+  if (!cart) return;
+  S.tipo = 'checkin';
+  setCart(cart); // refaz a conferência como check-in (trava de ocupado etc.)
+}
+function confirmarCheckoutDeOutro() {
+  S.cartLocked = false;
+  const box = document.getElementById('cart-lock-box');
+  if (box) { box.style.borderColor = 'var(--gn)'; box.style.color = 'var(--gn)'; box.textContent = '✅ Ok — devolução (checkout) em nome de ' + (S.mecanico || 'você') + '.'; }
+  updateNextBtn();
+}
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
 
 function openLockPopup(mec, quando, isSelf) {
   const pop = document.getElementById('lock-popup');
@@ -1740,11 +1897,62 @@ function openLockPopup(mec, quando, isSelf) {
   }
   if (whenEl) whenEl.textContent = quando ? 'desde ' + quando : '';
   if (actEl) {
+    // Dono preso no próprio check-in esquecido: antes tinha de fazer uma SAÍDA inteira (checklist +
+    // 3 fotos + assinatura) só para poder fazer a ENTRADA — justamente a etapa que trava. Agora ele
+    // fecha a sessão antiga num toque (registro sem fotos, como o "Forçar checkout", com log). (fix 13/11)
     actEl.innerHTML = isSelf
-      ? '⚠️ Faça <strong>checkout</strong> deste carrinho primeiro, depois pode fazer novo check-in.'
+      ? 'Você esqueceu de fazer a saída da última vez.<br>' +
+        '<button type="button" id="lp-self-btn" onclick="fechaMinhaSessao()" style="display:block;width:100%;margin-top:10px;padding:13px;border:none;border-radius:10px;background:var(--az);color:var(--bk);font-weight:800;font-size:14px;cursor:pointer;">Fechar a sessão antiga e fazer o check-in agora</button>' +
+        '<div id="lp-self-msg" style="font-size:12px;margin-top:8px;"></div>'
       : '⚠️ <strong>Chame o supervisor</strong> para liberar este carrinho via <em>"Forçar Checkout"</em> no app do gestor.';
   }
   pop.classList.remove('hidden');
+}
+// "desde 16/06/2026 (150 dias)" — sem o ano, trava de junho parecia de ontem.
+function quandoTrava(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d)) return '';
+  const dias = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const txt = d.toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: dias > 300 ? 'numeric' : undefined });
+  return txt + (dias >= 1 ? ' (há ' + dias + ' dia' + (dias > 1 ? 's' : '') + ')' : '');
+}
+function logAcaoMec(acao, detalhes, cart) {
+  try {
+    const url = getConfig().webhookUrl; if (!url) return;
+    const sc = document.createElement('script');
+    const cbn = '_lg_' + Date.now() + Math.random().toString(36).slice(2, 7);
+    window[cbn] = () => { delete window[cbn]; if (sc.parentNode) sc.parentNode.removeChild(sc); };
+    sc.onerror = window[cbn];
+    const me = (getStoredUser() || {}).email || S.mecanico || '';
+    sc.src = url + '?action=logAdd&acao=' + encodeURIComponent(acao) + '&email=' + encodeURIComponent(me) +
+      '&nome=' + encodeURIComponent(me) + '&base=' + encodeURIComponent(baseDoCarrinho(cart)) +
+      '&detalhes=' + encodeURIComponent(detalhes) + '&origem=' + encodeURIComponent(papelDoEmail(me)) + '&callback=' + cbn;
+    document.head.appendChild(sc);
+  } catch (_) {}
+}
+function fechaMinhaSessao() {
+  const cart = S.carrinho;
+  const me = String((getStoredUser() || {}).email || '').toLowerCase();
+  const btn = document.getElementById('lp-self-btn');
+  const msg = document.getElementById('lp-self-msg');
+  if (!cart || !me) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Fechando a sessão antiga...'; }
+  const desde = quandoTrava(S._travaTs);
+  const id = 'VMO-AUTO-' + Date.now().toString(36).toUpperCase();
+  const params = 'action=post&id=' + encodeURIComponent(id) + '&ts=' + encodeURIComponent(new Date().toISOString()) +
+    '&tipo=checkout&carrinho=' + encodeURIComponent(cart) + '&turno=&mecanico=' + encodeURIComponent(me) +
+    '&nc_count=0&nc_list=&fotos=000&assinatura=0';
+  gasGet(getConfig().webhookUrl, params, (data, err) => {
+    if (!data || !data.success) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Tentar de novo'; }
+      if (msg) { msg.style.color = 'var(--rd)'; msg.textContent = 'Não consegui fechar (' + (err || 'sem resposta') + '). Tente de novo ou chame o supervisor.'; }
+      return;
+    }
+    logAcaoMec('cart_autoclose_self', cart + ' · sessão aberta ' + desde + ' fechada pelo próprio mecânico ao fazer novo check-in · ' + id, cart);
+    closeLockPopup();
+    if (S.carrinho === cart) setCart(cart); // refaz a conferência — agora deve vir livre
+  });
 }
 function closeLockPopup() {
   document.getElementById('lock-popup')?.classList.add('hidden');
@@ -1794,6 +2002,8 @@ function authedAs(email, name) {
   S.mecanico = e;
   setStoredUser({ email: e, name: name || emailDisplayName(e), ts: new Date().toISOString() });
   updateUserChip();
+  const r = rascunhoPendente(e);
+  if (r) { retomaRascunho(r); return true; } // recarregou no meio de uma operação (fix 13/11)
   // pula direto pra tela de tipo
   goTo(SCREENS.indexOf('screen-tipo'));
   return true;
@@ -1910,6 +2120,8 @@ function continuarComo() {
   S.mecanico = u.email;
   setStoredUser({ email: u.email, name: u.name, ts: new Date().toISOString() }); // renova a janela
   updateUserChip();
+  const r = rascunhoPendente(u.email);
+  if (r) { retomaRascunho(r); return; } // a página recarregou no meio de uma operação (fix 13/11)
   goTo(SCREENS.indexOf('screen-tipo'));
 }
 
@@ -2212,12 +2424,20 @@ async function fileToResizedDataUrl(file, maxWidth, quality) {
   let bitmap, srcW, srcH, useBitmap = false;
   // 1) Tenta createImageBitmap (mais eficiente — GPU-accelerated em muitos browsers)
   if (typeof createImageBitmap === 'function') {
+    // 1ª tentativa: o navegador já decodifica reduzido (foto de 12-50 MP inteira = 48-200 MB de
+    // RAM; em celular fraco isso derrubava a aba). Sem suporte às opções, cai no decode inteiro. (fix 13/11)
     try {
-      bitmap = await createImageBitmap(file);
+      bitmap = await createImageBitmap(file, { resizeWidth: maxWidth, resizeQuality: 'medium' });
       srcW = bitmap.width; srcH = bitmap.height;
       useBitmap = true;
-    } catch (e) {
-      console.warn('createImageBitmap falhou, fallback:', e);
+    } catch (e0) {
+      try {
+        bitmap = await createImageBitmap(file);
+        srcW = bitmap.width; srcH = bitmap.height;
+        useBitmap = true;
+      } catch (e) {
+        console.warn('createImageBitmap falhou, fallback:', e);
+      }
     }
   }
   // 2) Fallback: Image via objectURL (evita base64 gigante em memória)
@@ -2268,10 +2488,8 @@ async function onPhoto(slot, input) {
       // 2ª tentativa mais conservadora pra celulares fracos
       dataUrl = await fileToResizedDataUrl(file, 600, 0.55);
     }
-    S.fotos[slot] = dataUrl;
-    document.getElementById('img-' + slot).src = dataUrl;
-    if (slotEl) { slotEl.classList.remove('loading'); slotEl.classList.add('done'); }
-    updateNextBtn();
+    if (slotEl) slotEl.classList.remove('loading');
+    setFoto(slot, dataUrl);
   } catch (err) {
     console.error('Foto ' + slot + ' erro:', err);
     if (slotEl) slotEl.classList.remove('loading');
@@ -2283,10 +2501,7 @@ async function onPhoto(slot, input) {
         r.onerror = rej;
         r.readAsDataURL(file);
       });
-      S.fotos[slot] = rawUrl;
-      document.getElementById('img-' + slot).src = rawUrl;
-      if (slotEl) slotEl.classList.add('done');
-      updateNextBtn();
+      setFoto(slot, rawUrl);
     } catch (err2) {
       alert('Não consegui processar a foto.\n\nTente novamente, ou tire uma foto mais simples. Se persistir, feche apps em segundo plano e tente de novo.');
     }
@@ -2297,6 +2512,228 @@ async function onPhoto(slot, input) {
 }
 
 function closeCam() {} // mantido por compatibilidade
+
+// Ponto único para gravar uma foto (câmera do app ou do celular): tela + rascunho.
+function setFoto(slot, dataUrl) {
+  // Arquivo vazio / canvas que falhou virava ✓ com quadro vazio e o servidor ficava sem a foto. (fix 13/11)
+  // piso baixo de propósito: foto escura/uniforme legítima pode ter só 2-4 mil caracteres
+  if (!/^data:image\/(jpeg|png|webp)/.test(String(dataUrl || '')) || String(dataUrl).length < 600) {
+    const el0 = document.getElementById('slot-' + slot); if (el0) el0.classList.remove('loading');
+    alert('A foto não saiu. Tire de novo.');
+    return false;
+  }
+  S.fotos[slot] = dataUrl;
+  const img = document.getElementById('img-' + slot); if (img) img.src = dataUrl;
+  const el = document.getElementById('slot-' + slot);
+  if (el) { el.classList.remove('loading'); el.classList.add('done'); }
+  if (!S._rascId) S._rascId = 'R' + Date.now().toString(36);
+  idbFotos('put', S._rascId + ':' + slot, dataUrl).then(() => salvaRascunho());
+  updateNextBtn();
+}
+
+// ─── RASCUNHO: a operação em andamento sobrevive à recarga da página ─────────
+// 13/11 (Mooca, MC 42/MC 46/Q01): "trava ao fazer check-in e tirar foto". A câmera do celular
+// abre FORA do Chrome; em celular com pouca memória o Android mata a aba e, na volta, a página
+// recarrega no login — sem carrinho, sem checklist, sem foto (e com a liberação de QR manual já
+// gasta). Nada ficava salvo. Agora: checklist/carrinho no localStorage a cada mudança, fotos no
+// IndexedDB; ao confirmar "Sou eu, continuar", o app volta para a tela onde estava. (fix 13/11)
+const RASC_KEY = 'vammo_rascunho_v1';
+const RASC_TTL_MS = 3 * 60 * 60 * 1000;
+const RASC_TELAS = ['screen-checklist', 'screen-fotos', 'screen-assin', 'screen-resumo'];
+let _rascPausado = false;
+function idbFotos(op, key, val) {
+  return new Promise((resolve) => {
+    try {
+      if (!window.indexedDB) return resolve(null);
+      const req = indexedDB.open('vammo_rascunho', 1);
+      req.onupgradeneeded = () => { try { req.result.createObjectStore('fotos'); } catch (_) {} };
+      req.onerror = () => resolve(null);
+      req.onsuccess = () => {
+        const db = req.result;
+        let tx;
+        try { tx = db.transaction('fotos', op === 'get' ? 'readonly' : 'readwrite'); } catch (e) { db.close(); return resolve(null); }
+        const st = tx.objectStore('fotos');
+        let r = null;
+        if (op === 'put') r = st.put(val, key);
+        else if (op === 'get') r = st.get(key);
+        else if (op === 'clear') r = st.clear();
+        tx.oncomplete = () => { db.close(); resolve(r && op === 'get' ? r.result : true); };
+        tx.onerror = tx.onabort = () => { db.close(); resolve(null); };
+      };
+    } catch (e) { resolve(null); }
+  });
+}
+function salvaRascunho() {
+  try {
+    if (_rascPausado || S._enviando) return;
+    const tela = SCREENS[curScreen];
+    if (!S.tipo || !S.carrinho || !S.mecanico || RASC_TELAS.indexOf(tela) < 0) return;
+    if (!S._rascId) S._rascId = 'R' + Date.now().toString(36);
+    localStorage.setItem(RASC_KEY, JSON.stringify({
+      v: 1, id: S._rascId, ts: Date.now(), email: S.mecanico, tipo: S.tipo, carrinho: S.carrinho,
+      ferramentas: S.ferramentas || {}, openNCs: S.openNCs || [], clIdx: _clIdx, tela,
+      fotos: { sup: !!S.fotos.sup, inf: !!S.fotos.inf, elv: !!S.fotos.elv }
+    }));
+  } catch (e) { console.warn('rascunho não salvo:', e); }
+}
+function limpaRascunho() {
+  try { localStorage.removeItem(RASC_KEY); } catch (_) {}
+  idbFotos('clear');
+}
+function rascunhoPendente(email) {
+  try {
+    const r = JSON.parse(localStorage.getItem(RASC_KEY) || 'null');
+    if (!r || r.v !== 1 || !r.tipo || !r.carrinho) return null;
+    if (Date.now() - (r.ts || 0) > RASC_TTL_MS) { limpaRascunho(); return null; }
+    if (String(r.email || '').toLowerCase() !== String(email || '').toLowerCase()) return null;
+    return r;
+  } catch (_) { return null; }
+}
+async function retomaRascunho(r) {
+  _rascPausado = true;
+  try {
+    S.tipo = r.tipo; S.carrinho = r.carrinho; S._rascId = r.id;
+    S.ferramentas = r.ferramentas || {}; S.openNCs = r.openNCs || [];
+    S.cartLocked = false; S.cartChecking = false;
+    aplicarPerfilCarrinho(S.carrinho);
+    mostraPerfil(S.carrinho);
+    _clIdx = r.clIdx || 0;
+    const num = document.getElementById('cart-num-display'); if (num) num.textContent = S.carrinho;
+    const found = document.getElementById('cart-found-box'); if (found) found.style.display = 'block';
+    const area = document.getElementById('qr-scan-area'); if (area) area.style.display = 'none';
+    for (const s of ['sup', 'inf', 'elv']) {
+      if (!r.fotos || !r.fotos[s]) continue;
+      const d = await idbFotos('get', r.id + ':' + s);
+      if (d) {
+        S.fotos[s] = d;
+        const img = document.getElementById('img-' + s); if (img) img.src = d;
+        const el = document.getElementById('slot-' + s); if (el) el.classList.add('done');
+      }
+    }
+  } finally { _rascPausado = false; }
+  let tela = r.tela;
+  // assinatura não fica salva: quem estava na assinatura/confirmação volta para assinar
+  if (tela === 'screen-assin' || tela === 'screen-resumo')
+    tela = (S.fotos.sup && S.fotos.inf && S.fotos.elv) ? 'screen-assin' : 'screen-fotos';
+  goTo(SCREENS.indexOf(RASC_TELAS.indexOf(tela) >= 0 ? tela : 'screen-checklist'));
+  const nFotos = ['sup', 'inf', 'elv'].filter(s => S.fotos[s]).length;
+  const min = Math.max(1, Math.round((Date.now() - (r.ts || Date.now())) / 60000));
+  avisoRetomada(`↩ Continuando o ${S.tipo === 'checkin' ? 'CHECK-IN' : 'CHECKOUT'} do ${S.carrinho} de onde parou` +
+    (tela === 'screen-fotos' ? ` (${nFotos}/3 fotos)` : '') + ` — salvo há ${min < 60 ? min + ' min' : Math.floor(min / 60) + ' h ' + (min % 60) + ' min'}`);
+  reconfereRetomada(S.carrinho, S.tipo);
+}
+// Enquanto a operação estava parada o carrinho pode ter mudado no servidor (outro pegou, o
+// supervisor forçou). Se a conferência do tipo não passa mais, volta à tela do carrinho — com o
+// checklist e as fotos guardados — e mostra o aviso de lá. (fix 13/11)
+function reconfereRetomada(cart, tipo) {
+  const url = getConfig().webhookUrl; if (!url) return;
+  gasGet(url, 'action=cartstatus&cart=' + encodeURIComponent(cart) + '&_=' + Date.now(), (d) => {
+    if (!d || !d.status || S.carrinho !== cart || S.tipo !== tipo) return;
+    const me = String((getStoredUser() || {}).email || '').toLowerCase();
+    const mec = String(d.mecanico || '').toLowerCase();
+    const mudou = tipo === 'checkin' ? d.status === 'occupied'
+                                     : (d.status === 'free' || (mec && mec !== me));
+    if (!mudou) return;
+    fechaAvisoRetomada();
+    goTo(SCREENS.indexOf('screen-scan'));
+    setCart(cart); // mesmo carrinho: mantém checklist e fotos; refaz a conferência com aviso
+  });
+}
+function avisoRetomada(txt) {
+  let el = document.getElementById('aviso-retomada');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'aviso-retomada';
+    el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:92px;z-index:8000;background:#0f2a35;border:1px solid var(--az);border-radius:12px;padding:12px 14px;color:var(--wh);font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.5);';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<div style="font-weight:800;margin-bottom:8px;">' + escHtml(txt) + '</div>' +
+    '<div style="display:flex;gap:8px;"><button type="button" onclick="fechaAvisoRetomada()" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--az);color:var(--bk);font-weight:800;cursor:pointer;">OK</button>' +
+    '<button type="button" onclick="descartaRascunho()" style="flex:1;padding:10px;border:1px solid var(--bd);border-radius:8px;background:transparent;color:var(--gr);font-weight:700;cursor:pointer;">Começar de novo</button></div>';
+  el.style.display = 'block';
+  clearTimeout(el._t); el._t = setTimeout(fechaAvisoRetomada, 15000);
+}
+function fechaAvisoRetomada() { const el = document.getElementById('aviso-retomada'); if (el) el.style.display = 'none'; }
+function descartaRascunho() {
+  if (!confirm('Descartar o que já foi feito e começar de novo?')) return;
+  fechaAvisoRetomada();
+  limpaRascunho();
+  resetApp();
+}
+
+// ─── CÂMERA DO APP (a foto é tirada sem sair do Chrome) ─────────────────────
+// O input "capture" abre o app de câmera do Android e manda o Chrome para segundo plano — é
+// nesse momento que a aba morre em celular fraco. Aqui a foto sai do vídeo da própria página
+// (mesmo getUserMedia do leitor de QR, permissão já dada). A câmera do celular continua como
+// alternativa no botão "Câmera do celular" (e o rascunho cobre se a aba morrer). (fix 13/11)
+let _camStream = null, _camSlot = null;
+const CAM_TITULOS = { sup: 'Gaveta Superior', inf: 'Gaveta Inferior', elv: '5S do Elevador' };
+function abrirCamApp(slot, ev) {
+  salvaRascunho();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return true; // segue o <label for> → câmera do celular
+  if (ev) ev.preventDefault();
+  _camSlot = slot;
+  const ov = document.getElementById('cam-ov');
+  document.getElementById('cam-titulo').textContent = '📸 ' + (CAM_TITULOS[slot] || slot);
+  document.getElementById('cam-alt').setAttribute('for', 'file-' + slot);
+  const msg = document.getElementById('cam-msg');
+  msg.textContent = 'Abrindo a câmera...';
+  const shot = document.getElementById('cam-shot'); shot.disabled = true;
+  ov.classList.remove('hidden');
+  stopQR();
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false
+  }).then(stream => {
+    if (_camSlot !== slot || ov.classList.contains('hidden')) { stream.getTracks().forEach(t => t.stop()); return; }
+    _camStream = stream;
+    const v = document.getElementById('cam-video');
+    v.srcObject = stream;
+    // Só libera o botão com um quadro de verdade na tela: os primeiros quadros podem vir pretos e
+    // virar "foto" vazia. (fix 13/11)
+    const libera = () => { if (_camSlot === slot && _camStream === stream) { msg.textContent = ''; shot.disabled = false; } };
+    return v.play().catch(() => {}).then(() => {
+      if (typeof v.requestVideoFrameCallback === 'function') v.requestVideoFrameCallback(() => setTimeout(libera, 250));
+      else setTimeout(libera, 500);
+    });
+  }).catch(err => {
+    console.warn('câmera do app indisponível:', err);
+    msg.innerHTML = 'Não consegui abrir a câmera aqui.<br>Toque em <b>📷 Câmera do celular</b> abaixo.';
+  });
+  return false;
+}
+function fechaCamApp() {
+  const ov = document.getElementById('cam-ov'); if (ov) ov.classList.add('hidden');
+  if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
+  const v = document.getElementById('cam-video'); if (v) v.srcObject = null;
+}
+function camAltClick() {
+  // vai abrir a câmera do celular: solta a câmera da página antes (senão o app de câmera não abre)
+  salvaRascunho();
+  fechaCamApp();
+}
+function capturaCamApp() {
+  const v = document.getElementById('cam-video');
+  const slot = _camSlot;
+  if (!v || !v.videoWidth || !slot) return;
+  const MAX = 1024;
+  const r = Math.min(1, MAX / Math.max(v.videoWidth, v.videoHeight));
+  const w = Math.round(v.videoWidth * r), h = Math.round(v.videoHeight * r);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(v, 0, 0, w, h);
+  const d = c.toDataURL('image/jpeg', 0.7);
+  c.width = 0; c.height = 0;
+  if (navigator.vibrate) try { navigator.vibrate(40); } catch (_) {}
+  fechaCamApp();
+  setFoto(slot, d);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { salvaRascunho(); fechaCamApp(); stopQR(); return; }
+  // Tela apagada/app em segundo plano: o Android corta a câmera e o leitor de QR voltava congelado
+  // em "Aponte para o QR" (startQR saía cedo com o stream morto). Reabre limpo. (fix 13/11)
+  if (SCREENS[curScreen] === 'screen-scan' && !S.carrinho) startQR();
+  atualizaPendentesUI();
+});
+window.addEventListener('pagehide', () => salvaRascunho());
 
 // ─── SCREEN: ASSINATURA ───────────────────────────────────────────────────────
 function initSig() {
@@ -2342,13 +2779,20 @@ function initSig() {
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
-    sigHasData = true;
-    document.getElementById('sig-wrap').classList.add('signed');
-    S.assinatura = canvas.toDataURL('image/png');
-    updateNextBtn();
+    if (!sigHasData) {
+      sigHasData = true;
+      document.getElementById('sig-wrap').classList.add('signed');
+      updateNextBtn();
+    }
   }
 
-  function end(e) { e.preventDefault(); sigDrawing = false; }
+  // PNG da assinatura só ao levantar o dedo — antes era recodificado a cada touchmove (traço
+  // travando em celular fraco). (fix 13/11)
+  function end(e) {
+    e.preventDefault();
+    if (sigDrawing && sigHasData) { try { S.assinatura = canvas.toDataURL('image/png'); } catch (_) {} updateNextBtn(); }
+    sigDrawing = false;
+  }
 
   canvas.removeEventListener('mousedown', canvas._ms);
   canvas.removeEventListener('mousemove', canvas._mm);
@@ -2366,6 +2810,10 @@ function initSig() {
   canvas.addEventListener('touchstart', start, { passive: false });
   canvas.addEventListener('touchmove', move, { passive: false });
   canvas.addEventListener('touchend', end, { passive: false });
+  // gesto do sistema "rouba" o toque: sem isto ficava sigHasData=true e a assinatura sem imagem (fix 13/11)
+  canvas.removeEventListener('touchcancel', canvas._tc);
+  canvas._tc = end;
+  canvas.addEventListener('touchcancel', end, { passive: false });
 }
 
 function clearSig() {
@@ -2434,12 +2882,14 @@ function submit() {
     carrinho: S.carrinho, turno: '', mecanico: S.mecanico,
     ferramentas: S.ferramentas,
     fotos: S.fotos,
-    assinatura: S.assinatura,
+    // assinou (sigHasData) mas o PNG não saiu (toque roubado pelo sistema) = ainda é assinatura (fix 13/11)
+    assinatura: S.assinatura || (sigHasData ? true : null),
     nc_count: ncs.length
   };
 
   const saveResult = saveRecord(rec);
   S._saved = rec;
+  limpaRascunho(); // operação confirmada pelo mecânico: não há mais o que retomar (fix 13/11)
   logCheckin(rec); // registra no log de auditoria (quem abriu/fechou o carrinho)
   goTo(SCREENS.indexOf('screen-ok'));
 
@@ -2470,8 +2920,11 @@ function submit() {
     return;
   }
 
-  statusEl.textContent = '⏳ Enviando em segundo plano (fotos + dados)...';
+  statusEl.textContent = '⏳ Enviando (fotos + dados)... pode seguir: fica guardado no celular até o servidor confirmar.';
   statusEl.style.color = 'var(--az)';
+
+  // Guarda o registro completo ANTES de enviar: se a rede ou a aba cair, o app reenvia depois. (fix 13/11)
+  outboxOp('put', rec.id, { rec, criado: Date.now(), ultimo: Date.now(), tentativas: 0 });
 
   // Envio em segundo plano — usuário NÃO precisa esperar.
   if (location.protocol === 'https:') {
@@ -2481,10 +2934,36 @@ function submit() {
   }
 }
 
-function enviarPost(url, rec, statusEl) {
-  // POST com body completo (ferramentas + fotos base64). Usamos no-cors:
-  // GAS responde 302 que o navegador não consegue ler, mas o salvar() executa.
-  // Pra confirmar, sondamos via action=sync depois de 2s.
+// ─── FILA NO CELULAR (outbox) ─────────────────────────────────────────────────
+// A tela "Registrado!" aparece antes do envio. Se a rede caía depois, a operação sumia: nada
+// ficava guardado para reenviar. Agora o registro COMPLETO (com fotos) fica no IndexedDB até o
+// servidor confirmar pelo id; o app reenvia sozinho (ao abrir, ao voltar a internet e a cada
+// 2 min), sempre com o MESMO id e só depois de conferir que ainda não chegou. (fix 13/11)
+const _emVoo = new Set();
+function outboxOp(op, key, val) {
+  return new Promise((resolve) => {
+    try {
+      if (!window.indexedDB) return resolve(op === 'all' ? [] : null);
+      const req = indexedDB.open('vammo_outbox', 1);
+      req.onupgradeneeded = () => { try { req.result.createObjectStore('recs'); } catch (_) {} };
+      req.onerror = () => resolve(op === 'all' ? [] : null);
+      req.onsuccess = () => {
+        const db = req.result;
+        let tx;
+        try { tx = db.transaction('recs', op === 'all' ? 'readonly' : 'readwrite'); } catch (e) { db.close(); return resolve(op === 'all' ? [] : null); }
+        const st = tx.objectStore('recs');
+        let r = null;
+        if (op === 'put') r = st.put(val, key);
+        else if (op === 'del') r = st.delete(key);
+        else if (op === 'all') r = st.getAll();
+        tx.oncomplete = () => { db.close(); resolve(op === 'all' ? (r.result || []) : true); };
+        tx.onerror = tx.onabort = () => { db.close(); resolve(op === 'all' ? [] : null); };
+      };
+    } catch (e) { resolve(op === 'all' ? [] : null); }
+  });
+}
+function postCompleto(url, rec) {
+  // POST com body completo (ferramentas + fotos base64). no-cors: a resposta é opaca.
   const body = {
     id: rec.id, ts: rec.ts, tipo: rec.tipo,
     carrinho: rec.carrinho, turno: rec.turno || '', mecanico: rec.mecanico,
@@ -2493,53 +2972,138 @@ function enviarPost(url, rec, statusEl) {
     fotos: rec.fotos || {},
     assinatura: rec.assinatura ? true : false
   };
-  fetch(url, {
+  return fetch(url, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // text/plain evita preflight CORS
     body: JSON.stringify(body)
-  }).then(() => {
+  });
+}
+// Procura o registro pelo id no servidor → {achou, comFoto} ou null (sem resposta).
+function existeNoServidor(url, rec) {
+  return new Promise((resolve) => {
+    const desde = new Date(new Date(rec.ts).getTime() - 2 * 60 * 1000).toISOString();
+    gasGet(url, 'action=sync&slim=1&desde=' + encodeURIComponent(desde) + '&_=' + Date.now(), (data, err) => {
+      const lista = (data && Array.isArray(data.records)) ? data.records : null;
+      if (!lista) return resolve(null);
+      const a = lista.find(r => r && r.id === rec.id);
+      // Já existe registro MAIS NOVO do mesmo carrinho? Reenviar este depois dele reabriria/fecharia o
+      // carrinho fora de ordem (o servidor decide o estado pela ordem de chegada). (fix 13/11)
+      const k = normalizeCartName(rec.carrinho), t0 = new Date(rec.ts).getTime();
+      const posterior = lista.some(r => r && r.id !== rec.id && normalizeCartName(r.carrinho) === k && new Date(r.ts).getTime() > t0);
+      resolve({ achou: !!a, posterior, comFoto: !!(a && a.fotos && /^https?:/.test(String(a.fotos.sup || ''))) });
+    });
+  });
+}
+function fimEnvio(id, confirmado) {
+  _emVoo.delete(id);
+  if (confirmado) outboxOp('del', id).then(atualizaPendentesUI);
+  else atualizaPendentesUI();
+  enableNovaOperacao();
+}
+let _flushando = false;
+async function outboxFlush() {
+  if (_flushando) return;
+  _flushando = true;
+  try {
+    const url = getConfig().webhookUrl; if (!url) return;
+    const itens = ((await outboxOp('all')) || []).filter(it => it && it.rec)
+      .sort((a, b) => String(a.rec.ts).localeCompare(String(b.rec.ts))); // na ordem em que aconteceram
+    for (const it of itens) {
+      const rec = it.rec;
+      if (_emVoo.has(rec.id)) continue;
+      if (Date.now() - (it.ultimo || it.criado || 0) < 90000) continue;
+      // Registro velho chegando agora reabriria/fecharia o carrinho fora de ordem (o servidor usa a
+      // ordem de chegada): passou de 12 h, só confere — não reenvia.
+      const velho = Date.now() - new Date(rec.ts).getTime() > 12 * 3600 * 1000;
+      const r = await existeNoServidor(url, rec);
+      if (r === null) break; // sem internet: tenta no próximo ciclo
+      if (r.achou || velho || r.posterior) {
+        await outboxOp('del', rec.id);
+        if (!r.achou) logAcaoMec('envio_descartado', rec.carrinho + ' · ' + rec.tipo + ' de ' + rec.ts + (r.posterior ? ' chegou depois de um registro mais novo do carrinho' : ' não chegou em 12 h') + ' · ' + rec.id, rec.carrinho);
+        continue;
+      }
+      it.tentativas = (it.tentativas || 0) + 1; it.ultimo = Date.now();
+      await outboxOp('put', rec.id, it);
+      if (it.tentativas <= 3) {
+        let foi = false;
+        try { await postCompleto(url, rec); foi = true; } catch (_) {}
+        if (foi) { // confere logo (o fetch só termina depois de o servidor gravar)
+          await new Promise(r => setTimeout(r, 2500));
+          const c = await existeNoServidor(url, rec);
+          if (c && c.achou) await outboxOp('del', rec.id);
+        }
+      } else {
+        const ok = await new Promise(res => gasGet(url, paramsJSONP(rec), (d) => res(!!(d && d.success))));
+        if (ok) await outboxOp('del', rec.id);
+      }
+    }
+  } finally { _flushando = false; atualizaPendentesUI(); }
+}
+async function atualizaPendentesUI() {
+  const n = ((await outboxOp('all')) || []).length;
+  let el = document.getElementById('aviso-pendentes');
+  const tela = document.getElementById('screen-tipo');
+  if (!el && tela) {
+    el = document.createElement('div');
+    el.id = 'aviso-pendentes';
+    el.style.cssText = 'margin:0 0 14px;padding:10px 12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.1);color:var(--yw);font-size:13px;text-align:center;';
+    tela.insertBefore(el, tela.firstChild);
+  }
+  if (!el) return;
+  el.style.display = n ? 'block' : 'none';
+  el.textContent = n ? '📦 ' + n + ' registro' + (n > 1 ? 's' : '') + ' guardado' + (n > 1 ? 's' : '') + ' no celular, esperando internet — o app envia sozinho. Não precisa refazer.' : '';
+}
+window.addEventListener('online', () => outboxFlush());
+setInterval(() => outboxFlush(), 2 * 60 * 1000);
+
+function enviarPost(url, rec, statusEl) {
+  _emVoo.add(rec.id);
+  postCompleto(url, rec).then(() => {
     // no-cors: a resposta é opaca, o .then dispara mesmo se o salvar() falhou no servidor.
-    // Confirma DE FATO consultando o cartstatus; se não gravou, reenvia pelo JSONP (confirmável). (fix)
-    statusEl.textContent = '⏳ Confirmando com o servidor...';
+    statusEl.textContent = '⏳ Confirmando com o servidor (as fotos sobem em até 1 min)...';
     statusEl.style.color = 'var(--az)';
     confirmarEnvio(url, rec, statusEl);
   }).catch((err) => {
-    console.error('POST falhou, tentando fallback JSONP:', err);
-    enviarJSONPSemFotos(url, rec, statusEl);
+    // A rede pode cair DEPOIS de o servidor receber o POST: reenviar na hora duplicava o
+    // registro (um com foto, outro sem). Primeiro procura pelo id; só reenvia se não achar. (fix 13/11)
+    console.error('POST falhou — conferindo pelo id antes de reenviar:', err);
+    statusEl.textContent = '⏳ Conexão instável — conferindo se chegou...';
+    statusEl.style.color = 'var(--yw)';
+    confirmarEnvio(url, rec, statusEl);
   });
 }
 
-// Sonda o servidor depois do POST no-cors. Para check-in: espera 'occupied' por este mecânico.
-// Para checkout: espera 'free'. Se não bater, o registro NÃO gravou → reenvia via JSONP action=post
-// (confirmável, sem fotos, mas garante o estado do carrinho — que é o que fica "online"/livre). (fix)
-function confirmarEnvio(url, rec, statusEl) {
+// Confirma o envio PELO ID do registro (action=sync&slim=1&desde=…, ~4 s, poucos KB).
+// Antes: cartstatus 2,5 s depois do POST. Um POST com 3 fotos leva mais que isso (upload ao
+// Drive), então o app achava que não tinha gravado e reenviava pelo JSONP sem fotos → em 30 dias
+// 10 registros em dobro e 20 sem foto; o mecânico lia "use GitHub Pages" e refazia tudo. Agora
+// espera até ~1 min em tentativas espaçadas e só então cai no JSONP, com o MESMO id. (fix 13/11)
+const CONFIRMA_ESPERAS_MS = [3000, 5000, 7000, 10000, 15000, 20000];
+function confirmarEnvio(url, rec, statusEl, tentativa) {
+  tentativa = tentativa || 0;
+  if (tentativa >= CONFIRMA_ESPERAS_MS.length) {
+    statusEl.textContent = '↻ O servidor não confirmou — reenviando os dados (sem fotos)...';
+    statusEl.style.color = 'var(--yw)';
+    enviarJSONPSemFotos(url, rec, statusEl);
+    return;
+  }
   setTimeout(() => {
-    gasGet(url, 'action=cartstatus&cart=' + encodeURIComponent(rec.carrinho), (data, err) => {
-      if (err || !data) {
-        // Não deu pra confirmar (rede) — não prende o mecânico, mas avisa que pode não ter ido.
-        statusEl.textContent = '⚠️ Enviado, mas não deu pra confirmar. Se o gestor não te ver online, refaça.';
-        statusEl.style.color = 'var(--yw)';
-        enableNovaOperacao();
+    existeNoServidor(url, rec).then((r) => {
+      if (r && r.achou) {
+        statusEl.textContent = r.comFoto ? '✅ Confirmado no servidor, com as fotos! Gestor já te vê.'
+                                         : '✅ Confirmado no servidor! Gestor já te vê.';
+        statusEl.style.color = 'var(--gn)';
+        fimEnvio(rec.id, true);
         return;
       }
-      const meuMec = String(rec.mecanico || '').trim().toLowerCase();
-      const servMec = String(data.mecanico || '').trim().toLowerCase();
-      const ok = rec.tipo === 'checkin'
-        ? (data.status === 'occupied' && (!servMec || servMec === meuMec))
-        : (data.status === 'free');
-      if (ok) {
-        statusEl.textContent = '✅ Confirmado no servidor! Gestor já te vê.';
-        statusEl.style.color = 'var(--gn)';
-        enableNovaOperacao();
-      } else {
-        // Não gravou (ou gravou outro) → reenvia pelo caminho confirmável.
-        statusEl.textContent = '↻ Não gravou de primeira — reenviando...';
-        statusEl.style.color = 'var(--yw)';
-        enviarJSONPSemFotos(url, rec, statusEl);
+      if (tentativa >= 1) {
+        statusEl.textContent = '⏳ Ainda subindo as fotos... (' + (tentativa + 1) + '/' + CONFIRMA_ESPERAS_MS.length + ') — pode seguir, fica guardado no celular.';
+        statusEl.style.color = 'var(--az)';
       }
+      confirmarEnvio(url, rec, statusEl, tentativa + 1);
     });
-  }, 2500);
+  }, CONFIRMA_ESPERAS_MS[tentativa]);
 }
 
 function enableNovaOperacao() {
@@ -2552,7 +3116,22 @@ function enableNovaOperacao() {
 }
 
 function enviarJSONPSemFotos(url, rec, statusEl) {
-  // Fallback para file:// — sem fotos (JSONP não suporta payload grande)
+  _emVoo.add(rec.id);
+  gasGet(url, paramsJSONP(rec), (data, err) => {
+    if (data?.success) {
+      // O check-in/checkout VALEU (o carrinho já aparece certo pro gestor); só as fotos não subiram.
+      statusEl.textContent = '✅ Registro confirmado (as fotos não subiram — não precisa refazer).';
+      statusEl.style.color = 'var(--gn)';
+      fimEnvio(rec.id, true);
+    } else {
+      statusEl.textContent = '📦 Sem resposta do servidor agora. O registro ficou GUARDADO no celular e o app envia sozinho quando a internet voltar — não precisa refazer.';
+      statusEl.style.color = 'var(--yw)';
+      fimEnvio(rec.id, false);
+    }
+  });
+}
+function paramsJSONP(rec) {
+  // Fallback sem fotos (JSONP não suporta payload grande), com o MESMO id do registro
   const ncList = Object.entries(rec.ferramentas || {})
     .filter(([,v]) => v.status === 'nao_ok')
     .map(([k,v]) => encodeURIComponent(k) + ':' + (v.motivo||'nc'))
@@ -2569,17 +3148,7 @@ function enviarJSONPSemFotos(url, rec, statusEl) {
     + '&nc_list='   + ncList
     + '&fotos='     + (rec.fotos?.sup?'1':'0') + (rec.fotos?.inf?'1':'0') + (rec.fotos?.elv?'1':'0')
     + '&assinatura=' + (rec.assinatura?'1':'0');
-
-  gasGet(url, params, (data, err) => {
-    if (data?.success) {
-      statusEl.textContent = '✅ Enviado! (sem fotos — use GitHub Pages para envio completo)';
-      statusEl.style.color = 'var(--gn)';
-    } else {
-      statusEl.textContent = '⚠️ ' + (err || data?.error || 'Sem resposta');
-      statusEl.style.color = 'var(--yw)';
-    }
-    enableNovaOperacao();
-  });
+  return params;
 }
 
 function renderOK() {
@@ -2630,6 +3199,9 @@ function baixarJSON(blob, nome) {
 function resetApp() {
   // mantém mecânico logado (login é persistente; trocar usuário é via doLogout)
   const u = getStoredUser();
+  fechaCamApp();
+  fechaAvisoRetomada();
+  limpaRascunho(); // "Nova Operação"/sair: o rascunho anterior não pode reaparecer (fix 13/11)
   S = { tipo: null, carrinho: null, turno: '', mecanico: u ? u.email : null, ferramentas: {}, fotos: { sup:null, inf:null, elv:null }, assinatura: null, cartLocked: false, cartChecking: false, openNCs: [] };
   _clIdx = 0;
   sigHasData = false;
@@ -2828,6 +3400,8 @@ function decodeQRConfigFallback(file, st) {
   fetchManualQrFlag(); // libera o input de QR manual SO se gestor central tiver autorizado
   updateBar();
   updateNextBtn();
+  atualizaPendentesUI();
+  setTimeout(outboxFlush, 8000); // registros que ficaram no celular (rede/aba caiu) — fix 13/11
 })();
 </script>
 <!-- iframe oculto para receber o submit do form sem navegar a página -->
