@@ -35,7 +35,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     // Versão do app — subir a cada deploy (antes era o CACHE do SW de blob, que nunca funcionou)
-    const APP_VERSAO = 'vammo-cart-v15';
+    const APP_VERSAO = 'vammo-cart-v16';
     // Service Worker de verdade (sw.js ao lado do HTML). O antigo era registrado por URL blob: — o
     // Chrome recusa, então nunca existiu cache offline e uma recarga sem sinal não abria o app.
     // sw.js: rede primeiro para esta página (cache só sem rede) + jsQR da CDN em cache. (fix 13/11)
@@ -1785,7 +1785,8 @@ function checkCartLock(cartName) {
   gasGet(cfg.webhookUrl, 'action=cartstatus&cart=' + encodeURIComponent(cartName) + '&_=' + Date.now(), (data, err) => {
     if (S.carrinho !== cartName || S.tipo !== 'checkin') return; // resposta atrasada de outro carrinho/operação (fix 13/11)
     S.cartChecking = false;
-    if (err || !data) {
+    // Exceção no servidor vinha como {status:'free', error} = "livre" falso; agora é 'error'. (fix 13/11)
+    if (err || !data || data.error || (data.status !== 'free' && data.status !== 'occupied')) {
       statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.1);font-size:12px;color:var(--yw);text-align:center;';
       statusBox.textContent = '⚠️ Não consegui verificar status do carrinho (offline?) — siga com cuidado';
       updateNextBtn();
@@ -1836,7 +1837,7 @@ function checkCartCheckout(cartName) {
     S.cartChecking = false;
     const u = getStoredUser();
     const me = u ? String(u.email || '').toLowerCase() : '';
-    if (err || !data || !data.status) {
+    if (err || !data || data.error || (data.status !== 'free' && data.status !== 'occupied')) {
       statusBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--yw);background:rgba(245,158,11,.1);font-size:12px;color:var(--yw);text-align:center;';
       statusBox.textContent = '⚠️ Não consegui conferir no servidor (internet?) — confira se o carrinho é mesmo o seu antes de seguir.';
       updateNextBtn();
@@ -2628,7 +2629,7 @@ async function retomaRascunho(r) {
 function reconfereRetomada(cart, tipo) {
   const url = getConfig().webhookUrl; if (!url) return;
   gasGet(url, 'action=cartstatus&cart=' + encodeURIComponent(cart) + '&_=' + Date.now(), (d) => {
-    if (!d || !d.status || S.carrinho !== cart || S.tipo !== tipo) return;
+    if (!d || d.error || (d.status !== 'free' && d.status !== 'occupied') || S.carrinho !== cart || S.tipo !== tipo) return;
     const me = String((getStoredUser() || {}).email || '').toLowerCase();
     const mec = String(d.mecanico || '').toLowerCase();
     const mudou = tipo === 'checkin' ? d.status === 'occupied'

@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v29';
+      const CACHE = 'vammo-gestor-v30';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -4357,7 +4357,8 @@ function confirmForceCheckout() {
     // Se ainda vier "occupied", o checkout não persistiu; avisa em vez de dar falso "liberado". (fix)
     setTimeout(() => {
       gasGet(cfg.webhookUrl, 'action=cartstatus&cart=' + encodeURIComponent(cartName), (d, e) => {
-        if (e) { showAlert('cart-alert-box', 'yw', `⚠️ ${cartName}: não deu pra confirmar no servidor (${e}). Puxe o sync e confira.`); return; }
+        // d.error / status fora de free|occupied = o servidor não conseguiu ler (antes vinha "free" falso) — fix 13/11
+        if (e || !d || d.error || (d.status !== 'free' && d.status !== 'occupied')) { showAlert('cart-alert-box', 'yw', `⚠️ ${cartName}: não deu pra confirmar no servidor (${e || (d && d.error) || 'sem resposta'}). Puxe o sync e confira.`); return; }
         if (d && d.status === 'occupied') {
           showAlert('cart-alert-box', 'rd', `❌ ${cartName} AINDA consta ocupado no servidor — o checkout não gravou. Tente de novo.`);
         } else {
