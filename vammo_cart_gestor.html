@@ -1305,7 +1305,7 @@
     document.getElementById('pwa-manifest').href = URL.createObjectURL(_blob);
 
     const _swCode = `
-      const CACHE = 'vammo-gestor-v30';
+      const CACHE = 'vammo-gestor-v31';
       self.addEventListener('install', e => {
         e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
         self.skipWaiting();
@@ -4213,6 +4213,8 @@ function renderCarrinhos() {
 function openCartDetail(nome, recId) {
   // Se houver registro, abre o modal de detalhe existente; senão mostra resumo simples
   if (recId) { openDetail(recId); return; }
+  _currentDetailRecId = null;
+  _currentDetailCart = nome;
   const recs = getRecords();
   const st = computeCartState(nome, recs);
   const nomeEsc = String(nome || '').replace(/'/g,'');
@@ -4223,9 +4225,29 @@ function openCartDetail(nome, recId) {
   let html = `<h3 style="font-family:'Barlow Condensed',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">Carrinho ${nome}</h3>
     <div style="color:var(--gr);font-size:13px;margin-bottom:12px;">Base ${getCartBase(nome)} · ${ultTxt}</div>
     <button class="btn-sm btn-az" style="margin-bottom:12px;" onclick="openCartQR('${nomeEsc}')" title="Abrir QR Code deste carrinho (backup do físico)">📱 Ver QR Code</button>`;
+  // NCs com botão de resolver. Antes era uma lista <li> sem ação: carrinho parado há mais tempo do
+  // que o histórico local guarda (~3 semanas) caía aqui — o registro do servidor não tem id, então
+  // openDetail não abre — e o supervisor via as NCs sem conseguir resolver nenhuma. Caso real: OC 25
+  // (Osasco), 19 NCs abertas, último uso 07/10, relatado em 17/11. Repor/Resolver Todas só precisam
+  // de carrinho + ferramenta (reporNC no GAS), não do registro. (fix 17/11)
   if (st.ncAbertas.length) {
-    html += `<div style="margin-top:12px;"><strong>NCs em aberto:</strong><ul>` +
-      st.ncAbertas.map(nc => `<li>${nc.ferramenta} — ${nc.motivo}</li>`).join('') + `</ul></div>`;
+    const n = st.ncAbertas.length;
+    html += `<div class="detail-section">
+      <h4 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span>Não Conformidades (${n})</span>
+        ${n >= 2 ? `<button class="btn-sm btn-az" style="margin-left:auto;padding:6px 12px;font-size:11px;font-weight:800;" onclick="abrirResolverTodosModal('${nomeEsc}')">↻ Resolver Todas (${n})</button>` : ''}
+      </h4>
+      ${st.ncAbertas.map(nc => {
+        const ferrEsc = JSON.stringify(nc.ferramenta).replace(/"/g,'&quot;');
+        const motivoEsc = (nc.motivo || 'nc').replace(/'/g,'');
+        const quando = nc.ts ? new Date(nc.ts).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) : '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;flex-wrap:wrap;">
+          <span class="badge ${nc.motivo === 'faltando' ? 'byw' : 'brd'}">${nc.motivo === 'faltando' ? 'Faltando' : 'Quebrado'}</span>
+          <span style="flex:1;min-width:120px;">${nc.ferramenta}${quando ? ` <span style="color:var(--gr);font-size:10px;">· desde ${quando}</span>` : ''}</span>
+          <button class="btn-repor" style="padding:6px 14px;font-size:11.5px;font-weight:800;" onclick="reporFerramenta('', ${ferrEsc}, '${nomeEsc}', '${motivoEsc}')">↻ Resolver</button>
+        </div>`;
+      }).join('')}
+    </div>`;
   }
   const body = document.getElementById('detail-body');
   if (body) {
@@ -7487,14 +7509,16 @@ function renderMiniHistoricoGestor(carrinho, max) {
 
 // ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
 let _currentDetailRecId = null;
+let _currentDetailCart = null; // resumo do carrinho sem registro local (openCartDetail)
 function refreshDetailIfOpen() {
   // Re-renderiza o detail se estiver aberto (após resolver NC, transferência, etc)
-  if (!document.getElementById('modal-detail')?.classList.contains('hidden') && _currentDetailRecId) {
-    openDetail(_currentDetailRecId);
-  }
+  if (document.getElementById('modal-detail')?.classList.contains('hidden')) return;
+  if (_currentDetailRecId) openDetail(_currentDetailRecId);
+  else if (_currentDetailCart) openCartDetail(_currentDetailCart, '');
 }
 function openDetail(id) {
   _currentDetailRecId = id;
+  _currentDetailCart = null;
   const recs = getRecords();
   const rec = recs.find(r => r.id === id);
   if (!rec) return;
@@ -7617,6 +7641,7 @@ function openDetail(id) {
 function closeDetail() {
   document.getElementById('modal-detail').classList.add('hidden');
   _currentDetailRecId = null;
+  _currentDetailCart = null;
 }
 
 // ─── QR Code do carrinho (backup do QR físico danificado) ─────────────────────
